@@ -1,18 +1,10 @@
-/**
- * Phase 3 jobs against the test-kit edge-next model (owner 2026-11-02; SAFETY §4.4a, H70-H78; T-S108-T-S114).
- * The session, the link and the model share one virtual clock.
- */
 import { PHASE_2_RELEASE, w42 } from '@synthetos/safety';
-import type { TinyGEdgeNextModel } from '@synthetos/testkit';
 import { describe, expect, it } from 'vitest';
 import { JOB_LIMITS, feedAccountingSafe, jobInFlight } from '../src/index.ts';
-import { confirmFor, JOBS_RELEASE_NO_FI, jobHarness, jobLines, load, runUntil, start, writes, zigzag } from './jobHarness.ts';
-
-const SMALL = ['G21 G90', 'G0 X1 Y1', 'G1 X5 F600', 'G1 Y5', 'G1 X1', 'G1 Y1', 'G0 X0 Y0', 'M30'].join('\n');
-
-const model = (h: { readonly device: unknown }): TinyGEdgeNextModel => h.device as TinyGEdgeNextModel;
-
+import { JOBS_RELEASE_NO_FI, confirmFor, jobHarness, jobLines, load, runUntil, start, writes, zigzag } from './jobHarness.ts';
+import { SMALL, TC, model } from './jobLayerHarness.ts';
 describe('T-S108: loading a job sanitises it in the worker with the live board', () => {
+
   it('reads the board, sanitises, and summarises without sending a single job line', async () => {
     const h = await jobHarness();
     expect(h.session.snapshot.base).toBe('IDLE_UNHOMED');
@@ -29,6 +21,7 @@ describe('T-S108: loading a job sanitises it in the worker with the live board',
     expect(sent).toContain('{"ofs":null}');
   });
 
+
   it('a file that does not pass is blocked with its findings, and cannot start', async () => {
     const h = await jobHarness();
     await load(h, 'G21\nG38.2 Z-5 F100\nM30');
@@ -37,6 +30,7 @@ describe('T-S108: loading a job sanitises it in the worker with the live board',
     expect(job?.report?.blocks[0]?.line).toBe(2);
     expect(h.session.startJob([], confirmFor(h))).toMatchObject({ allowed: false, reason: 'The check found something that stops this file.' });
   });
+
 
   it('M6 is a manual tool-change stop on edge-next (INFO), not a block', async () => {
     const h = await jobHarness();
@@ -48,6 +42,7 @@ describe('T-S108: loading a job sanitises it in the worker with the live board',
     expect(job?.report?.startsSpindle).toBe(true);
     expect(job?.report?.speeds).toEqual([10000]);
   });
+
 
   it('jobs need the jobs release, an approved board and an idle machine; unloading clears it', async () => {
     const p2 = await jobHarness({ session: { release: PHASE_2_RELEASE } });
@@ -65,8 +60,8 @@ describe('T-S108: loading a job sanitises it in the worker with the live board',
     expect(h.session.snapshot.job).toBeNull();
   });
 });
-
 describe('T-S109: streaming by the line buffer free slots (H76)', () => {
+
   it('streams a job to the end in line mode, setting rxm and putting it back (H77)', async () => {
     const h = await jobHarness({ rxm: 0 });
     const before = await start(h, SMALL);
@@ -84,6 +79,7 @@ describe('T-S109: streaming by the line buffer free slots (H76)', () => {
     expect(s.rxm.changed).toEqual({ kind: 'restore', from: 1, to: 0 });
   });
 
+
   it('on a board already in line mode nothing is written to rxm, before or after', async () => {
     const h = await jobHarness({ rxm: 1 });
     const before = await start(h, SMALL);
@@ -93,6 +89,7 @@ describe('T-S109: streaming by the line buffer free slots (H76)', () => {
     expect(w.filter((x) => x.startsWith('{"rxm":') && x !== '{"rxm":null}')).toEqual([]);
     expect(h.session.snapshot.rxm.restore).toBe(1);
   });
+
 
   // Under `pnpm check` every package's tests share the cores: this streaming replay needs more than vitest's 5 s.
   it('never has more job lines owed than the free slots less the reserve, and every line is answered', { timeout: 30_000 }, async () => {
@@ -115,6 +112,7 @@ describe('T-S109: streaming by the line buffer free slots (H76)', () => {
     expect(h.session.snapshot.fault).toBeNull();
   });
 
+
   it('progress maps through the sanitiser: the executing line and the sent band are file lines', async () => {
     const h = await jobHarness();
     const text = ['G21 G90', '(a comment)', '', 'G1 X10 F3000', 'G1 X0', 'G1 X10', 'G1 X0', 'G1 X10', 'M30'].join('\n');
@@ -129,6 +127,7 @@ describe('T-S109: streaming by the line buffer free slots (H76)', () => {
     expect(seen.has(4) || seen.has(5)).toBe(true);
     expect(h.session.snapshot.job?.sentThrough).toBe(9);
   });
+
 
   it('the final M30 is written only after every earlier line is answered (H35)', async () => {
     const h = await jobHarness();
@@ -155,8 +154,8 @@ describe('T-S109: streaming by the line buffer free slots (H76)', () => {
     expect(atM30).toBe(linesBeforeM30);
   });
 });
-
 describe('T-S110: Pause, Resume and Stop job (SAFETY §4.4a)', () => {
+
   it('Pause writes ! and the job holds; Resume writes ~ and streaming goes on to the end', async () => {
     const h = await jobHarness();
     const before = await start(h, zigzag(30));
@@ -175,6 +174,7 @@ describe('T-S110: Pause, Resume and Stop job (SAFETY §4.4a)', () => {
     expect(w.indexOf('~')).toBeGreaterThan(w.indexOf('!'));
     expect(jobLines(h, before)).toHaveLength(h.session.snapshot.job?.total as number);
   });
+
 
   it('Stop job: !, % once held, M5, M9; "Stopped at line N"; nothing more is sent; rxm put back', async () => {
     const h = await jobHarness({ rxm: 0 });
@@ -195,6 +195,7 @@ describe('T-S110: Pause, Resume and Stop job (SAFETY §4.4a)', () => {
     expect(w42({ line: 3 })).toBe('Stopped at line 3: queue cleared, spindle and coolant off');
   });
 
+
   it('Stop job after a Pause and a Resume still reaches stopped: late job answers do not swallow M5 (H76)', async () => {
     const h = await jobHarness();
     const before = await start(h, zigzag(40));
@@ -211,6 +212,7 @@ describe('T-S110: Pause, Resume and Stop job (SAFETY §4.4a)', () => {
     expect(h.session.snapshot.motion).toBeNull();
   });
 
+
   it('Spindle off during a running job ends it like Stop job', async () => {
     const h = await jobHarness();
     await start(h, zigzag(20));
@@ -219,6 +221,7 @@ describe('T-S110: Pause, Resume and Stop job (SAFETY §4.4a)', () => {
     await runUntil(h, () => h.session.snapshot.job?.phase === 'stopped');
     expect(h.session.snapshot.job?.phase).toBe('stopped');
   });
+
 
   it('Stop job while preparing (before the first line) sends nothing of the job', async () => {
     const h = await jobHarness({ rxm: 1 });
@@ -229,8 +232,8 @@ describe('T-S110: Pause, Resume and Stop job (SAFETY §4.4a)', () => {
     expect(h.session.snapshot.job?.phase).toBe('stopped');
   });
 });
-
 describe('T-S111: a refused line holds the job at that line (H70)', () => {
+
   it('holds, shows the status in plain words, and Skip line continues behind the confirm', async () => {
     const h = await jobHarness();
     model(h).injectRefusal(/^N6 /, 220, 1);
@@ -246,6 +249,7 @@ describe('T-S111: a refused line holds the job at that line (H70)', () => {
     expect(h.session.snapshot.job?.phase).toBe('done');
   });
 
+
   it('Stop job after a refused line ends the job with the flush sequence', async () => {
     const h = await jobHarness();
     model(h).injectRefusal(/^N5 /, 132, 1);
@@ -256,9 +260,8 @@ describe('T-S111: a refused line holds the job at that line (H70)', () => {
     expect(h.session.snapshot.job?.phase).toBe('stopped');
   });
 });
-
 describe('T-S112: manual tool change (H74)', () => {
-  const TC = ['G21 G90', 'M3 S12000', 'G1 X5 F600', 'G1 X0', 'T2 M6', 'G1 X3 F600', 'G1 X0', 'M5', 'M30'].join('\n');
+
 
   it('stops before M6, drains, turns the spindle and coolant off, and resumes with the M6 line itself', async () => {
     const h = await jobHarness();
@@ -289,6 +292,7 @@ describe('T-S112: manual tool change (H74)', () => {
     expect(h.session.snapshot.job?.phase).toBe('done');
   });
 
+
   it('a jog during a tool change restores the job distance mode, not G90 (G91 file)', async () => {
     const h = await jobHarness();
     await start(h, ['G21 G91', 'G1 X2 F600', 'T1 M6', 'G1 X2', 'M30'].join('\n'));
@@ -299,6 +303,7 @@ describe('T-S112: manual tool change (H74)', () => {
     expect(writes(h).slice(at)).toContain('G91');
   });
 
+
   it('only Resume and Stop job are offered at a breakpoint; motion intents are refused while a job runs', async () => {
     const h = await jobHarness();
     await start(h, zigzag(10), [6]);
@@ -308,8 +313,8 @@ describe('T-S112: manual tool change (H74)', () => {
     expect(h.session.request({ intent: 'jog', axes: { x: 1 }, distanceMm: 1, feed: 600 })).toMatchObject({ allowed: false, reason: 'Only Resume and Stop job are offered at this stop.' });
   });
 });
-
 describe('T-S113: breakpoints and program stops (H75, H36)', () => {
+
   it('stops before a breakpoint line with the queue drained, and Resume goes on from it', async () => {
     const h = await jobHarness();
     const before = await start(h, zigzag(12), [8]);
@@ -324,6 +329,7 @@ describe('T-S113: breakpoints and program stops (H75, H36)', () => {
     expect(jobLines(h, before).filter((l) => l.startsWith('N8 '))).toHaveLength(1);
   });
 
+
   it('a breakpoint set on a line already queued is reported as one that cannot be honoured (W41)', async () => {
     const h = await jobHarness();
     await start(h, zigzag(30));
@@ -333,6 +339,7 @@ describe('T-S113: breakpoints and program stops (H75, H36)', () => {
     expect(h.session.snapshot.job?.events.at(-1)?.text).toBe(`Line ${queued} is already queued on the controller, so a breakpoint there cannot stop the job.`);
     expect(h.session.setBreakpoints([0])).toMatchObject({ allowed: false });
   });
+
 
   it('an M0 is a host barrier: nothing after it is sent until the machine has drained (H36)', async () => {
     const h = await jobHarness();
@@ -344,8 +351,8 @@ describe('T-S113: breakpoints and program stops (H75, H36)', () => {
     expect(h.session.snapshot.job?.phase).toBe('done');
   });
 });
-
 describe('T-S114: a reset, a lost link or an alarm during a job (H71, H72)', () => {
+
   it('a reset mid-job is a FAULT with W40; nothing more is written to the board', async () => {
     const h = await jobHarness();
     await start(h, zigzag(30));
@@ -362,6 +369,7 @@ describe('T-S114: a reset, a lost link or an alarm during a job (H71, H72)', () 
     expect(writes(h).slice(at).some((w) => w.startsWith('N'))).toBe(false);
   });
 
+
   it('a lost link ends the job (LOST)', async () => {
     const h = await jobHarness();
     await start(h, zigzag(30));
@@ -372,6 +380,7 @@ describe('T-S114: a reset, a lost link or an alarm during a job (H71, H72)', () 
     expect(h.session.snapshot.job?.phase).toBe('failed');
     expect(h.session.snapshot.job?.message).toMatch(/^The connection was lost at line/);
   });
+
 
   it('an alarm (a limit switch) ends the job and the session is in ALARM', async () => {
     const h = await jobHarness();
@@ -387,8 +396,8 @@ describe('T-S114: a reset, a lost link or an alarm during a job (H71, H72)', () 
     expect(h.session.snapshot.job?.stopping).toBe(false);
   });
 });
-
 describe('the job flag and the feed-limit window (capability seams)', () => {
+
   it('no job flag is ever sent without the capability (edge-next a7489b79 has none)', async () => {
     const h = await jobHarness();
     const before = await start(h, zigzag(8), [5]);
@@ -398,6 +407,7 @@ describe('the job flag and the feed-limit window (capability seams)', () => {
     expect(writes(h).slice(before).some((w) => w.includes('"job"'))).toBe(false);
     expect(h.session.snapshot.job?.jobFlag).toBeNull();
   });
+
 
   it('with the capability: job 1 at start, 0 before a breakpoint, 1 on resume, 0 after the last line', async () => {
     const h = await jobHarness({ device: { start: 'ready', rxm: 0, jobFlag: true } });
@@ -413,6 +423,7 @@ describe('the job flag and the feed-limit window (capability seams)', () => {
     expect(model(h).jobFlag).toBe(0);
   });
 
+
   it('with fi: the window opens at the start, summaries reach the job, and it closes at the end', async () => {
     const h = await jobHarness({ device: { start: 'ready', rxm: 0, feedLimit: true } });
     const before = await start(h, zigzag(12));
@@ -424,6 +435,7 @@ describe('the job flag and the feed-limit window (capability seams)', () => {
     expect(h.session.snapshot.job?.feedLimit?.last).toMatchObject({ e: expect.any(Number), q: expect.any(Number) });
   });
 
+
   it('a board with fi gets no fi line unless the release turns feed accounting on (firmware bug N66)', async () => {
     const h = await jobHarness({ device: { start: 'ready', rxm: 0, feedLimit: true }, session: { release: JOBS_RELEASE_NO_FI } });
     const before = await start(h, zigzag(12));
@@ -432,6 +444,7 @@ describe('the job flag and the feed-limit window (capability seams)', () => {
     expect(writes(h).slice(before).filter((w) => w.includes('"fi"'))).toEqual([]);
     expect(h.session.snapshot.job?.feedLimit ?? null).toBeNull();
   });
+
 
   it('fb 450.02 and later have the N66 fix: fi is sent without the release flag', async () => {
     const approved = { environment: 'staging' as const, builds: [{ channel: 'bench' as const, dialect: 'tinyg-en' as const, fb: 450.02, fbs: null, commit: 'f'.repeat(40), note: 'test' }] };
@@ -443,8 +456,8 @@ describe('the job flag and the feed-limit window (capability seams)', () => {
     expect(writes(h).slice(before)).toContain(`{"rt":{"fi":${JOB_LIMITS.feedLimitS}}}`);
   });
 });
-
 describe('the line mode at connect (H77)', () => {
+
   it('a board left in line mode is put back only where this browser has a pending record; with none it is left as found', async () => {
     for (const [remembered, expected] of [
       [0, '{"rxm":0}'],
@@ -467,6 +480,7 @@ describe('the line mode at connect (H77)', () => {
     }
   });
 
+
   it('a pending record on a board already in character mode is cleared without a write', async () => {
     const h = await jobHarness({ rxm: 0 });
     const before = writes(h).length;
@@ -475,6 +489,7 @@ describe('the line mode at connect (H77)', () => {
     expect(writes(h).slice(before).some((w) => w.startsWith('{"rxm":'))).toBe(false);
     expect(h.session.snapshot.rxm).toMatchObject({ pending: false, restore: 0 });
   });
+
 
   it('the job marks the change pending from its write until the end-of-job restore reads back', async () => {
     const h = await jobHarness({ rxm: 0 });
@@ -485,6 +500,7 @@ describe('the line mode at connect (H77)', () => {
     await runUntil(h, () => h.session.snapshot.job?.phase === 'done' && h.session.snapshot.footerRev === 2 && !h.session.snapshot.rxm.busy);
     expect(h.session.snapshot.rxm).toMatchObject({ pending: false, restore: 0 });
   });
+
 
   it('without the page memory, or without the jobs release, nothing is written', async () => {
     const h = await jobHarness({ rxm: 1 });
@@ -498,6 +514,7 @@ describe('the line mode at connect (H77)', () => {
     expect(writes(p2).slice(b2).some((w) => w.startsWith('{"rxm":'))).toBe(false);
   });
 });
+
 
 it('step 3 probes fg, opts in with fi, pairs summaries, and clears the opt-in at completion', async () => {
   const h = await jobHarness({ device: { start: 'ready', rxm: 0, feedLimit: true, feedLimitStep3: true } });

@@ -1,102 +1,49 @@
-/**
- * Phase 3 job layer, unit by unit (SAFETY §4.4a): the live start state and motion model the sanitiser gets, the
- * plain words of a refused line, the line-mode decisions (H77), and the guards of every job decision, driven on
- * a copy of a real connected session's state through a recording transition.
- */
 import { TINYG_EN } from '@synthetos/protocol';
 import { describe, expect, it } from 'vitest';
 import {
-  JOB_LIMITS,
-  feedLimitLine,
-  jobFlagLine,
-  liveMotion,
-  liveStart,
-  rxmLine,
-  rxmTarget,
-  slotRoom,
-  statusMeaning,
-  textHash,
-  type JobState,
-  type SessionEffect,
-  type SessionState,
+    JOB_LIMITS,
+    feedLimitLine,
+    jobFlagLine,
+    liveMotion,
+    liveStart,
+    rxmLine,
+    rxmTarget,
+    slotRoom,
+    statusMeaning,
+    textHash,
+    type JobState,
+    type SessionState
 } from '../src/index.ts';
 import {
-  abandonLoad,
-  feedLimitWindow,
-  maybeRestoreLineMode,
-  onFeedLimit,
-  onJobAnswer,
-  onJobBreakpoints,
-  onJobFault,
-  onJobLinkLost,
-  onJobMotionAnswer,
-  onJobPause,
-  onJobPoll,
-  onJobPrepAnswer,
-  onJobReset,
-  onJobResume,
-  onJobRuntimeAnswer,
-  onJobStop,
-  onJobTimer,
-  onLineModeAnswer,
-  onLineModeMemory,
-  onLoadJob,
-  onStartJob,
-  pumpJob,
-  queuedLine,
-  type JobLayerTx,
+    abandonLoad,
+    feedLimitWindow,
+    maybeRestoreLineMode,
+    onFeedLimit,
+    onJobAnswer,
+    onJobBreakpoints,
+    onJobFault,
+    onJobLinkLost,
+    onJobMotionAnswer,
+    onJobPause,
+    onJobPoll,
+    onJobPrepAnswer,
+    onJobReset,
+    onJobResume,
+    onJobRuntimeAnswer,
+    onJobStop,
+    onJobTimer,
+    onLineModeAnswer,
+    onLineModeMemory,
+    onLoadJob,
+    onStartJob,
+    pumpJob,
+    queuedLine
 } from '../src/session/job.ts';
 import { failJob, jobStopped, lastFileLine } from '../src/session/jobState.ts';
-import { DEFAULT_TIMINGS } from '../src/session/types.ts';
-import { CONFIRM, EN_APPROVED, JOBS_RELEASE, jobHarness, load, runUntil, start } from './jobHarness.ts';
-
-const value = (v: unknown, status = 0) => ({ value: v as never, status, at: 0 });
-
-/** The refusal's reason, or null when allowed. */
-const why = (d: { readonly allowed: boolean; readonly reason?: string }): string | null => (d.allowed ? null : (d.reason as string));
-
-interface Recorder {
-  readonly t: JobLayerTx;
-  readonly fx: SessionEffect[];
-  readonly faults: string[];
-}
-
-function tx(s: SessionState, release = JOBS_RELEASE): Recorder {
-  const fx: SessionEffect[] = [];
-  const faults: string[] = [];
-  const t: JobLayerTx = {
-    s,
-    config: { release, manifest: EN_APPROVED, timings: DEFAULT_TIMINGS },
-    set(patch) {
-      t.s = { ...t.s, ...patch };
-    },
-    emit(e) {
-      fx.push(e);
-    },
-    arm(id, ms) {
-      fx.push({ kind: 'armTimer', id, seq: 0, ms });
-    },
-    cancel(id) {
-      fx.push({ kind: 'cancelTimer', id });
-    },
-  };
-  return { t, fx, faults };
-}
-
-const deps = (r: Recorder) => ({ fault: (_t: JobLayerTx, cause: string) => void r.faults.push(cause) });
-
-/** A connected jobs session with SMALL loaded and checked: its state is the base of every unit here. */
-async function ready(text = 'G21 G90\nG1 X5 F600\nG1 X0\nM30'): Promise<SessionState> {
-  const h = await jobHarness();
-  await load(h, text);
-  return h.session.state;
-}
-
-function withJob(s: SessionState, patch: Partial<JobState>): SessionState {
-  return { ...s, job: { ...(s.job as JobState), ...patch } };
-}
-
+import { CONFIRM, JOBS_RELEASE, jobHarness, load, runUntil, start } from './jobHarness.ts';
+import { deps, ready, tx, value, why, withJob } from './jobLayerHarness.ts';
 describe('the live start state and motion model for the sanitiser', () => {
+
   it('maps every read it has and leaves the rest unknown', async () => {
     const base = await ready();
     const s: SessionState = {
@@ -143,6 +90,7 @@ describe('the live start state and motion model for the sanitiser', () => {
     expect(unitless.toolOffset).toBeUndefined();
   });
 
+
   it('a board an inch job left in G20 prints its offsets in inches: the next check takes them back to mm (EN json_parser.c:828)', async () => {
     const h = await jobHarness();
     // The job sets G54 in mm, then works in inches; its M30 keeps G20 (the edge-next program end leaves the units).
@@ -164,6 +112,7 @@ describe('the live start state and motion model for the sanitiser', () => {
     expect(mm(st.toolOffset)).toEqual({ X: 0, Y: 0, Z: 0 });
   });
 
+
   it('takes vm, fr, am and ra per axis, skipping what is missing or not valid', async () => {
     const base = await ready();
     const m = liveMotion({ ...base, values: { x: value({ vm: 900, fr: 0, am: 1 }), y: value({ am: 7 }), a: value({ am: 3, ra: 0 }), b: value({ am: 3, ra: 2 }) } });
@@ -173,8 +122,8 @@ describe('the live start state and motion model for the sanitiser', () => {
     expect(m.rotary).toEqual({ A: { mode: 3 }, B: { mode: 3, radiusMm: 2 } });
   });
 });
-
 describe('plain words and lines', () => {
+
   it('names each refusal class (W38), and says "an error" for an unknown code', () => {
     expect(statusMeaning(TINYG_EN, 221)).toBe('outside the soft limits');
     expect(statusMeaning(TINYG_EN, 132)).toBe('an M code this firmware does not support');
@@ -186,6 +135,7 @@ describe('plain words and lines', () => {
     expect(statusMeaning(TINYG_EN, 9999)).toBe('an error');
   });
 
+
   it('the exact lines and the text hash', () => {
     expect(rxmLine(1)).toBe('{"rxm":1}');
     expect(jobFlagLine(0)).toBe('{"rt":{"job":0}}');
@@ -194,8 +144,8 @@ describe('plain words and lines', () => {
     expect(textHash('a')).not.toBe(textHash('b'));
   });
 });
-
 describe('line mode (H77)', () => {
+
   it('the target outside a job: only a value Run changed and has not put back (pending), else nothing', async () => {
     const s = await ready();
     const rxm = (restore: number | null, pending: boolean): SessionState => ({ ...s, rxm: { ...s.rxm, restore, pending, memoryKnown: true } });
@@ -214,6 +164,7 @@ describe('line mode (H77)', () => {
     onLineModeMemory(known.t, 0);
     expect(known.t.s.rxm).toMatchObject({ restore: 1, pending: false, memoryKnown: true });
   });
+
 
   it('nothing is put back unless the board is quiet, idle, in line mode and the target is 0', async () => {
     const s0 = await ready();
@@ -251,6 +202,7 @@ describe('line mode (H77)', () => {
     expect(yes.t.s.rxm.footerExpect).toBe(2);
   });
 
+
   it('with no pending record a board in line mode is logged once and left as found; a record on a board in character mode is cleared', async () => {
     const s0 = await ready();
     const found = tx({ ...s0, footerRev: 3, rxm: { ...s0.rxm, memoryKnown: true } });
@@ -271,6 +223,7 @@ describe('line mode (H77)', () => {
     maybeRestoreLineMode(nothing.t, true);
     expect(nothing.t.s.rxm).toEqual(s0.rxm);
   });
+
 
   it('a refused write, a failed read and a read-back that differs end the step; a job that was preparing fails', async () => {
     const s = withJob({ ...(await ready()), base: 'PREAMBLE' }, { phase: 'preparing' });
@@ -302,8 +255,8 @@ describe('line mode (H77)', () => {
     expect(pending.t.s.rxm).toMatchObject({ restore: 0, pending: true, current: 1 });
   });
 });
-
 describe('the guards of the job decisions', () => {
+
   it('load and start refuse what they must', async () => {
     const s = await ready();
     expect(why(onLoadJob(tx(withJob(s, { phase: 'running' })).t, { intent: 'loadJob', job: null }, 0))).toBe('A job is running.');
@@ -323,6 +276,7 @@ describe('the guards of the job decisions', () => {
     expect(why(start(spin, { ...CONFIRM, spindle: false }))).toBe('This job starts the spindle.');
     expect(onStartJob(tx(s, { ...JOBS_RELEASE, jobs: false }).t, { intent: 'startJob', breakpoints: [], confirm: CONFIRM }, 0).allowed).toBe(false);
   });
+
 
   it('breakpoints, pause, resume and stop refuse what they must', async () => {
     const s = await ready();
@@ -350,6 +304,7 @@ describe('the guards of the job decisions', () => {
     expect(preparingWrite.t.s.job?.phase).toBe('stopped');
   });
 
+
   it('resume after a tool change: the position must be known, the speed must be known, the way back in range', async () => {
     const s = await ready();
     const tcState = (at: object, live: object, tc: object = {}) =>
@@ -366,6 +321,7 @@ describe('the guards of the job decisions', () => {
     expect(ok.t.s.job?.phase).toBe('toolChange');
     expect(onJobMotionAnswer(tx(s).t, 'M5', 0, 1)).toBe(false);
   });
+
 
   it('polls: a pause at rest, a pause with no answer, a resume step at rest', async () => {
     const s = await ready();
@@ -413,6 +369,7 @@ describe('the guards of the job decisions', () => {
     expect(spindle.t.s.job?.message).toBe('Job finished: 4 lines, spindle ON, coolant off (commanded).');
   });
 
+
   it('the timer: the liveness grace period, the STALE limit, and quiet stops', async () => {
     const s = await ready();
     const grace = tx(withJob(s, { phase: 'failed', faultStopAt: 100 }));
@@ -431,6 +388,7 @@ describe('the guards of the job decisions', () => {
     onJobTimer(tx({ ...s, job: null }).t, { fault: () => undefined }, 0);
   });
 
+
   it('faults, resets and a lost link end only an active job; a liveness fault waits out the grace period', async () => {
     const s = await ready();
     const idle = tx(s);
@@ -445,6 +403,7 @@ describe('the guards of the job decisions', () => {
     onJobFault(noLink.t, 'integrity', 'gone', 0, false);
     expect(noLink.t.s.job?.stopping).toBe(false);
   });
+
 
   it('runtime answers, feed-limit lines, abandoned loads and slot room', async () => {
     const s = await ready();
@@ -489,6 +448,7 @@ describe('the guards of the job decisions', () => {
     pumpJob(tx(withJob({ ...s, base: 'RUNNING', footerRev: 3 }, { phase: 'running', free: 10 })).t, false);
   });
 
+
   it('job state helpers: the last file line, a stop of an idle job, a failed job that was being stopped', async () => {
     const s = await ready();
     const j = s.job as JobState;
@@ -505,8 +465,8 @@ describe('the guards of the job decisions', () => {
     expect(failed.t.s.job?.endedAt).toBe(5);
   });
 });
-
 describe('more of the job layer, through its edges', () => {
+
   it('prep answers that are damaged or empty, scalars read as null, a spindle line without S', async () => {
     const s = await ready();
     const loading = withJob({ ...s, queue: [{ token: 'unit', purpose: 'jobPrep' }] }, { phase: 'loading', source: { text: 'G21\nM3\nG1 X1 F600\nM5\nM30', c22: false } });
@@ -520,6 +480,7 @@ describe('more of the job layer, through its edges', () => {
     expect(liveStart({ ...s, values: { unit: value(null) } }).units).toBeUndefined();
   });
 
+
   it('the check summary counts blocks and tool changes in plain words', async () => {
     const blocked = await ready('G21\nG38.2 Z-1 F10\nG38.3 Z-1 F10\nM30');
     expect(blocked.job?.events.at(-1)?.text).toMatch(/^Checked with this board.s values: \d+ findings stop this file\.$/);
@@ -527,6 +488,7 @@ describe('more of the job layer, through its edges', () => {
     expect(two.job?.events.at(-1)?.text).toMatch(/, 2 tool changes\.$/);
     expect((await ready('G21\n$H\nM30')).job?.events.at(-1)?.text).toBe("Checked with this board's values: 1 finding stops this file.");
   });
+
 
   it('every busy condition refuses a start; breakpoints are sorted and kept for a job that is not running', async () => {
     const s = await ready();
@@ -543,6 +505,7 @@ describe('more of the job layer, through its edges', () => {
     expect(r.t.s.job?.events.at(-1)?.text).not.toMatch(/already queued/);
   });
 
+
   it('line mode: a read of 0 after the job was stopped writes nothing; a read-back with no value; an unknown footer', async () => {
     const s = withJob({ ...(await ready()), base: 'PREAMBLE' }, { phase: 'preparing', stopping: true });
     const answer = (r: Record<string, unknown>) => ({ kind: 'Response', line: '', r, footer: { rev: 2, status: 0, field3: 10, raw: [] } }) as never;
@@ -558,6 +521,7 @@ describe('more of the job layer, through its edges', () => {
     expect(unknown.t.s.job?.message).toMatch(/revision unknown, not 3/);
   });
 
+
   it('streaming guards: a line being written or a motion line waiting holds the job lines back', async () => {
     const s = withJob({ ...(await ready()), base: 'RUNNING', footerRev: 3 }, { phase: 'running', free: 12 });
     for (const b of [{ ...s, writing: { token: 'stat', purpose: 'poll' as const, seq: 1 } }, { ...s, queue: [{ token: 'gc', purpose: 'motion' as const, line: 'M5' }] }]) {
@@ -569,6 +533,7 @@ describe('more of the job layer, through its edges', () => {
     pumpJob(r.t, true);
     expect(r.fx.filter((e) => e.kind === 'writeLine').length).toBeGreaterThan(0);
   });
+
 
   it('a second refused line is recorded only; a refusal while pausing, paused or stopping does not pause again', async () => {
     const s = withJob(await ready(), { phase: 'running', next: 3 });
@@ -590,6 +555,7 @@ describe('more of the job layer, through its edges', () => {
     expect(ended.t.s.job?.refused).toBeNull();
   });
 
+
   it('resume: a control line still owed waits; no hold means no ~; a tool change with nothing to put back goes on at once', async () => {
     const s = await ready();
     expect(why(onJobResume(tx({ ...withJob(s, { phase: 'paused' }), expected: [{ token: 'stat', purpose: 'poll', late: false }] }).t, { intent: 'resume' }, 0))).toBe('The controller is still answering.');
@@ -606,6 +572,7 @@ describe('more of the job layer, through its edges', () => {
     const ccw = tx(withJob({ ...s, live: { ...s.live, mpo: {} } }, { phase: 'toolChange', toolChange: { index: 1, tool: 1, spindle: 'ccw', speed: 500, mist: false, flood: false, restartsSpindle: false, at: {}, units: 1, dist: 0 } }));
     expect(why(onJobResume(ccw.t, { intent: 'resume' }, 0))).toMatch(/Run starts it \(M4 S500\)/);
   });
+
 
   it('polls at a barrier with no state, with motion lines still owed; a stop with no tool and a breakpoint with the spindle on', async () => {
     const s = await ready();
@@ -630,6 +597,7 @@ describe('more of the job layer, through its edges', () => {
     onJobPoll(bp.t, 0);
     expect(bp.t.s.job?.message).toBe('Stopped at breakpoint · line 2 · spindle still on');
   });
+
 
   it('the STALE limit applies only while lines go out; a paused job is left to its own pause', async () => {
     const s = await ready();
