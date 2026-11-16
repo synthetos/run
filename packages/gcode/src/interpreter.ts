@@ -18,37 +18,47 @@
  * semantics.
  */
 import type { Dialect, DialectJobGcode, GcodeRule } from '@synthetos/protocol';
+
 import {
-  blockFindingText,
-  AXES,
-  PLANES,
-  WCS_CODES,
-  modelArc,
-  type ArcModel,
-  type Axis,
-  type Plane,
-  type SanitizeResult,
-  type SentLine,
-  type Wcs,
+    AXES,
+    PLANES,
+    WCS_CODES,
+    blockFindingText,
+    modelArc,
+    type Axis,
+    type Plane,
+    type SanitizeResult,
+    type SentLine,
+    type Wcs
 } from '@synthetos/safety';
+
 import { DEFAULT_CHORD_MM, arcBox, arcSegments, tessellateArc } from './arcs.ts';
+
 import { EventRecorder, emptyTape } from './events.ts';
+
 import { FrameRecorder, emptyFrames } from './frames.ts';
+
 import { codeOf, parseLine } from './parser.ts';
+
+import { type Emitted, type Motion, type Piece, type Pos } from './interpreter/contract.ts';
 import { KIND, LINE_FLAG, type Box, type Finding, type InterpretOptions, type JobAnalysis, type TimingModel } from './types.ts';
+
+
 
 /** TOOLS_PLAN §6.2: total vertex cap before arcs are coarsened. */
 export const DEFAULT_VERTEX_CAP = 20_000_000;
 
+
 const ROTARY: ReadonlySet<Axis> = new Set<Axis>(['A', 'B', 'C']);
+
 /** The arc plane's index in the event tape (events.ts). */
 const PLANE_INDEX: Readonly<Record<Plane, number>> = { G17: 0, G18: 1, G19: 2 };
+
 const MM_PER_INCH = 25.4;
 
-type Pos = Record<Axis, number>;
-type Motion = 'G0' | 'G1' | 'G2' | 'G3' | 'G80';
 
 const zero = (): Pos => ({ X: 0, Y: 0, Z: 0, A: 0, B: 0, C: 0 });
+
 const fill = (v: Partial<Record<Axis, number>> | undefined): { pos: Pos; complete: boolean } => {
   const pos = zero();
   let complete = v !== undefined;
@@ -60,11 +70,268 @@ const fill = (v: Partial<Record<Axis, number>> | undefined): { pos: Pos; complet
   return { pos, complete };
 };
 
-/** One drawable piece of a line, collected before tessellation (so the vertex cap can coarsen arcs). */
-type Piece =
-  | { readonly kind: 'line'; readonly line: number; readonly to: Pos; readonly k: number }
-  | { readonly kind: 'arc'; readonly line: number; readonly from: Pos; readonly to: Pos; readonly arc: ArcModel; readonly plane: Plane; readonly k: number }
-  | { readonly kind: 'jump'; readonly line: number; readonly to: Pos; readonly k: number };
+
+/**
+ * Interprets the sanitised lines of a job for `dialect` and analyses them.
+ * `result` must come from `sanitizeJob` for the same dialect: a result for
+ * another dialect is blocked, never drawn with the wrong semantics.
+ */
+export function interpretJob(result: SanitizeResult, dialect: Dialect, options: InterpretOptions = {}): JobAnalysis {
+  const findings: Finding[] = result.report.entries.map((e) => ({
+    line: e.line,
+    n: null,
+    severity: e.severity,
+    rule: e.rule,
+    message: e.message,
+    source: 'sanitizer' as const,
+  }));
+  const job = dialect.gcode.job;
+  const lines = result.lines;
+  if (result.report.dialect !== dialect.id || job === null) {
+    findings.push({
+      line: 0,
+      n: null,
+      severity: 'block',
+      rule: job === null ? 'read-only-dialect' : 'dialect-mismatch',
+      message: blockFindingText(job === null ? 'read-only-dialect' : 'dialect-mismatch', job === null
+        ? `${dialect.label} is read-only in this version: no job is ever interpreted for it`
+        : `these lines were sanitised for ${result.report.dialect}, not ${dialect.id}: sanitise again for this dialect`, 0),
+      source: 'analyser',
+    });
+    return emptyAnalysis(dialect, findings, lines.length, options);
+  }
+
+  const it = new Interpreter(dialect, job, lines, options);
+
+  // Lines the sanitiser rejected were not sent: everything after the first one is uncertain.
+  const sentSources = new Set(lines.map((l) => l.sourceLine));
+  // A loop, not Math.min(...spread): a large file can reject more lines than the engine accepts as arguments.
+  let firstRejected = Infinity;
+  for (const e of result.report.entries) {
+    if (e.severity === 'block' && e.line > 0 && e.line < firstRejected && !sentSources.has(e.line)) firstRejected = e.line;
+  }
+  const lastIndex = lines.length - 1;
+  const lineFeeds = new Float32Array(lines.length);
+  lines.forEach((line, i) => {
+    if (!it.uncertain && line.sourceLine > firstRejected) {
+      it.uncertain = true;
+      it.add(line.sourceLine, line.n, 'info', 'after-rejected-line', `Line ${String(firstRejected)} is blocked, so it isn't sent: positions after it may not match what the file intends.`);
+    }
+    it.events.begin(i);
+    it.step(line, i, i === lastIndex);
+    it.events.end(((it.flags[i] as number) & LINE_FLAG.NOT_DRAWN) !== 0);
+    // The feed after the line's own words: an F on the line applies to its move.
+    lineFeeds[i] = it.feed ?? Number.NaN;
+    it.frameTable.note(line.sourceLine, it.offset('X'), it.offset('Y'), it.offset('Z'));
+  });
+
+  // File-level findings.
+  const anyCode = (set: readonly string[]): boolean =>
+    lines.some((l) => parseLine(l.body).words.some((w) => set.includes(codeOf(w) ?? '')));
+  if (lines.length > 0 && !anyCode(['G20', 'G21'])) it.add(0, null, 'warn', 'units-never-set', 'the file never sets G20 or G21: it runs in whatever units the board is in');
+  if (lines.length > 0 && !anyCode(['G90', 'G91'])) it.add(0, null, 'warn', 'distance-never-set', 'the file never sets G90 or G91: it runs in whatever distance mode the board is in');
+  if (it.distance === 'G91') it.add(lastIndex >= 0 ? (lines[lastIndex] as SentLine).sourceLine : 0, null, 'warn', 'g91-at-end', 'the file ends in G91 (incremental): the next job or jog may move further than expected');
+
+  const emitted = emit(it, lines.length, options);
+  checkEnvelope(it, emitted, dialect, options);
+
+  // The analyser repeats some sanitiser checks on purpose; keep one finding per line and rule.
+  const seen = new Set(findings.map((f) => `${String(f.line)}:${f.rule}`));
+  for (const f of it.findings) {
+    const key = `${String(f.line)}:${f.rule}`;
+    if (f.line !== 0 && seen.has(key)) continue;
+    seen.add(key);
+    findings.push(f);
+  }
+  return {
+    dialect: dialect.id,
+    blocked: findings.some((f) => f.severity === 'block'),
+    vertices: emitted.vertices,
+    kinds: emitted.kinds,
+    lineToVertex: emitted.lineToVertex,
+    lineFlags: it.flags,
+    lineFeeds,
+    bounds: emitted.bounds,
+    findings,
+    pausePoints: it.pausePoints,
+    frameTable: it.frameTable.finish(),
+    events: it.events.finish(),
+    stats: { lines: lines.length, rapidMm: it.rapidMm, feedMm: it.feedMm, arcs: it.arcs, estimatedSeconds: it.seconds, chordMm: emitted.chordMm },
+    end: {
+      machine: { ...it.machine },
+      units: it.units,
+      distance: it.distance,
+      plane: it.plane,
+      wcs: it.wcs,
+      wcsOffsets: Object.fromEntries(WCS_CODES.map((w) => [w, { ...it.wcsOffsets[w] }])) as JobAnalysis['end']['wcsOffsets'],
+      g92: { offsets: { ...it.g92.offsets }, active: it.g92.active },
+      spindle: it.spindle,
+      mist: it.mist,
+      flood: it.flood,
+    },
+  };
+}
+
+
+function emit(it: Interpreter, lineCount: number, options: InterpretOptions): Emitted {
+  const cap = Math.max(2, options.vertexCap ?? DEFAULT_VERTEX_CAP);
+  let chord = options.chordMm ?? DEFAULT_CHORD_MM;
+  const fixed = 1 + it.pieces.filter((p) => p.kind !== 'arc').length;
+  const arcs = it.pieces.filter((p): p is Extract<Piece, { kind: 'arc' }> => p.kind === 'arc');
+  const count = (tol: number): number => arcs.reduce((s, p) => s + arcSegments(p.arc, tol), 0);
+  // Coarsen arcs until the total fits (chord error grows with the square of the step).
+  for (let guard = 0; guard < 64 && fixed + count(chord) > cap && count(chord) > arcs.length; guard++) {
+    const ratio = count(chord) / Math.max(1, cap - fixed);
+    chord *= Math.max(1.5, ratio * ratio);
+  }
+  const total = fixed + count(chord);
+  const vertices = new Float32Array(total * 3);
+  const kinds = new Uint8Array(total);
+  const lineToVertex = new Uint32Array(lineCount + 1);
+  const min: [number, number, number] = [Infinity, Infinity, Infinity];
+  const max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
+  const arcBoxes: Emitted['arcBoxes'] = [];
+  let v = 0;
+  const push = (x: number, y: number, z: number, k: number): void => {
+    vertices[v * 3] = x;
+    vertices[v * 3 + 1] = y;
+    vertices[v * 3 + 2] = z;
+    kinds[v] = k;
+    v++;
+  };
+  const grow = (x: number, y: number, z: number): void => {
+    min[0] = Math.min(min[0], x);
+    min[1] = Math.min(min[1], y);
+    min[2] = Math.min(min[2], z);
+    max[0] = Math.max(max[0], x);
+    max[1] = Math.max(max[1], y);
+    max[2] = Math.max(max[2], z);
+  };
+  const start = it.options.start?.machine ?? {};
+  const s = { X: start.X ?? 0, Y: start.Y ?? 0, Z: start.Z ?? 0 };
+  push(s.X, s.Y, s.Z, KIND.BREAK);
+  let drawnAny = false;
+  let line = 0;
+  let prev = s;
+  for (const p of it.pieces) {
+    while (line <= p.line) lineToVertex[line++] = v;
+    const from = prev;
+    prev = { X: p.to.X, Y: p.to.Y, Z: p.to.Z };
+    if (p.kind === 'line' || p.kind === 'jump') {
+      if (p.kind === 'line') {
+        grow(from.X, from.Y, from.Z);
+        grow(p.to.X, p.to.Y, p.to.Z);
+        drawnAny = true;
+      }
+      push(p.to.X, p.to.Y, p.to.Z, p.k);
+      continue;
+    }
+    const ax = PLANES[p.plane];
+    const a0 = ax.a0 as Axis;
+    const a1 = ax.a1 as Axis;
+    const lin = ax.lin as Axis;
+    const pts = tessellateArc(p.arc, arcSegments(p.arc, chord));
+    pts.forEach(([d0, d1, f], idx) => {
+      const q = { ...p.from };
+      if (idx === pts.length - 1) Object.assign(q, p.to);
+      else {
+        q[a0] = p.from[a0] + d0;
+        q[a1] = p.from[a1] + d1;
+        q[lin] = p.from[lin] + (p.to[lin] - p.from[lin]) * f;
+      }
+      push(q.X, q.Y, q.Z, p.k);
+    });
+    const b = arcBox(p.arc);
+    const bmin = { ...p.from };
+    const bmax = { ...p.from };
+    bmin[a0] = p.from[a0] + Math.min(b.min[0], p.to[a0] - p.from[a0]);
+    bmin[a1] = p.from[a1] + Math.min(b.min[1], p.to[a1] - p.from[a1]);
+    bmax[a0] = p.from[a0] + Math.max(b.max[0], p.to[a0] - p.from[a0]);
+    bmax[a1] = p.from[a1] + Math.max(b.max[1], p.to[a1] - p.from[a1]);
+    bmin[lin] = Math.min(p.from[lin], p.to[lin]);
+    bmax[lin] = Math.max(p.from[lin], p.to[lin]);
+    const box: Box = { min: [bmin.X, bmin.Y, bmin.Z], max: [bmax.X, bmax.Y, bmax.Z] };
+    arcBoxes.push({ line: p.line, box });
+    grow(...box.min);
+    grow(...box.max);
+    drawnAny = true;
+  }
+  while (line <= lineCount) lineToVertex[line++] = v;
+  return { vertices, kinds, lineToVertex, bounds: drawnAny ? { min, max } : null, chordMm: chord, arcBoxes };
+}
+
+
+function checkEnvelope(it: Interpreter, e: Emitted, dialect: Dialect, options: InterpretOptions): void {
+  const env = options.envelope;
+  if (env === undefined) return;
+  const xyz: readonly Axis[] = ['X', 'Y', 'Z'];
+  const outside = (c: readonly number[]): boolean =>
+    xyz.some((a, k) => {
+      const lim = env[a];
+      const val = c[k] as number;
+      return lim !== undefined && (val < lim.min || val > lim.max);
+    });
+  let firstLinear = -1;
+  let firstArc = -1;
+  for (let line = 0; line < e.lineToVertex.length - 1; line++) {
+    const from = e.lineToVertex[line] as number;
+    const to = e.lineToVertex[line + 1] as number;
+    let out = false;
+    for (let v = from; v < to; v++) {
+      if (((e.kinds[v] as number) & 0x7f) === KIND.BREAK) continue;
+      if (outside([e.vertices[v * 3] as number, e.vertices[v * 3 + 1] as number, e.vertices[v * 3 + 2] as number])) out = true;
+    }
+    const arcOut = e.arcBoxes.some((b) => b.line === line && (outside(b.box.min) || outside(b.box.max)));
+    if (out || arcOut) {
+      it.flags[line] = (it.flags[line] as number) | LINE_FLAG.OUT_OF_BOUNDS;
+      if (arcOut && firstArc < 0) firstArc = line;
+      else if (!arcOut && firstLinear < 0) firstLinear = line;
+    }
+  }
+  const at = (i: number): SentLine => it.lines[i] as SentLine;
+  if (firstLinear >= 0) {
+    it.add(at(firstLinear).sourceLine, at(firstLinear).n, 'block', 'out-of-bounds', 'the path leaves the work envelope (first line shown)');
+  }
+  if (firstArc >= 0) {
+    it.add(at(firstArc).sourceLine, at(firstArc).n, 'block', 'arc-out-of-bounds', dialect.caps.arcSoftLimits
+      ? 'an arc leaves the work envelope (first line shown)'
+      : `an arc leaves the work envelope (first line shown): ${dialect.label} does not soft-limit arcs, so only this check stops it`);
+  }
+}
+
+
+function emptyAnalysis(dialect: Dialect, findings: Finding[], lineCount: number, options: InterpretOptions): JobAnalysis {
+  const s = options.start?.machine ?? {};
+  const machine = { X: s.X ?? 0, Y: s.Y ?? 0, Z: s.Z ?? 0, A: s.A ?? 0, B: s.B ?? 0, C: s.C ?? 0 };
+  const offsets = Object.fromEntries(WCS_CODES.map((w) => [w, zero()])) as JobAnalysis['end']['wcsOffsets'];
+  return {
+    dialect: dialect.id,
+    blocked: true,
+    vertices: new Float32Array(0),
+    kinds: new Uint8Array(0),
+    lineToVertex: new Uint32Array(lineCount + 1),
+    lineFlags: new Uint8Array(lineCount).fill(LINE_FLAG.NOT_DRAWN),
+    lineFeeds: new Float32Array(lineCount).fill(Number.NaN),
+    bounds: null,
+    findings,
+    pausePoints: [],
+    frameTable: emptyFrames(),
+    events: emptyTape(),
+    stats: { lines: lineCount, rapidMm: 0, feedMm: 0, arcs: 0, estimatedSeconds: null, chordMm: options.chordMm ?? DEFAULT_CHORD_MM },
+    end: {
+      machine,
+      units: options.start?.units ?? 'G21',
+      distance: options.start?.distance ?? 'G90',
+      plane: options.start?.plane ?? 'G17',
+      wcs: options.start?.wcs ?? 'G54',
+      wcsOffsets: offsets,
+      g92: { offsets: zero(), active: false },
+      spindle: 'off',
+      mist: false,
+      flood: false,
+    },
+  };
+}
 
 class Interpreter {
   readonly findings: Finding[] = [];
@@ -593,273 +860,4 @@ class Interpreter {
     }
     this.seconds += minutes * 60;
   }
-}
-
-/**
- * Interprets the sanitised lines of a job for `dialect` and analyses them.
- * `result` must come from `sanitizeJob` for the same dialect: a result for
- * another dialect is blocked, never drawn with the wrong semantics.
- */
-export function interpretJob(result: SanitizeResult, dialect: Dialect, options: InterpretOptions = {}): JobAnalysis {
-  const findings: Finding[] = result.report.entries.map((e) => ({
-    line: e.line,
-    n: null,
-    severity: e.severity,
-    rule: e.rule,
-    message: e.message,
-    source: 'sanitizer' as const,
-  }));
-  const job = dialect.gcode.job;
-  const lines = result.lines;
-  if (result.report.dialect !== dialect.id || job === null) {
-    findings.push({
-      line: 0,
-      n: null,
-      severity: 'block',
-      rule: job === null ? 'read-only-dialect' : 'dialect-mismatch',
-      message: blockFindingText(job === null ? 'read-only-dialect' : 'dialect-mismatch', job === null
-        ? `${dialect.label} is read-only in this version: no job is ever interpreted for it`
-        : `these lines were sanitised for ${result.report.dialect}, not ${dialect.id}: sanitise again for this dialect`, 0),
-      source: 'analyser',
-    });
-    return emptyAnalysis(dialect, findings, lines.length, options);
-  }
-
-  const it = new Interpreter(dialect, job, lines, options);
-
-  // Lines the sanitiser rejected were not sent: everything after the first one is uncertain.
-  const sentSources = new Set(lines.map((l) => l.sourceLine));
-  // A loop, not Math.min(...spread): a large file can reject more lines than the engine accepts as arguments.
-  let firstRejected = Infinity;
-  for (const e of result.report.entries) {
-    if (e.severity === 'block' && e.line > 0 && e.line < firstRejected && !sentSources.has(e.line)) firstRejected = e.line;
-  }
-  const lastIndex = lines.length - 1;
-  const lineFeeds = new Float32Array(lines.length);
-  lines.forEach((line, i) => {
-    if (!it.uncertain && line.sourceLine > firstRejected) {
-      it.uncertain = true;
-      it.add(line.sourceLine, line.n, 'info', 'after-rejected-line', `Line ${String(firstRejected)} is blocked, so it isn't sent: positions after it may not match what the file intends.`);
-    }
-    it.events.begin(i);
-    it.step(line, i, i === lastIndex);
-    it.events.end(((it.flags[i] as number) & LINE_FLAG.NOT_DRAWN) !== 0);
-    // The feed after the line's own words: an F on the line applies to its move.
-    lineFeeds[i] = it.feed ?? Number.NaN;
-    it.frameTable.note(line.sourceLine, it.offset('X'), it.offset('Y'), it.offset('Z'));
-  });
-
-  // File-level findings.
-  const anyCode = (set: readonly string[]): boolean =>
-    lines.some((l) => parseLine(l.body).words.some((w) => set.includes(codeOf(w) ?? '')));
-  if (lines.length > 0 && !anyCode(['G20', 'G21'])) it.add(0, null, 'warn', 'units-never-set', 'the file never sets G20 or G21: it runs in whatever units the board is in');
-  if (lines.length > 0 && !anyCode(['G90', 'G91'])) it.add(0, null, 'warn', 'distance-never-set', 'the file never sets G90 or G91: it runs in whatever distance mode the board is in');
-  if (it.distance === 'G91') it.add(lastIndex >= 0 ? (lines[lastIndex] as SentLine).sourceLine : 0, null, 'warn', 'g91-at-end', 'the file ends in G91 (incremental): the next job or jog may move further than expected');
-
-  const emitted = emit(it, lines.length, options);
-  checkEnvelope(it, emitted, dialect, options);
-
-  // The analyser repeats some sanitiser checks on purpose; keep one finding per line and rule.
-  const seen = new Set(findings.map((f) => `${String(f.line)}:${f.rule}`));
-  for (const f of it.findings) {
-    const key = `${String(f.line)}:${f.rule}`;
-    if (f.line !== 0 && seen.has(key)) continue;
-    seen.add(key);
-    findings.push(f);
-  }
-  return {
-    dialect: dialect.id,
-    blocked: findings.some((f) => f.severity === 'block'),
-    vertices: emitted.vertices,
-    kinds: emitted.kinds,
-    lineToVertex: emitted.lineToVertex,
-    lineFlags: it.flags,
-    lineFeeds,
-    bounds: emitted.bounds,
-    findings,
-    pausePoints: it.pausePoints,
-    frameTable: it.frameTable.finish(),
-    events: it.events.finish(),
-    stats: { lines: lines.length, rapidMm: it.rapidMm, feedMm: it.feedMm, arcs: it.arcs, estimatedSeconds: it.seconds, chordMm: emitted.chordMm },
-    end: {
-      machine: { ...it.machine },
-      units: it.units,
-      distance: it.distance,
-      plane: it.plane,
-      wcs: it.wcs,
-      wcsOffsets: Object.fromEntries(WCS_CODES.map((w) => [w, { ...it.wcsOffsets[w] }])) as JobAnalysis['end']['wcsOffsets'],
-      g92: { offsets: { ...it.g92.offsets }, active: it.g92.active },
-      spindle: it.spindle,
-      mist: it.mist,
-      flood: it.flood,
-    },
-  };
-}
-
-interface Emitted {
-  vertices: Float32Array;
-  kinds: Uint8Array;
-  lineToVertex: Uint32Array;
-  bounds: Box | null;
-  chordMm: number;
-  /** Per vertex: the exact arc box for arc pieces is checked separately. */
-  arcBoxes: Array<{ line: number; box: Box }>;
-}
-
-function emit(it: Interpreter, lineCount: number, options: InterpretOptions): Emitted {
-  const cap = Math.max(2, options.vertexCap ?? DEFAULT_VERTEX_CAP);
-  let chord = options.chordMm ?? DEFAULT_CHORD_MM;
-  const fixed = 1 + it.pieces.filter((p) => p.kind !== 'arc').length;
-  const arcs = it.pieces.filter((p): p is Extract<Piece, { kind: 'arc' }> => p.kind === 'arc');
-  const count = (tol: number): number => arcs.reduce((s, p) => s + arcSegments(p.arc, tol), 0);
-  // Coarsen arcs until the total fits (chord error grows with the square of the step).
-  for (let guard = 0; guard < 64 && fixed + count(chord) > cap && count(chord) > arcs.length; guard++) {
-    const ratio = count(chord) / Math.max(1, cap - fixed);
-    chord *= Math.max(1.5, ratio * ratio);
-  }
-  const total = fixed + count(chord);
-  const vertices = new Float32Array(total * 3);
-  const kinds = new Uint8Array(total);
-  const lineToVertex = new Uint32Array(lineCount + 1);
-  const min: [number, number, number] = [Infinity, Infinity, Infinity];
-  const max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
-  const arcBoxes: Emitted['arcBoxes'] = [];
-  let v = 0;
-  const push = (x: number, y: number, z: number, k: number): void => {
-    vertices[v * 3] = x;
-    vertices[v * 3 + 1] = y;
-    vertices[v * 3 + 2] = z;
-    kinds[v] = k;
-    v++;
-  };
-  const grow = (x: number, y: number, z: number): void => {
-    min[0] = Math.min(min[0], x);
-    min[1] = Math.min(min[1], y);
-    min[2] = Math.min(min[2], z);
-    max[0] = Math.max(max[0], x);
-    max[1] = Math.max(max[1], y);
-    max[2] = Math.max(max[2], z);
-  };
-  const start = it.options.start?.machine ?? {};
-  const s = { X: start.X ?? 0, Y: start.Y ?? 0, Z: start.Z ?? 0 };
-  push(s.X, s.Y, s.Z, KIND.BREAK);
-  let drawnAny = false;
-  let line = 0;
-  let prev = s;
-  for (const p of it.pieces) {
-    while (line <= p.line) lineToVertex[line++] = v;
-    const from = prev;
-    prev = { X: p.to.X, Y: p.to.Y, Z: p.to.Z };
-    if (p.kind === 'line' || p.kind === 'jump') {
-      if (p.kind === 'line') {
-        grow(from.X, from.Y, from.Z);
-        grow(p.to.X, p.to.Y, p.to.Z);
-        drawnAny = true;
-      }
-      push(p.to.X, p.to.Y, p.to.Z, p.k);
-      continue;
-    }
-    const ax = PLANES[p.plane];
-    const a0 = ax.a0 as Axis;
-    const a1 = ax.a1 as Axis;
-    const lin = ax.lin as Axis;
-    const pts = tessellateArc(p.arc, arcSegments(p.arc, chord));
-    pts.forEach(([d0, d1, f], idx) => {
-      const q = { ...p.from };
-      if (idx === pts.length - 1) Object.assign(q, p.to);
-      else {
-        q[a0] = p.from[a0] + d0;
-        q[a1] = p.from[a1] + d1;
-        q[lin] = p.from[lin] + (p.to[lin] - p.from[lin]) * f;
-      }
-      push(q.X, q.Y, q.Z, p.k);
-    });
-    const b = arcBox(p.arc);
-    const bmin = { ...p.from };
-    const bmax = { ...p.from };
-    bmin[a0] = p.from[a0] + Math.min(b.min[0], p.to[a0] - p.from[a0]);
-    bmin[a1] = p.from[a1] + Math.min(b.min[1], p.to[a1] - p.from[a1]);
-    bmax[a0] = p.from[a0] + Math.max(b.max[0], p.to[a0] - p.from[a0]);
-    bmax[a1] = p.from[a1] + Math.max(b.max[1], p.to[a1] - p.from[a1]);
-    bmin[lin] = Math.min(p.from[lin], p.to[lin]);
-    bmax[lin] = Math.max(p.from[lin], p.to[lin]);
-    const box: Box = { min: [bmin.X, bmin.Y, bmin.Z], max: [bmax.X, bmax.Y, bmax.Z] };
-    arcBoxes.push({ line: p.line, box });
-    grow(...box.min);
-    grow(...box.max);
-    drawnAny = true;
-  }
-  while (line <= lineCount) lineToVertex[line++] = v;
-  return { vertices, kinds, lineToVertex, bounds: drawnAny ? { min, max } : null, chordMm: chord, arcBoxes };
-}
-
-function checkEnvelope(it: Interpreter, e: Emitted, dialect: Dialect, options: InterpretOptions): void {
-  const env = options.envelope;
-  if (env === undefined) return;
-  const xyz: readonly Axis[] = ['X', 'Y', 'Z'];
-  const outside = (c: readonly number[]): boolean =>
-    xyz.some((a, k) => {
-      const lim = env[a];
-      const val = c[k] as number;
-      return lim !== undefined && (val < lim.min || val > lim.max);
-    });
-  let firstLinear = -1;
-  let firstArc = -1;
-  for (let line = 0; line < e.lineToVertex.length - 1; line++) {
-    const from = e.lineToVertex[line] as number;
-    const to = e.lineToVertex[line + 1] as number;
-    let out = false;
-    for (let v = from; v < to; v++) {
-      if (((e.kinds[v] as number) & 0x7f) === KIND.BREAK) continue;
-      if (outside([e.vertices[v * 3] as number, e.vertices[v * 3 + 1] as number, e.vertices[v * 3 + 2] as number])) out = true;
-    }
-    const arcOut = e.arcBoxes.some((b) => b.line === line && (outside(b.box.min) || outside(b.box.max)));
-    if (out || arcOut) {
-      it.flags[line] = (it.flags[line] as number) | LINE_FLAG.OUT_OF_BOUNDS;
-      if (arcOut && firstArc < 0) firstArc = line;
-      else if (!arcOut && firstLinear < 0) firstLinear = line;
-    }
-  }
-  const at = (i: number): SentLine => it.lines[i] as SentLine;
-  if (firstLinear >= 0) {
-    it.add(at(firstLinear).sourceLine, at(firstLinear).n, 'block', 'out-of-bounds', 'the path leaves the work envelope (first line shown)');
-  }
-  if (firstArc >= 0) {
-    it.add(at(firstArc).sourceLine, at(firstArc).n, 'block', 'arc-out-of-bounds', dialect.caps.arcSoftLimits
-      ? 'an arc leaves the work envelope (first line shown)'
-      : `an arc leaves the work envelope (first line shown): ${dialect.label} does not soft-limit arcs, so only this check stops it`);
-  }
-}
-
-function emptyAnalysis(dialect: Dialect, findings: Finding[], lineCount: number, options: InterpretOptions): JobAnalysis {
-  const s = options.start?.machine ?? {};
-  const machine = { X: s.X ?? 0, Y: s.Y ?? 0, Z: s.Z ?? 0, A: s.A ?? 0, B: s.B ?? 0, C: s.C ?? 0 };
-  const offsets = Object.fromEntries(WCS_CODES.map((w) => [w, zero()])) as JobAnalysis['end']['wcsOffsets'];
-  return {
-    dialect: dialect.id,
-    blocked: true,
-    vertices: new Float32Array(0),
-    kinds: new Uint8Array(0),
-    lineToVertex: new Uint32Array(lineCount + 1),
-    lineFlags: new Uint8Array(lineCount).fill(LINE_FLAG.NOT_DRAWN),
-    lineFeeds: new Float32Array(lineCount).fill(Number.NaN),
-    bounds: null,
-    findings,
-    pausePoints: [],
-    frameTable: emptyFrames(),
-    events: emptyTape(),
-    stats: { lines: lineCount, rapidMm: 0, feedMm: 0, arcs: 0, estimatedSeconds: null, chordMm: options.chordMm ?? DEFAULT_CHORD_MM },
-    end: {
-      machine,
-      units: options.start?.units ?? 'G21',
-      distance: options.start?.distance ?? 'G90',
-      plane: options.start?.plane ?? 'G17',
-      wcs: options.start?.wcs ?? 'G54',
-      wcsOffsets: offsets,
-      g92: { offsets: zero(), active: false },
-      spindle: 'off',
-      mist: false,
-      flood: false,
-    },
-  };
 }
