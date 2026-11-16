@@ -1,3 +1,4 @@
+import type { ReducerDeps } from './reducers/deps.ts';
 import { createReducerValues } from './reducers/values.ts';
 import { Tx } from './reducers/transaction.ts';
 import {
@@ -67,6 +68,7 @@ export type { ReducerFeatures, WorkspaceReducerFeatures } from './reducers/featu
 
 export function createSessionReducer(features: ReducerFeatures) {
 const values = createReducerValues();
+const deps = { features, ...values } as ReducerDeps;
 const { NORMALIZE_SETTLE_MS, READING_TOKENS, FULL_SESSION_FLOW_CONTROL, MOTION_READING_TOKENS, VERIFY_TOKENS, PROBE_TOKENS, AXES, MOTION_CLASSES, ALARM_CLASSES, EMPTY_LIVE, REPORTS_IDLE, RXM_IDLE, DEFAULT_SILENCE_MS, TINYG_SETTING_REFUSED_IN_CYCLE, TINYG_SETTINGS_DEFAULTED, PHASE_1_NOT_HANDLED, BOOT_DIALECTS, BOOT_LINE, UNCLASSIFIED_RESTING_STAT, LIVENESS_TOKEN } = values;
 
 function initialState(): SessionState {
@@ -1886,5 +1888,6 @@ function lineFor(s: SessionState, read: PendingRead): string | undefined {
   return getLineFor(dialect.id, read.token, s.identity?.fb);
 }
 
+Object.assign(deps, { initialState, dialectOf, matrixSnapshot, readableNow, enqAllowedNow, enqByte, reduce, onJobLineDropped, linkUp, deny, onIntent, onEnq, writeEnq, onRead, settingWriteActive, onSettingsWrite, finishSettingWrite, onGateAnswer, onSettingAnswer, onReadBackAnswer, interruptSettingWrite, refuseBoot, onFlash, onBootGateAnswer, onBootWritten, interruptBootEntry, onAckFault, writeFeedhold, resetToNotConnected, onOpened, startProbe, onLineWritten, answerTimeout, onLinkLost, onTimer, onInbound, onBanner, onResponse, isDataEntry, owedAnswers, consumeOwed, answers, onAnswer, advanceProbe, finishProbe, probeRecord, checkUnclassifiedResting, finishReading, onVerifyAnswer, refuseAck, onStatusReport, onGarbled, isObject, mergeLive, withNumber, startSeed, isSeedOwed, mergeStateValue, onSeedAnswer, seedAnswered, maybeConfigure, reportStepText, failReports, nextReportStep, numberValue, addChange, onReportAnswer, watchdogActive, watchdogMs, syncWatchdog, enterStale, silentWhileBusy, onWatchdog, askForLife, enterFault, pump, lineFor, MOTION_DEPS, JOB_DEPS });
 return { READING_TOKENS, FULL_SESSION_FLOW_CONTROL, MOTION_READING_TOKENS, VERIFY_TOKENS, PROBE_TOKENS, initialState, dialectOf, matrixSnapshot, readableNow, enqAllowedNow, reduce, settingWriteActive, BOOT_LINE, probeRecord, LIVENESS_TOKEN };
 }
