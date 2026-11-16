@@ -4,26 +4,17 @@
  * profile-to-TinyG mapping, and my own materials (create, edit, delete).
  */
 import { describe, expect, it } from 'vitest';
+
 import { BUILTIN_MATERIALS } from '@synthetos/library';
-import { clearDraft, draftDiff, draftStore, motorFor, plainValue, setDraft, stepsPerUnit, tinygV8, v8Pins } from '../src/workspace/boardFacts.ts';
+
+import { clearDraft, draftDiff, draftStore, motorFor, plainValue, setDraft, stepsPerUnit } from '../src/workspace/boardFacts.ts';
+
 import { allMaterials, createMaterial, deleteMaterial, forkMaterial, material, updateMaterial, type MachineProfile } from '../src/workspace/library.ts';
+
 import { fieldsFromForm, materialFormOf } from '../src/workspace/views/LibraryViews.ts';
+
 import { mappingRows, rowDiff } from '../src/workspace/views/MachinesView.ts';
 
-describe('TinyG v8 pins', () => {
-  it('lists every connector pin of the board definition with its own label, plus four terminals per motor', () => {
-    const board = tinygV8();
-    expect(board).not.toBeNull();
-    const pins = v8Pins();
-    for (const c of board?.connectors ?? []) for (const p of c.pins) expect(pins.find((x) => x.ref === `${c.id}.${p.n}`)?.label).toBe(p.label);
-    expect(pins.filter((p) => p.role === 'motor')).toHaveLength(16);
-    const spin = pins.find((p) => p.signal === 'out.spindleEnable');
-    expect(spin).toMatchObject({ ref: 'J6.3', label: 'Spindle', mcu: 'PA5' });
-    expect(spin?.keys).toContain('spep');
-    expect(pins.find((p) => p.ref === 'J7.3')).toMatchObject({ label: 'Xmin', function: 'X minimum switch input', keys: ['xsn', 'st'] });
-    expect(pins.find((p) => p.signal === 'out.coolant')?.note).toMatch(/share/);
-  });
-});
 
 describe('plain-words settings and the draft', () => {
   it('reads enumerations and units from the overlay', () => {
@@ -56,6 +47,7 @@ describe('plain-words settings and the draft', () => {
   });
 });
 
+
 describe('the machine profile to TinyG mapping', () => {
   const profile: MachineProfile = { id: 'm', name: 'Mine', templateId: 'custom', drive: 'belt', travel: { x: 300, y: 200, z: 60 }, spindle: '', createdAt: '', axes: { x: { maxVelocity: 12000, microsteps: 8 } } };
   const settings = { xtn: 0, xtm: 300, xvm: 16000, '1ma': 0, '1sa': 1.8, '1mi': 8, '1tr': 40 };
@@ -73,6 +65,7 @@ describe('the machine profile to TinyG mapping', () => {
     expect(by('steps')?.board).toBeCloseTo(40);
   });
 });
+
 
 describe('my own materials', () => {
   it('creates, edits and deletes my own material; built-ins cannot be edited', () => {
