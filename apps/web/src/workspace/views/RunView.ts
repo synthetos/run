@@ -21,7 +21,7 @@ import type { ReadonlySignal } from '@preact/signals';
 
 import { useEffect, useMemo, useState } from 'preact/hooks';
 
-import { c24, c25, c25HandSet, c27, c28, c29, w13 } from '@synthetos/safety';
+import { c24, w13 } from '@synthetos/safety';
 
 import { DIALECTS } from '@synthetos/protocol';
 
@@ -41,7 +41,6 @@ import { routineChanges, shownCounts } from '../../preview/gcodeList.ts';
 
 
 
-import { settingsOf } from '../boardFacts.ts';
 
 import { Icon } from '../icons.ts';
 
@@ -51,12 +50,10 @@ import { CheckRow, ConfirmCard, TabBar, TabPane } from '../ui.ts';
 
 import { connected, type WorkspaceModel } from '../model.ts';
 
-import { goToZeroSafeZ } from '../safeZ.ts';
 
 
-import { atToolChange, TC_GO_REASON, TC_OFFSET_REASON, zeroBlocked } from '../toolChangeControls.ts';
 
-import { axesText, goToZeroPath, machineAxes, machineZ, motionUi, offsetsView } from '../motion.ts';
+import { motionUi } from '../motion.ts';
 
 import { HomeQuick, HomeSection } from '../homing.ts';
 
@@ -67,7 +64,6 @@ import { currentBlock } from '../ControlBlockCard.ts';
 
 import { outputsOff } from '../controlBlock.ts';
 
-import { WorkZeroConfirm } from '../workZeroConfirm.ts';
 
 import { skipSpindleConfirm, spindleConfirmSkipped } from '../spindleConfirm.ts';
 
@@ -123,7 +119,7 @@ import { ViewButtons } from '../../preview/SceneView.ts';
 
 import type { CarveWorkerLike, ViewPreset } from '@synthetos/gcode-view';
 
-import { COOLANT_TITLE, coolantText, coord, displayReadouts, num, SPINDLE_TITLE, spindleText, UNKNOWN } from '../status.ts';
+import { COOLANT_TITLE, coolantText, displayReadouts, num, SPINDLE_TITLE, spindleText, UNKNOWN } from '../status.ts';
 
 import { feedDiagnosis, jobUi, PHASE_TEXT, plannerRanges, starving } from '../jobUi.ts';
 
@@ -149,7 +145,8 @@ import { ToolMismatchNotes } from '../ToolMismatchNotes.ts';
 import type { FileTool } from '../../gcode-worker/camTools.ts';
 import { RunBridge } from './run/bridge.ts';
 import { JogSection } from './run/jog.ts';
-import { isLive, LIVE_HOOKS, motionNote, STATIC_HOOKS, type Hooks } from './run/motionHooks.ts';
+import { isLive, LIVE_HOOKS, STATIC_HOOKS, type Hooks } from './run/motionHooks.ts';
+import { ZeroSection } from './run/offsets.ts';
 import { PositionPanel } from './run/position.ts';
 
 
@@ -159,6 +156,7 @@ import { PositionPanel } from './run/position.ts';
 export { resetSpindleConfirm } from '../spindleConfirm.ts';
 export { ConnectNotice } from './run/connect.ts';
 export { JogSection } from './run/jog.ts';
+export { ZeroSection } from './run/offsets.ts';
 export { PositionPanel } from './run/position.ts';
 
 
@@ -230,151 +228,6 @@ export function RunView({ model, spawn, spawnCarve = null, marker, onView, onPau
     layout: (parts: PreviewParts) => runLayout(parts, model, onView, stops),
     scrubTo: scrubRequest,
   });
-}
-
-
-/**
- * Offsets (amendment 2026-11-02; SAFETY §4.5b, H53, H68, C16, C25, C27-C29): the work coordinate system (G54..G59),
- * Set work zero per axis and for all (G10 L20 in the active system, saved on the controller), Go to zero (Z rises in
- * machine coordinates first), the temporary offset (G92, not saved; cleared with G92.1), and the active offsets as the
- * board reported them. Every change is read back by the session.
- */
-function zeroBody({ model, ask, goOnly = false }: ZeroProps, hk: Hooks): ComponentChild {
-  const view = model?.live.value ?? null;
-  const ui = motionUi(view);
-  const send = model?.actions.value?.motion;
-  const settings = settingsOf(view);
-  const zNow = machineZ(view);
-  const ztm = typeof settings['ztm'] === 'number' ? (settings['ztm'] as number) : null;
-  const [safeZ, setSafeZ] = hk.state<number | null>(null);
-  // OD-23: lift to ztm − 1 only after a homing seen in this connection (safeZ.ts).
-  const planned = goToZeroSafeZ({ homed: ui.homed, zHomedHere: (view?.message?.snapshot.notices.homedAxes ?? []).includes('z'), ztm, zNow });
-  const safe = safeZ ?? planned.safe;
-  const handSet = safeZ === null && planned.handSet;
-  type Confirm = { readonly kind: 'set' | 'go' | 'temp'; readonly axes: readonly MotionAxis[] } | { readonly kind: 'clear' } | { readonly kind: 'system'; readonly n: number } | null;
-  const [confirm, setConfirm] = hk.state<Confirm>(null);
-  const [note, setNote] = hk.state<string | null>(null);
-  hk.effect(() => {
-    if (ask !== null && ask !== undefined && ui.enabled) setConfirm({ kind: 'go', axes: ask.axes });
-  }, [ask?.at]);
-  const off = offsetsView(view);
-  const system = off.system ?? 'G54';
-  const dro = view?.message?.dro.axes ?? [];
-  const work = (a: MotionAxis): number | null => dro.find((d) => d.axis === a)?.work ?? null;
-  const machine = (a: MotionAxis): number | null => dro.find((d) => d.axis === a)?.machine ?? null;
-  const enabled = ui.enabled && send !== undefined;
-  const run = (command: MotionCommand): void => {
-    setConfirm(null);
-    setNote(null);
-    void send?.(command).then(setNote);
-  };
-  // H74 (2026-11-08): at a tool change only the Z re-zero (toolChangeControls.ts); a blocked button says why.
-  const snap = view?.message?.snapshot ?? null;
-  const tc = atToolChange(snap);
-  const button = (label: string, aria: string, onClick: () => void, control = 'zero', ok = true, blocked: string | null = null): ComponentChild =>
-    h('button', { type: 'button', class: 'small', 'aria-label': aria, 'data-machine-control': control, ...(blocked === null ? {} : { title: blocked, 'data-blocked': 'tool-change' }), ...(enabled && ok && blocked === null ? { onClick } : { disabled: true }) }, label);
-  const confirmCard = (): ComponentChild => {
-    if (confirm === null || !enabled) return null;
-    const cancel = (): void => setConfirm(null);
-    switch (confirm.kind) {
-      case 'set': {
-        return h(WorkZeroConfirm, { axes: confirm.axes, system, machine: (a: MotionAxis) => machine(a) ?? null, advanced: uiLevel.value.value === 'advanced', onCancel: cancel, onConfirm: () => run({ op: 'setZero', axes: confirm.axes }) });
-      }
-      case 'go':
-        return h(ConfirmCard, { text: `${c25({ axes: axesText(confirm.axes), path: goToZeroPath(confirm.axes, safe, zNow) })}${handSet ? ` ${c25HandSet()}` : ''}`, confirm: 'Go to zero', safety: 'C25', onCancel: cancel, onConfirm: () => run({ op: 'goToZero', axes: confirm.axes, safeZ: safe }) });
-      case 'temp':
-        return h(ConfirmCard, { text: c27({ axes: axesText(confirm.axes), system }), confirm: 'Set temporary offset', safety: 'C27', onCancel: cancel, onConfirm: () => run({ op: 'tempOffset', axes: confirm.axes }) });
-      case 'clear':
-        return h(ConfirmCard, { text: c28({ system }), confirm: 'Clear temporary offset', safety: 'C28', onCancel: cancel, onConfirm: () => run({ op: 'clearTempOffset' }) });
-      default:
-        return h(ConfirmCard, { text: c29({ system: `G${53 + confirm.n}` }), confirm: `Use G${53 + confirm.n}`, safety: 'C29', onCancel: cancel, onConfirm: () => run({ op: 'selectCoord', system: confirm.n }) });
-    }
-  };
-  const offsetLine = (o: Readonly<Partial<Record<MotionAxis, number>>> | null): string =>
-    o === null ? UNKNOWN : machineAxes(settings).map((a) => `${a.toUpperCase()} ${coord(o[a])}`).join(', ');
-  // Simple: only the Go-to-zero confirmation the jog pad asked for (C25), in place; nothing else of the Offsets tab.
-  if (goOnly) return confirm === null ? null : h('div', { class: 'insp sec-zero go-only' }, confirmCard(), motionNote(note));
-  return h(
-    'section',
-    { class: 'insp sec-zero', 'aria-labelledby': 'zero-title' },
-    h('header', null, h('h2', { id: 'zero-title' }, 'Offsets'), h('span', { class: 'tag', 'data-offsets': 'system' }, off.system ?? 'G54–G59')),
-    h(
-      'div',
-      { class: 'seg full wcs-seg', role: 'group', 'aria-label': 'Work coordinate system' },
-      [1, 2, 3, 4, 5, 6].map((n) =>
-        h(
-          'button',
-          { type: 'button', key: n, class: off.system === `G${53 + n}` ? 'selected' : undefined, 'aria-pressed': off.system === `G${53 + n}` ? 'true' : 'false', 'data-machine-control': 'offset', ...(tc ? { title: TC_OFFSET_REASON } : {}), ...(enabled && !tc && off.system !== `G${53 + n}` ? { onClick: () => setConfirm({ kind: 'system', n }) } : { disabled: true }) },
-          `G${53 + n}`,
-        ),
-      ),
-    ),
-    // Plain headings (owner, 2026-11-09): the heading word itself opens its help, no round "?".
-    h('h3', { class: 'tan-label' }, h(ContextHelp, { id: 'work-zero-help', label: 'Work zero: what Zero and Go do', trigger: 'Work zero', below: true }, `Zero sets the ${system} offset so the axis reads 0 here (G10 L20, saved on the controller). Go moves there, Z rising to Safe Z first.`)),
-    h(
-      'table',
-      { class: 'zero-table' },
-      h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Axis'), h('th', { scope: 'col' }, 'Work'), h('th', { scope: 'col' }, `${system} offset`), h('th', { scope: 'col' }, h('span', { class: 'sr-only' }, 'Actions')))),
-      h(
-        'tbody',
-        null,
-        machineAxes(settings).map((a) =>
-          h(
-            'tr',
-            { key: a, 'data-zero-axis': a },
-            h('th', { scope: 'row' }, a.toUpperCase()),
-            h('td', { class: 'num' }, coord(work(a))),
-            h('td', { class: 'num', 'data-zero-offset': a }, coord(off.saved?.[a])),
-            h('td', { class: 'zero-actions' }, button('Zero', `Set work zero for ${a.toUpperCase()} here, saved in ${system}`, () => setConfirm({ kind: 'set', axes: [a] }), 'zero', true, zeroBlocked(snap, [a])), button('Go', `Go to ${a.toUpperCase()} zero`, () => setConfirm({ kind: 'go', axes: [a] }), 'zero', true, tc ? TC_GO_REASON : null)),
-          ),
-        ),
-      ),
-    ),
-    h(
-      'label',
-      { class: 'jog-feed' },
-      h('span', null, 'Safe Z'),
-      h('input', {
-        type: 'number',
-        step: 1,
-        value: safe,
-        ...(enabled ? { onInput: (e: Event) => setSafeZ(Number((e.currentTarget as HTMLInputElement).value)) } : { disabled: true }),
-        'aria-label': 'Safe Z height in machine coordinates, mm',
-        'data-machine-control': 'zero',
-        title: 'Machine Z that Go rises to before X and Y move; never lower than Z is now.',
-      }),
-      h('small', null, 'mm'),
-    ),
-    h('h3', { class: 'tan-label' }, h(ContextHelp, { id: 'g92-help', label: 'Temporary offset: what it does', trigger: 'Temporary offset', below: true }, `G92 shifts work positions so the axes read 0 here without changing the saved ${system} offset. It is not saved: a reset or a program end clears it; Clear sends G92.1.`)),
-    // One row per kind, in even columns: each axis, then All and Clear.
-    h(
-      'div',
-      { class: 'temp-offset' },
-      h('div', { class: 'temp-axes' }, machineAxes(settings).map((a) => button(`${a.toUpperCase()} = 0`, `Temporary offset: ${a.toUpperCase()} reads 0 here`, () => setConfirm({ kind: 'temp', axes: [a] }), 'offset', true, tc ? TC_OFFSET_REASON : null))),
-      h(
-        'div',
-        { class: 'temp-all' },
-        button('All = 0', 'Temporary offset: X, Y and Z read 0 here', () => setConfirm({ kind: 'temp', axes: ['x', 'y', 'z'] }), 'offset', true, tc ? TC_OFFSET_REASON : null),
-        button('Clear', 'Clear the temporary offset (G92.1)', () => setConfirm({ kind: 'clear' }), 'offset', off.temporaryInForce, tc ? TC_OFFSET_REASON : null),
-      ),
-    ),
-    off.temporaryInForce ? h('p', { class: 'fine', 'data-offsets': 'temporary' }, `G92 ${offsetLine(off.temporary)} · in force, not saved`) : null,
-    confirmCard(),
-    motionNote(note ?? (enabled ? (view?.message?.snapshot.notices.change?.text ?? null) : null)),
-  );
-}
-
-
-type ZeroProps = { readonly model?: WorkspaceModel | null; readonly ask?: { readonly axes: readonly MotionAxis[]; readonly at: number } | null; readonly goOnly?: boolean };
-
-
-function ZeroLive(props: ZeroProps): ComponentChild {
-  return zeroBody(props, LIVE_HOOKS);
-}
-
-
-export function ZeroSection(props: ZeroProps = {}): ComponentChild {
-  return isLive(props.model) ? h(ZeroLive, props) : zeroBody(props, STATIC_HOOKS);
 }
 
 
