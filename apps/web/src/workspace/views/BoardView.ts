@@ -22,46 +22,70 @@
  * rule 6).
  */
 import { h, type ComponentChild } from 'preact';
-import { useState } from 'preact/hooks';
-import { boardText } from '@synthetos/safety';
-import type { SettingValue } from '@synthetos/schema';
-import { AxisModes } from '../../machine-ui/AxisModes.ts';
-import { SettingsStatus } from '../../machine-ui/SettingsView.ts';
-import { Dismissable } from '../notes/Dismissable.ts';
-import type { ReadoutPhase } from '../../live/readout.ts';
-import { PendingTray, SettingEditor, SettingsTable } from '../settings/SettingsUi.ts';
-import { BackupsHub, FirmwareTab } from './FirmwareViews.ts';
-import { editBlocked } from '../settings/SettingsUi.ts';
-import {
-  AXIS_NAMES,
-  MOTORS,
-  RESERVED,
-  clearDraft,
-  connectorLabel,
-  connectorPins,
-  dialectOf,
-  draftDiff,
-  draftStore,
-  motorAxis,
-  pinByRef,
-  plainValue,
-  setDraft,
-  settingMeta,
-  settingsOf,
-  stepsPerUnit,
-  tinygV8,
-  type PinInfo,
-} from '../boardFacts.ts';
-import { Icon } from '../icons.ts';
-import { openReport } from '../../report/state.ts';
-import { connected, type LiveView, type WorkspaceModel } from '../model.ts';
-import { coolantText, displayReadouts, num, spindleText, UNKNOWN } from '../status.ts';
-import { Keyed, TabBar, TabPane } from '../ui.ts';
-import { boardTab, type BoardTab as Tab } from '../boardNavigation.ts';
-import { uiLevel } from '../jobWorkflow.ts';
-import { GuidedSettings } from '../settings/GuidedSettings.ts';
 
-type Settings = Readonly<Record<string, SettingValue>>;
+import { useState } from 'preact/hooks';
+
+import { boardText } from '@synthetos/safety';
+
+
+import { AxisModes } from '../../machine-ui/AxisModes.ts';
+
+import { SettingsStatus } from '../../machine-ui/SettingsView.ts';
+
+import { Dismissable } from '../notes/Dismissable.ts';
+
+import type { ReadoutPhase } from '../../live/readout.ts';
+
+import { PendingTray, SettingEditor, SettingsTable } from '../settings/SettingsUi.ts';
+
+import { BackupsHub, FirmwareTab } from './FirmwareViews.ts';
+
+import { editBlocked } from '../settings/SettingsUi.ts';
+
+import {
+    AXIS_NAMES,
+    clearDraft,
+    connectorLabel,
+    connectorPins,
+    dialectOf,
+    draftDiff,
+    draftStore,
+    motorAxis,
+    MOTORS,
+    pinByRef,
+    plainValue,
+    RESERVED,
+    setDraft,
+    settingMeta,
+    settingsOf,
+    stepsPerUnit,
+    tinygV8,
+    type PinInfo,
+} from '../boardFacts.ts';
+
+import { Icon } from '../icons.ts';
+
+import { openReport } from '../../report/state.ts';
+
+import { connected, type LiveView, type WorkspaceModel } from '../model.ts';
+
+import { coolantText, displayReadouts, num, spindleText, UNKNOWN } from '../status.ts';
+
+import { Keyed, TabBar, TabPane } from '../ui.ts';
+
+import { boardTab, type BoardTab as Tab } from '../boardNavigation.ts';
+
+import { uiLevel } from '../jobWorkflow.ts';
+
+import { GuidedSettings } from '../settings/GuidedSettings.ts';
+import { cell, EditToggle, Empty, fact, NOT_CONNECTED_TEXT, type Settings } from './board/shared.ts';
+
+
+// Firmware and Backups (SAFETY §4.8 as amended 2026-11-03 and 2026-11-09): the Firmware tab (the Update panel, then
+// the firmware image backups, custom firmware and trusted builds) and the Backups tab (settings backups).
+export { FirmwareTab } from './FirmwareViews.ts';
+
+
 
 const REASON_TEXT: Readonly<Record<string, string>> = {
   'en-approved': 'An approved TinyG edge-next build.',
@@ -76,40 +100,6 @@ const REASON_TEXT: Readonly<Record<string, string>> = {
   flowControl: 'The board’s flow control setting (ex) could not be read, or has a value Run doesn’t know.',
 };
 
-const NOT_CONNECTED_TEXT = 'Connect a board on the Run view. Its settings appear here, read with GETs only.';
-
-function fact(label: string, value: string, raw: string, attr?: string): ComponentChild {
-  return h('div', { key: raw }, h('dt', null, label, h('small', { class: 'raw-key' }, raw)), h('dd', attr === undefined ? null : { 'data-board-fact': attr }, value));
-}
-
-/** A value from the read, plain words first and the raw key after; "Not read" when absent. With `edit`, its editor below. */
-function cell(key: string, settings: Settings, dialect: string | null, edit: LiveView | null = null): ComponentChild {
-  if (RESERVED.has(key)) return h('td', { key, class: 'muted' }, h(Keyed, { value: 'Reserved on this firmware', raw: key }));
-  const v = plainValue(key, settings[key], dialect);
-  const d = draftDiff(key, settings);
-  return h(
-    'td',
-    { key, class: v === null ? 'muted' : undefined, title: settingMeta(key, dialect).description },
-    h(Keyed, { value: v ?? 'Unknown', raw: key }),
-    d === 'changed' || d === 'unread' ? h('span', { class: 'draft-badge', title: `Pending: ${String(draftStore.value.value[key])}` }, 'pending') : null,
-    edit === null ? null : h('div', { class: 'cell-edit' }, h(SettingEditor, { k: key, view: edit, compact: true })),
-  );
-}
-
-/** "Edit values" for a tab's tables: editors appear under each value Run may write. */
-function EditToggle({ view, editing, onToggle }: { readonly view: LiveView | null; readonly editing: boolean; readonly onToggle: () => void }): ComponentChild {
-  const blocked = editBlocked(view);
-  return h(
-    'div',
-    { class: 'edit-bar' },
-    h('button', { type: 'button', class: `small${editing ? ' primary' : ''}`, 'data-action': 'toggle-edit', 'aria-pressed': editing ? 'true' : 'false', disabled: blocked !== null, title: blocked ?? 'Edit values; changes collect in Pending changes', onClick: onToggle }, editing ? 'Done editing' : 'Edit values'),
-    h('span', { class: 'fine' }, blocked ?? (editing ? 'Review pending changes before applying.' : 'Reported by the board.')),
-  );
-}
-
-function Empty({ view }: { readonly view: LiveView | null }): ComponentChild {
-  return h('p', { class: 'board-empty' }, view !== null && connected(view) ? 'Waiting for board settings.' : NOT_CONNECTED_TEXT);
-}
 
 // ---------------------------------------------------------------- overview
 
@@ -171,6 +161,7 @@ function BoardFacts({ view }: { readonly view: LiveView | null }): ComponentChil
   );
 }
 
+
 /** What a pin's settings say, row by row (readouts from the status report or the read-only poll). */
 function PinSettings({ pin, view }: { readonly pin: PinInfo; readonly view: LiveView | null }): ComponentChild {
   const settings = settingsOf(view);
@@ -200,6 +191,7 @@ function PinSettings({ pin, view }: { readonly pin: PinInfo; readonly view: Live
   );
 }
 
+
 function PinCard({ pin, view, onClose }: { readonly pin: PinInfo; readonly view: LiveView | null; readonly onClose: () => void }): ComponentChild {
   return h(
     'section',
@@ -213,7 +205,9 @@ function PinCard({ pin, view, onClose }: { readonly pin: PinInfo; readonly view:
   );
 }
 
+
 const MOTOR_FIELDS = ['ma', 'sa', 'tr', 'mi', 'po', 'pm'] as const;
+
 
 /** One motor's settings as read, with a proposed draft beside each. Nothing is written. */
 export function MotorDraft({ motor, view }: { readonly motor: number; readonly view: LiveView | null }): ComponentChild {
@@ -285,6 +279,7 @@ export function MotorDraft({ motor, view }: { readonly motor: number; readonly v
     ),
   );
 }
+
 
 /** The TinyG v8 drawing (OD-5: connector positions as derived public facts; pin names from the board definition). */
 function BoardIllustration({ selected, onSelect, settings }: { readonly selected: string | null; readonly onSelect: (ref: string) => void; readonly settings: Settings }): ComponentChild {
@@ -398,7 +393,9 @@ function BoardIllustration({ selected, onSelect, settings }: { readonly selected
   );
 }
 
+
 type OverviewSide = 'board' | 'pin';
+
 
 function OverviewTab({ view }: { readonly view: LiveView | null }): ComponentChild {
   const [selected, setSelected] = useState<string | null>(null);
@@ -436,6 +433,7 @@ function OverviewTab({ view }: { readonly view: LiveView | null }): ComponentChi
     ),
   );
 }
+
 
 // ---------------------------------------------------------------- motors, axes, inputs, outputs, comms
 
@@ -482,10 +480,15 @@ function MotorsTab({ view }: { readonly view: LiveView | null }): ComponentChild
   );
 }
 
+
 const AXIS_MOTION = ['am', 'vm', 'fr', 'tn', 'tm', 'jm', 'jd'] as const;
+
 const AXIS_HOMING = ['sn', 'sx', 'sv', 'lv', 'lb', 'zb', 'jh'] as const;
+
 const MOTION_HEAD = ['Mode', 'Max velocity', 'Max feed', 'Travel min', 'Travel max', 'Jerk', 'Junction deviation'];
+
 const HOMING_HEAD = ['Min switch', 'Max switch', 'Search velocity', 'Latch velocity', 'Latch backoff', 'Zero backoff', 'Homing jerk'];
+
 
 function axisTable(title: string, head: readonly string[], fields: readonly string[], settings: Settings, dialect: string | null, edit: LiveView | null = null): ComponentChild {
   const axes = ['x', 'y', 'z', 'a', 'b', 'c'].filter((a) => fields.some((f) => settings[`${a}${f}`] !== undefined));
@@ -501,6 +504,7 @@ function axisTable(title: string, head: readonly string[], fields: readonly stri
     ),
   );
 }
+
 
 function AxesTab({ view }: { readonly view: LiveView | null }): ComponentChild {
   const [editing, setEditing] = useState(false);
@@ -523,6 +527,7 @@ function AxesTab({ view }: { readonly view: LiveView | null }): ComponentChild {
     h('dl', { class: 'facts inline-facts' }, ...['st', 'sl', 'mt', 'ja', 'ct'].map((k) => h('div', { key: k }, h('dt', null, settingMeta(k, dialect).label, h('small', { class: 'raw-key' }, k)), h('dd', null, plainValue(k, settings[k], dialect) ?? 'Not read', edit === null ? null : h('div', { class: 'cell-edit' }, h(SettingEditor, { k, view: edit, compact: true })))))),
   );
 }
+
 
 function InputsTab({ view }: { readonly view: LiveView | null }): ComponentChild {
   const [editing, setEditing] = useState(false);
@@ -565,6 +570,7 @@ function InputsTab({ view }: { readonly view: LiveView | null }): ComponentChild
     ),
   );
 }
+
 
 function OutputsTab({ view }: { readonly view: LiveView | null }): ComponentChild {
   const [editing, setEditing] = useState(false);
@@ -630,6 +636,7 @@ function OutputsTab({ view }: { readonly view: LiveView | null }): ComponentChil
   );
 }
 
+
 function CommsTab({ view }: { readonly view: LiveView | null }): ComponentChild {
   const settings = settingsOf(view);
   const dialect = dialectOf(view);
@@ -655,6 +662,7 @@ function CommsTab({ view }: { readonly view: LiveView | null }): ComponentChild 
   );
 }
 
+
 function SettingsTab({ model }: { readonly model: WorkspaceModel | null }): ComponentChild {
   const view = model?.live.value ?? null;
   return h(
@@ -665,9 +673,6 @@ function SettingsTab({ model }: { readonly model: WorkspaceModel | null }): Comp
   );
 }
 
-// Firmware and Backups (SAFETY §4.8 as amended 2026-11-03 and 2026-11-09): the Firmware tab (the Update panel, then
-// the firmware image backups, custom firmware and trusted builds) and the Backups tab (settings backups).
-export { FirmwareTab } from './FirmwareViews.ts';
 
 export function BoardView({ model }: { readonly model: WorkspaceModel | null }): ComponentChild {
   const view = model?.live.value ?? null;
@@ -710,6 +715,7 @@ export function BoardView({ model }: { readonly model: WorkspaceModel | null }):
     pane('backups', h(BackupsHub, { model, part: 'settings' })),
   );
 }
+
 
 /**
  * The settings read's outcome. "Recorded" and "match" are only information, so they get a × (remembered per notice,
