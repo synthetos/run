@@ -34,3 +34,12 @@ export function hostedOrigin(origin: string): boolean {
 export function lockProps(kind: GateKind): { readonly inert?: true } {
   return kind === 'open' ? {} : { inert: true };
 }
+
+/**
+ * Writes the lock on the element itself. Preact's hydrate does not diff props, so a hosted page that hydrates
+ * while the session is still being read never gets its `inert` from the prop alone; AppShell applies it in an
+ * effect whenever the lock changes, mount included.
+ */
+export function applyLock(el: { inert: boolean } | null, locked: boolean): void {
+  if (el !== null) el.inert = locked;
+}

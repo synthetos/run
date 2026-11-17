@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { gateState, hostedOrigin, lockProps } from '../src/gate/gateState.ts';
+import { applyLock, gateState, hostedOrigin, lockProps } from '../src/gate/gateState.ts';
 import type { AccountState } from '../src/live/account.ts';
 
 const st = (status: AccountState['status'], signIn: boolean): AccountState => ({ status, signIn, display: status === 'signed-in' ? '@owner' : null, message: null });
@@ -31,5 +31,12 @@ describe('hostedOrigin and lockProps', () => {
   it('lockProps is inert for every locked kind', () => {
     expect(lockProps('open')).toEqual({});
     for (const k of ['checking', 'sign-in', 'not-offered', 'unavailable'] as const) expect(lockProps(k)).toEqual({ inert: true });
+  });
+  it('applyLock writes inert on the element itself, so a page that hydrated already locked is locked too', () => {
+    // Preact's hydrate never diffs props, so an `inert` present on the first render is not written to the DOM.
+    const el = { inert: false };
+    applyLock(el, true); expect(el.inert).toBe(true);
+    applyLock(el, false); expect(el.inert).toBe(false);
+    expect(() => applyLock(null, true)).not.toThrow();
   });
 });

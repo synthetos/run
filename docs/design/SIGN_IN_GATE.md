@@ -1,11 +1,13 @@
 # The sign-in front door
 
 A first-time visitor to run.synthetos.com sees the workspace, dimmed and blurred, under one dialog: the run wordmark,
-"Sign in to use Run", two lines on what the account holds, one button, "Continue with GitHub", a line for newcomers
-with a "What we store" link, and below a rule, "What is Run? Read the overview". Nothing behind the dialog can be
-clicked, focused or reached with Tab: the whole workspace root is `inert` while the page is locked. The button is a
-plain link to the Worker's `/auth/login` (with `return_to` for any page but `/`); refusal and failure on the accounts
-side show the Worker's problem page, never a second dialog here. Design: `docs/superpowers/specs/2026-11-16-first-run-design.md` §5.
+"Sign in to use Run", two lines on what the account holds, one button, "Continue with GitHub", a line for newcomers,
+and below a rule, "What is Run? Read the overview". A "What we store" link joins the newcomer line when accounts
+publishes its privacy page. Nothing behind the dialog can be clicked, focused or reached with Tab: the whole
+workspace root is `inert` while the page is locked (set on the element by an effect, because Preact's hydrate does
+not diff props and a hosted page hydrates already locked). The button is a plain link to the Worker's `/auth/login`;
+refusal and failure on the accounts side show the Worker's problem page, never a second dialog here. Design:
+`docs/superpowers/specs/2026-11-16-first-run-design.md` §5.
 
 ## Who sees what
 

@@ -16,8 +16,8 @@ import { ProjectSetupChoice } from '../projects/ProjectSetupChoice.ts';
  * Prerendered into index.html (no model, no worker: Pause and Stop job are
  * disabled and say why) and hydrated by the workspace entry.
  */
-import { lockProps } from '../gate/gateState.ts';
-import { pageGate, SignInGate } from '../gate/SignInGate.ts';
+import { SignInGate } from '../gate/SignInGate.ts';
+import { useShellLock } from '../gate/useShellLock.ts';
 import { LibrarySyncNotice } from './cloud/SyncNotice.ts';
 import { Fragment, h, type ComponentChild } from 'preact';
 import type { ReadonlySignal } from '@preact/signals';
@@ -244,13 +244,13 @@ export function AppShell(props: AppShellProps): ComponentChild {
     );
   const pane = (id: ViewId, child: ComponentChild): ComponentChild => h('section', { class: 'view', 'data-screen': id, hidden: current !== id, 'aria-label': VIEWS.find((v) => v.id === id)?.label, key: id }, child);
   // The sign-in front door (gate/): the whole app is inert while locked; the dialog is its sibling, never inside it.
-  const lock = lockProps(pageGate());
+  const { ref: appRoot, lock } = useShellLock();
   return h(
     Fragment,
     null,
     h(
     'div',
-    { class: 'app', 'data-shell': 'workspace', 'data-level': uiLevel.value.value, ...lock },
+    { class: 'app', 'data-shell': 'workspace', 'data-level': uiLevel.value.value, ref: appRoot, ...lock },
     h(SafetyBar, { build: props.build, variant: 'workspace' }),
     h(TopBar, { model: props.model, label, onView }),
     h(Strip, props),
