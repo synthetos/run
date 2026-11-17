@@ -23,7 +23,7 @@ function retainMachines(binding: StoredBinding, next: unknown, cache: CloudCache
   const retained = next.filter((m: { id: string }) => {
     const issue = refusal('machine', m);
     if (issue !== null) hooks.notice(issue);
-    if (issue === null && (cache.consent || existing.has(m.id) || !localIds.has(m.id))) return false;
+    if (issue === null && (existing.has(m.id) || !localIds.has(m.id))) return false;
     kept.add(m.id); return true;
   });
   const originals = Array.isArray(previous) ? previous.filter((m: { id: string }) => existing.has(m.id) && !kept.has(m.id)) : [];

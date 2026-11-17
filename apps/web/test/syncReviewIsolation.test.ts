@@ -87,7 +87,7 @@ it.each(['switch', 'sign out'])('does not publish a stopped account edit after %
   const { records: raw, local } = projectContext(); const storage = memory();
   const profiles = stored('machines', [machine], (v): v is typeof machine[] => Array.isArray(v), () => storage);
   const aliceMachine = { ...machine, name: 'Alice secret' }; const bobMachine = { ...machine, name: 'Bob machine' };
-  const alice = emptyCache(); alice.consent = true; alice.records = [record('machine', aliceMachine), record('project', project())];
+  const alice = emptyCache(); alice.records = [record('machine', aliceMachine), record('project', project())];
   const bob = emptyCache(); bob.records = [record('machine', bobMachine)];
   saveCache(storage, 'alice', alice); saveCache(storage, 'bob', bob);
   const held = deferred(); const started = deferred(); let holding = false;

@@ -93,7 +93,6 @@ export function startProjectSync(options: ProjectSyncOptions) {
   projectDownload.open = open;
   return {
     local, show, prepare, cleanup,
-    async refreshLocal() { await context.local.load(); },
     wake() { if (!options.allowed()) for (const abort of downloads) abort.abort(); },
     stop() { if (!live) return; live = false; for (const abort of downloads) abort.abort(); projectDownload.open = () => Promise.resolve(); accountProjects.value = []; activateProjectStore(null); },
   };

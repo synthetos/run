@@ -34,7 +34,7 @@ export function projectRecords(options: ProjectRecordsOptions): ProjectRecordSto
     return result;
   }
   async function localOnly(id: string): Promise<boolean> {
-    if (cache.consent || accountIds().has(id) || !isBrowserKey(id)) return false;
+    if (accountIds().has(id) || !isBrowserKey(id)) return false;
     const value = await records.get('projects', id);
     active(); return value !== undefined;
   }

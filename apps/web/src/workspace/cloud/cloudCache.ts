@@ -3,8 +3,8 @@ import type { CloudRecord, RecordKind } from '@synthetos/contracts';
 import type { StorageLike } from '../storage.ts';
 import { isRecordId } from './recordId.ts';
 export interface PendingWrite { readonly cleanup?: true; readonly token: string; readonly kind: RecordKind; readonly id: string; readonly parent: number | null; readonly content: unknown | null }
-export interface CloudCache { v: 1; records: CloudRecord[]; pending: PendingWrite[]; imports: Record<string, string>; consent: boolean; fileDeletes?: string[]; importSource?: { kind: RecordKind; id: string; content: unknown }[] }
-export const emptyCache = (): CloudCache => ({ v: 1, records: [], pending: [], imports: {}, consent: false });
+export interface CloudCache { v: 1; records: CloudRecord[]; pending: PendingWrite[]; imports: Record<string, string>; fileDeletes?: string[] }
+export const emptyCache = (): CloudCache => ({ v: 1, records: [], pending: [], imports: {} });
 export const cacheKey = (subject: string): string => `run.cloud-cache.${subject}`;
 const object = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const kind = isRecordKind;
@@ -15,14 +15,15 @@ const content = (k: RecordKind, v: unknown, recordId: string): boolean => {
   return parsed.ok && parsed.value.id === recordId;
 };
 function validCache(c: unknown): c is CloudCache {
-  return object(c) && (c['fileDeletes'] === undefined || (Array.isArray(c['fileDeletes']) && c['fileDeletes'].every(h => typeof h === 'string' && /^[0-9a-f]{64}$/.test(h)))) && (c['importSource'] === undefined || (Array.isArray(c['importSource']) && c['importSource'].every((r: unknown) => object(r) && kind(r['kind']) && id(r['id']) && content(r['kind'], r['content'], r['id'])))) && c['v'] === 1 && typeof c['consent'] === 'boolean' && object(c['imports']) && Object.values(c['imports']).every(id)
+  return object(c) && (c['fileDeletes'] === undefined || (Array.isArray(c['fileDeletes']) && c['fileDeletes'].every(h => typeof h === 'string' && /^[0-9a-f]{64}$/.test(h)))) && c['v'] === 1 && object(c['imports']) && Object.values(c['imports']).every(id)
     && Array.isArray(c['records']) && c['records'].every((r: unknown) => object(r) && kind(r['kind']) && id(r['id']) && rev(r['rev']) && (r['archivedAt'] === null || typeof r['archivedAt'] === 'number') && typeof r['sha256'] === 'string' && content(r['kind'], r['content'], r['id']))
     && Array.isArray(c['pending']) && c['pending'].every((p: unknown) => object(p) && (p['cleanup'] === undefined || (p['cleanup'] === true && p['kind'] === 'tool' && typeof p['id'] === 'string' && p['id'].startsWith('seed.') && p['content'] !== null)) && typeof p['token'] === 'string' && kind(p['kind']) && id(p['id']) && (p['parent'] === null || rev(p['parent'])) && (p['content'] === null || content(p['kind'], p['content'], p['id'])));
 }
 export function readCache(storage: StorageLike | null, subject: string): CloudCache {
   try {
     const raw = storage?.getItem(cacheKey(subject)); if (raw == null) return emptyCache();
-    const c = JSON.parse(raw) as CloudCache;
+    // A cache written before spec §5.5 carries `consent` and `importSource`; both are dropped, the rest is kept.
+    const { consent: _consent, importSource: _source, ...c } = JSON.parse(raw) as CloudCache & { consent?: unknown; importSource?: unknown };
     if (!validCache(c)) return emptyCache();
     return c;
   } catch { return emptyCache(); }

@@ -7,7 +7,6 @@ import { RecordsError, recordsClient, type RecordsClient } from '../src/cloud/re
 import { cacheKey, canonical, contentHash, emptyCache, readCache, saveCache } from '../src/workspace/cloud/cloudCache.ts';
 import { toRecords, fromRecords, browserCopy, validContent } from '../src/workspace/cloud/libraryRecords.ts';
 import { enqueue, drainQueue, visibleRecords, retryDelay } from '../src/workspace/cloud/syncQueue.ts';
-import { prepareImport } from '../src/workspace/cloud/importFlow.ts';
 import { librarySyncActions, librarySyncView, librarySavedText, startLibrarySync } from '../src/workspace/cloud/librarySync.ts';
 const tool = { ...SEED_TOOLS[0]!.tool, id: 'mine.one', name: 'My tool' };
 const rec = (content = tool, rev = 1): CloudRecord => ({ id: content.id, kind: 'tool', rev, archivedAt: null, content, sha256: 'a'.repeat(64) });
@@ -19,9 +18,9 @@ const settle = async () => { for (let i = 0; i < 15; i++) await Promise.resolve(
 afterEach(() => vi.restoreAllMocks());
 describe('account library cache and adapters', () => {
   it('isolates accounts, handles absent/broken/blocked storage, and hashes stable content', async () => {
-    const storage = memory(); const cache = emptyCache(); cache.consent = true;
+    const storage = memory(); const cache = emptyCache(); cache.imports['k'] = 'mine.one';
     expect(saveCache(storage, 'alice', cache)).toBe(true);
-    expect(readCache(storage, 'alice').consent).toBe(true);
+    expect(readCache(storage, 'alice').imports).toEqual({ k: 'mine.one' });
     expect(readCache(storage, 'bob')).toEqual(emptyCache());
     expect(readCache(null, 'alice')).toEqual(emptyCache());
     expect(saveCache(null, 'a', cache)).toBe(false);
@@ -31,6 +30,12 @@ describe('account library cache and adapters', () => {
     expect(canonical({ b: [2, null], a: 1 })).toBe(canonical({ a: 1, b: [2, null] }));
     expect(await contentHash({ b: 2, a: 1 })).toBe(await contentHash({ a: 1, b: 2 }));
     expect(canonical(undefined)).toBe('null');
+  });
+  it('a stored cache with consent and importSource is accepted and both fields are dropped', () => {
+    const storage = memory();
+    storage.setItem(cacheKey('old'), JSON.stringify({ ...emptyCache(), consent: true, importSource: [] }));
+    const read = readCache(storage, 'old');
+    expect(read).toEqual(emptyCache()); expect('consent' in read).toBe(false); expect('importSource' in read).toBe(false);
   });
   it('excludes unchanged seeds, preserves tool numbering and resolves user material forks', () => {
     expect(toRecords('tools.v2', SEED_TOOLS)).toEqual([]);
@@ -74,7 +79,7 @@ describe('records HTTP client', () => {
     await expect(recordsClient(async () => new Response('bad', { status: 503 })).list('tool', signal())).rejects.toMatchObject({ status: 503 });
   });
 });
-describe('CAS queue and consented import', () => {
+describe('CAS queue', () => {
   it('queues edits immediately, coalesces, archives, and checks the pause gate before each call', async () => {
     const cache = emptyCache(); const api = client(); const h = hooks();
     enqueue(cache, 'tool', tool.id, tool); enqueue(cache, 'tool', tool.id, { ...tool, name: 'Latest' });
@@ -113,16 +118,6 @@ describe('CAS queue and consented import', () => {
     const abort = new AbortController(); abort.abort(); expect(await drainQueue(cache, api, () => true, abort.signal, hooks())).toBe('saving');
     expect(retryDelay(0)).toBe(1000); expect(retryDelay(99)).toBe(60000);
   });
-  it('resumes imports by id and hash, preserves clashes, and never uploads without queue execution', async () => {
-    const cache = emptyCache(); cache.records = [rec()]; const local = [{ kind: 'tool' as const, id: tool.id, content: { ...tool, name: 'Local' } }];
-    let saved = ''; const persist = () => { saved = JSON.stringify(cache); return true; };
-    expect(await prepareImport(cache, local, persist)).toBe(true);
-    const resumed = JSON.parse(saved) as typeof cache;
-    await prepareImport(resumed, local, () => true); expect(resumed.pending).toHaveLength(1);
-    expect(resumed.pending[0]?.content).toMatchObject({ name: 'Local (from this browser)' });
-    await prepareImport(resumed, [{ kind: 'tool', id: tool.id, content: tool }], () => true); expect(resumed.pending).toHaveLength(1);
-    expect(await prepareImport(emptyCache(), local, () => false)).toBe(false);
-  });
 });
 describe('storage backend lifetime', () => {
   const stops: (() => void)[] = []; afterEach(() => { for (const stop of stops.splice(0)) stop(); });
@@ -133,10 +128,11 @@ describe('storage backend lifetime', () => {
     const sync = startLibrarySync({ subject: 'alice', display: '@alice', storage, client: api, allowed: () => allowed, setTimeout: fn => { scheduled.push(fn); return 1; }, clearTimeout: () => {} });
     stops.push(sync.stop); return { local, sync, api, storage, scheduled, pause: () => { allowed = false; sync.wake(); }, resume: () => { allowed = true; sync.wake(); } };
   }
-  it('asks before import, leaves browser copies unchanged, switches back on sign-out', async () => {
-    const r = setup(); await settle(); expect(librarySyncView.value.ask).toBe(true); expect(r.api.put).not.toHaveBeenCalled();
-    librarySyncActions.notNow(); expect(librarySyncView.value.ask).toBe(false);
-    await librarySyncActions.copy(); await settle(); expect(r.api.put).toHaveBeenCalledOnce();
+  it('a signed-in page shows account records only, never uploads a browser-only record, and switches back on sign-out', async () => {
+    const api = client(); vi.mocked(api.list).mockImplementation(async kind => kind === 'tool' ? [rec({ ...tool, id: 'acct.one', name: 'Account tool' })] : []);
+    const r = setup(api); await settle();
+    expect(r.api.put).not.toHaveBeenCalled(); expect('ask' in librarySyncView.value).toBe(false);
+    expect(r.local.value.value.map(e => e.tool.id)).toContain('acct.one'); expect(r.local.value.value.map(e => e.tool.id)).not.toContain(tool.id);
     expect(storedBinding('tools.v2')?.local()).toEqual([{ tool, number: 8, store: null }]);
     expect(librarySavedText(true)).toBe('Saved to your account'); r.sync.stop(); expect(r.local.value.value[0]?.tool.name).toBe('My tool');
     expect(librarySavedText(true)).toBe('Saved in this browser'); expect(librarySavedText(false)).toContain('blocks storage');
@@ -146,7 +142,7 @@ describe('storage backend lifetime', () => {
     expect(librarySyncView.value.mode).toBe('local'); expect(r.local.value.value[0]?.tool.id).toBe(tool.id);
   });
   it('reads the account cache first and pauses pending writes until resumed', async () => {
-    const storage = memory(); const cache = emptyCache(); cache.records = [rec({ ...tool, name: 'Cached' })]; cache.consent = true; saveCache(storage, 'alice', cache);
+    const storage = memory(); const cache = emptyCache(); cache.records = [rec({ ...tool, name: 'Cached' })]; saveCache(storage, 'alice', cache);
     const api = client(); vi.mocked(api.list).mockImplementation(async kind => kind === 'tool' ? cache.records : []);
     const r = setup(api, storage); expect(r.local.value.value.some(e => e.tool.name === 'Cached')).toBe(true); await settle();
     r.pause(); r.local.set(r.local.value.value.map(e => e.tool.id === tool.id ? { ...e, tool: { ...e.tool, name: 'Offline edit' } } : e)); expect(api.put).not.toHaveBeenCalled(); expect(librarySavedText(true)).toBe('Saving…');
@@ -179,12 +175,12 @@ describe('page-side safety gating and identity isolation', () => {
     mountLibrarySync(model, 'run.synthetos.com')(); expect(fetch).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
   });
-  it('renders import consent, conflict and quota notices', async () => {
+  it('renders quota notices and never a copy prompt', async () => {
     const { h } = await import('preact'); const { renderToString } = await import('preact-render-to-string');
     const { LibrarySyncNotice } = await import('../src/workspace/cloud/SyncNotice.ts');
-    librarySyncView.value = { mode: 'account', display: '@alice', ask: true, status: 'saved', notice: null, remaining: [] };
-    const html = renderToString(h(LibrarySyncNotice, null)); expect(html).toContain('Copy what’s in this browser to your account?'); expect(html).toContain('@alice'); expect(html).toContain('Not now');
-    librarySyncView.value = { ...librarySyncView.value, ask: false, status: 'quota', notice: 'Full', remaining: ['Local tool'] };
+    librarySyncView.value = { mode: 'account', display: '@alice', status: 'saved', notice: null, remaining: [] };
+    expect(renderToString(h(LibrarySyncNotice, null))).not.toContain('Copy');
+    librarySyncView.value = { ...librarySyncView.value, status: 'quota', notice: 'Full', remaining: ['Local tool'] };
     const quota = renderToString(h(LibrarySyncNotice, null)); expect(quota).toContain('Local tool'); expect(quota).toContain('Try again'); expect(quota).toContain('Dismiss');
     librarySyncView.value = { ...librarySyncView.value, status: 'saved', remaining: [] };
     expect(renderToString(h(LibrarySyncNotice, null))).not.toContain('Try again');
@@ -249,7 +245,7 @@ describe('sync lifecycle interruptions', () => {
     vi.mocked(api.list).mockImplementation(async kind => { if (phase !== 'second' || kind === 'material') await wait; if (phase === 'error') throw Error(); return []; });
     const r = start(api); await settle(); r.sync.stop(); finish(); await settle();
     expect(librarySyncView.value.mode).toBe('local'); expect(r.local.value.value[0]?.tool.id).toBe(tool.id);
-    librarySyncActions.notNow(); librarySyncActions.dismiss(); await librarySyncActions.copy();
+    librarySyncActions.dismiss();
   });
   it('reschedules a refresh interrupted by a rapid pause and resume', async () => {
     let finish!: () => void; const wait = new Promise<void>(resolve => { finish = resolve; }); const api = client();
@@ -274,10 +270,9 @@ describe('sync lifecycle interruptions', () => {
     const count = vi.mocked(api.archive).mock.calls.length; r.sync.wake(); await settle(); expect(api.archive).toHaveBeenCalledTimes(count);
     r.local.set([{ tool, number: 8, store: null }]); await settle(); expect(api.put).not.toHaveBeenCalled(); expect(librarySyncView.value.status).toBe('quota');
   });
-  it('keeps cache-refused writes in memory and serializes repeated Copy clicks', async () => {
+  it('keeps cache-refused writes in memory', async () => {
     const r = start(client(), emptyCache(), null); await settle(); r.local.set([{ tool, number: 8, store: null }]); await settle(); expect(librarySyncView.value.status).toBe('retry');
-    const copy = librarySyncActions.copy(); await librarySyncActions.copy(); await copy; expect(librarySyncView.value.status).toBe('retry'); expect(r.api.put).not.toHaveBeenCalled();
-    const second = librarySyncActions.copy(); r.sync.stop(); await second; expect(librarySyncView.value.mode).toBe('local');
+    expect(r.api.put).not.toHaveBeenCalled(); r.sync.stop(); expect(librarySyncView.value.mode).toBe('local');
   });
   it('renders and invokes every notice action without a machine RPC', async () => {
     const { h } = await import('preact'); const { root, all } = await import('./tree.ts'); const { LibrarySyncNotice } = await import('../src/workspace/cloud/SyncNotice.ts');
@@ -308,25 +303,6 @@ it('retains a CAS edit even if a concurrent queue update removed its token', asy
   enqueue(cache, 'tool', 'new', null); const h = hooks(); h.persist.mockReturnValueOnce(true).mockReturnValue(false);
   expect(await drainQueue(cache, api, () => true, signal(), h)).toBe('retry');
 });
-it('resumes the entire confirmed import plan after a reload during preparation', async () => {
-  const cache = emptyCache(); const source = [{ kind: 'tool' as const, id: tool.id, content: tool }, { kind: 'tool' as const, id: 'mine.two', content: { ...tool, id: 'mine.two' } }];
-  let snapshot = ''; let saves = 0;
-  expect(await prepareImport(cache, source, () => { snapshot = JSON.stringify(cache); return ++saves < 2; })).toBe(false);
-  const resumed = JSON.parse(snapshot) as typeof cache;
-  expect(resumed.consent).toBe(true); expect(resumed.importSource).toHaveLength(2);
-  await prepareImport(resumed, [], () => true); expect(resumed.pending).toHaveLength(2); expect(resumed.importSource).toBeUndefined();
-  expect(await prepareImport({ ...emptyCache(), importSource: [{ kind: 'tool', id: tool.id, content: {} }] }, [], () => true)).toBe(false);
-});
-it('validates and automatically resumes a durable import plan on account activation', async () => {
-  const storage = memory(); const cache = emptyCache(); cache.consent = true; cache.importSource = [{ kind: 'tool', id: tool.id, content: tool }];
-  saveCache(storage, 'resume', cache); expect(readCache(storage, 'resume').importSource).toHaveLength(1);
-  for (const source of [null, [null], [{ kind: 'machine', id: tool.id, content: tool }], [{ kind: 'tool', id: '/', content: tool }], [{ kind: 'tool', id: tool.id, content: {} }]]) {
-    storage.setItem(cacheKey('bad'), JSON.stringify({ ...cache, importSource: source })); expect(readCache(storage, 'bad')).toEqual(emptyCache());
-  }
-  stored('tools.v2', [], (v): v is unknown[] => Array.isArray(v), () => storage); loadStoredLibraries();
-  const api = client(); const sync = startLibrarySync({ subject: 'resume', display: '@resume', storage, client: api, allowed: () => true, setTimeout: () => 1, clearTimeout: () => {} });
-  await vi.waitFor(() => expect(api.put).toHaveBeenCalledOnce()); expect(librarySyncView.value.ask).toBe(false); sync.stop();
-});
 it('round trips material forks without losing inherited fields and retains unavailable parent versions as full records', () => {
   const parent = BUILTIN_MATERIALS[0]!; const fork = forkRecord('material', parent, 'mine.fork'); if (!fork.ok) throw Error();
   const records = toRecords('materials.v2', [{ ...fork.value, edits: { name: 'My material' } }]);
@@ -336,12 +312,6 @@ it('round trips material forks without losing inherited fields and retains unava
     const rs = [{ kind: 'material' as const, id: content.id, content }];
     expect(fromRecords('materials.v2', rs)).toEqual([]); expect(fromRecords('materials.own.v1', rs)).toEqual([content]);
   }
-});
-it('reports an import preparation failure without losing its source plan', async () => {
-  const storage = memory(); stored('tools.v2', [{ tool, number: 8, store: null }], (v): v is unknown[] => Array.isArray(v), () => storage); loadStoredLibraries();
-  const api = client(); const sync = startLibrarySync({ subject: 'hash-fail', display: '@a', storage, client: api, allowed: () => false, setTimeout: () => 1, clearTimeout: () => {} });
-  const hash = vi.spyOn(crypto.subtle, 'digest').mockRejectedValueOnce(Error('hash failed'));
-  await librarySyncActions.copy(); expect(librarySyncView.value.notice).toContain('could not finish'); expect(readCache(storage, 'hash-fail').importSource).toHaveLength(1); hash.mockRestore(); sync.stop();
 });
 it('retains queued account edits and explains a session-expiry fallback without replacing the browser library', async () => {
   const storage = memory(); const local = stored('tools.v2', [{ tool, number: 8, store: null }], (v): v is { tool: typeof tool; number: number; store: null }[] => Array.isArray(v), () => storage); loadStoredLibraries();

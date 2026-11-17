@@ -1,4 +1,3 @@
-import { prepareImport } from '../src/workspace/cloud/importFlow.ts';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { Tool } from '@synthetos/library';
 import { BUILTIN_MATERIALS, readTool } from '@synthetos/library';
@@ -7,7 +6,7 @@ import { LEGACY_SEED_TOOLS } from './legacySeedTools.ts';
 import { SEED_TOOLS } from '../src/workspace/librarySeed.ts';
 import { cleanSeedTool } from '../src/workspace/tools/cleanSeedTool.ts';
 import { queueSeedCleanup } from '../src/workspace/cloud/seedCleanup.ts';
-import { emptyCache, readCache, saveCache, contentHash } from '../src/workspace/cloud/cloudCache.ts';
+import { emptyCache, readCache, saveCache } from '../src/workspace/cloud/cloudCache.ts';
 import { drainQueue, enqueue } from '../src/workspace/cloud/syncQueue.ts';
 import { RecordsError, type RecordsClient } from '../src/cloud/recordsClient.ts';
 import { toolStore } from '../src/workspace/library.ts';
@@ -81,22 +80,6 @@ it('queues account cleanup at the existing revision, keeps pending edits and nev
   queueSeedCleanup(cache); expect(cache.pending[0]?.cleanup).toBeUndefined();
   expect(cache.pending[0]?.content).toMatchObject({ name: 'Pending edit', notes: 'Mine', cuttingData: [] });
   enqueue(cache, 'tool', old.id, null); expect(queueSeedCleanup(cache)).toBe(false); expect(cache.pending[0]?.content).toBeNull();
-});
-it('cleans resumed imports without changing checkpoint hashes or duplicating earlier copies', async () => {
-  const source = { kind: 'tool' as const, id: old.id, content: old };
-  const cache = emptyCache(); cache.importSource = [source];
-  expect(await prepareImport(cache, [], () => true)).toBe(true);
-  expect(cache.pending[0]?.content).toEqual(cleanSeedTool(old));
-  cache.importSource = [source];
-  expect(await prepareImport(cache, [], () => true)).toBe(true); expect(cache.pending).toHaveLength(1);
-  const prior = emptyCache(); prior.importSource = [source]; prior.imports[`tool:${old.id}:${await contentHash(old)}`] = old.id;
-  expect(await prepareImport(prior, [], () => true)).toBe(true); expect(prior.pending).toEqual([]);
-  const same = emptyCache(); same.records = [record(old)];
-  expect(await prepareImport(same, [source], () => true)).toBe(true); expect(same.pending).toEqual([]);
-  const different = emptyCache(); different.records = [record({ ...old, name: 'Account version' })];
-  expect(await prepareImport(different, [source], () => true)).toBe(true);
-  expect(different.pending[0]?.id).toMatch(/^import-/);
-  expect(different.pending[0]?.content).toMatchObject({ cuttingData: [], notes: '', life: { minutes: 0, byMaterial: [] } });
 });
 it('rebases a pure cleanup on a conflicting account edit without overwriting it or creating a copy', async () => {
   const cache = emptyCache(); cache.records = [record(old)]; queueSeedCleanup(cache);
