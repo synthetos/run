@@ -16,9 +16,10 @@ import { ProjectSetupChoice } from '../projects/ProjectSetupChoice.ts';
  * Prerendered into index.html (no model, no worker: Pause and Stop job are
  * disabled and say why) and hydrated by the workspace entry.
  */
-import { FirstVisitCard } from '../live/FirstVisitCard.ts';
+import { lockProps } from '../gate/gateState.ts';
+import { pageGate, SignInGate } from '../gate/SignInGate.ts';
 import { LibrarySyncNotice } from './cloud/SyncNotice.ts';
-import { h, type ComponentChild } from 'preact';
+import { Fragment, h, type ComponentChild } from 'preact';
 import type { ReadonlySignal } from '@preact/signals';
 import { useEffect, useState } from 'preact/hooks';
 import { STOP_TEXT, w29 } from '@synthetos/safety';
@@ -186,6 +187,30 @@ function Banners(props: AppShellProps & { readonly view: ViewId }): ComponentChi
   );
 }
 
+/** The top bar: brand, breadcrumb, level switch, theme toggle and the account menu. */
+function TopBar(p: { readonly model: WorkspaceModel | undefined; readonly label: string; readonly onView: (v: string) => void }): ComponentChild {
+  const machineName = selectedMachine.value?.name ?? 'Workshop';
+  return h(
+    'header',
+    { class: 'topbar' },
+    h('a', { class: 'brand', href: '/' }, h('svg', { viewBox: '0 0 28 28', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.7', 'aria-hidden': 'true' }, h('circle', { cx: 14, cy: 14, r: 9 }), h('path', { d: 'M14 0v9m0 10v9M0 14h9m10 0h9' })), h('strong', null, 'Synthetos'), h('span', { class: 'brand-run' }, 'Run')),
+    h(
+      'nav',
+      { class: 'context', 'aria-label': 'Breadcrumb' },
+      h('button', { type: 'button', class: 'crumb', onClick: () => p.onView('machines') }, machineName),
+      h('span', { class: 'sep', 'aria-hidden': 'true' }, '/'),
+      h('span', { class: 'crumb current', 'aria-current': 'page' }, p.label),
+    ),
+    h(
+      'div',
+      { class: 'top-actions' },
+      h(LevelSwitch, null),
+      h('button', { type: 'button', class: 'icon-button quiet theme-toggle', [THEME_TOGGLE_ATTR]: '', 'aria-label': 'Toggle day/night mode', title: 'Toggle day/night mode' }, h('span', { class: 'theme-sun' }, Icon('sun', 18)), h('span', { class: 'theme-moon' }, Icon('moon', 18))),
+      h(AccountMenu, accountMenuProps(p.model)),
+    ),
+  );
+}
+
 export function AppShell(props: AppShellProps): ComponentChild {
   const [current, setCurrent] = useState<ViewId>('job');
   const onView = (v: string): void => {
@@ -209,7 +234,6 @@ export function AppShell(props: AppShellProps): ComponentChild {
     onView(requested);
   }, [requested]);
   const model = props.model ?? null;
-  const machine = selectedMachine.value;
   const label = VIEWS.find((v) => v.id === current)?.label ?? 'Job';
   const rail = (v: (typeof VIEWS)[number]): ComponentChild =>
     h(
@@ -219,29 +243,16 @@ export function AppShell(props: AppShellProps): ComponentChild {
       h('span', null, v.label),
     );
   const pane = (id: ViewId, child: ComponentChild): ComponentChild => h('section', { class: 'view', 'data-screen': id, hidden: current !== id, 'aria-label': VIEWS.find((v) => v.id === id)?.label, key: id }, child);
+  // The sign-in front door (gate/): the whole app is inert while locked; the dialog is its sibling, never inside it.
+  const lock = lockProps(pageGate());
   return h(
-    'div',
-    { class: 'app', 'data-shell': 'workspace', 'data-level': uiLevel.value.value },
-    h(SafetyBar, { build: props.build, variant: 'workspace' }),
+    Fragment,
+    null,
     h(
-      'header',
-      { class: 'topbar' },
-      h('a', { class: 'brand', href: '/' }, h('svg', { viewBox: '0 0 28 28', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.7', 'aria-hidden': 'true' }, h('circle', { cx: 14, cy: 14, r: 9 }), h('path', { d: 'M14 0v9m0 10v9M0 14h9m10 0h9' })), h('strong', null, 'Synthetos'), h('span', { class: 'brand-run' }, 'Run')),
-      h(
-        'nav',
-        { class: 'context', 'aria-label': 'Breadcrumb' },
-        h('button', { type: 'button', class: 'crumb', onClick: () => onView('machines') }, machine?.name ?? 'Workshop'),
-        h('span', { class: 'sep', 'aria-hidden': 'true' }, '/'),
-        h('span', { class: 'crumb current', 'aria-current': 'page' }, label),
-      ),
-      h(
-        'div',
-        { class: 'top-actions' },
-        h(LevelSwitch, null),
-        h('button', { type: 'button', class: 'icon-button quiet theme-toggle', [THEME_TOGGLE_ATTR]: '', 'aria-label': 'Toggle day/night mode', title: 'Toggle day/night mode' }, h('span', { class: 'theme-sun' }, Icon('sun', 18)), h('span', { class: 'theme-moon' }, Icon('moon', 18))),
-        h(AccountMenu, accountMenuProps(props.model)),
-      ),
-    ),
+    'div',
+    { class: 'app', 'data-shell': 'workspace', 'data-level': uiLevel.value.value, ...lock },
+    h(SafetyBar, { build: props.build, variant: 'workspace' }),
+    h(TopBar, { model: props.model, label, onView }),
     h(Strip, props),
     h(
       'div',
@@ -253,7 +264,6 @@ export function AppShell(props: AppShellProps): ComponentChild {
         h(
           'main',
           { class: 'view-area', id: 'main', 'data-region': 'centre' },
-          h(FirstVisitCard, null),
           h(Banners, { ...props, view: current, onReview: () => { boardTab.value = 'settings'; onView('board'); } }),
           // After a connect: a newer signed release for this board (firmware/updateOffer.ts decides when).
           h(FirmwareOffer, { model: props.model ?? null, role: props.role?.value ?? null, live: props.liveTab?.value === true }),
@@ -277,5 +287,7 @@ export function AppShell(props: AppShellProps): ComponentChild {
       h('span', { class: 'footer-secondary' }, 'Libraries saved in this browser'),
       h('span', { class: 'mono', 'data-version': '', title: `Version ${props.build.version}, commit ${props.build.sha}` }, versionLabel(props.build)),
     ),
+    ),
+    h(SignInGate, null),
   );
 }

@@ -57,9 +57,11 @@ export function SignInGateView(p: { readonly kind: GateKind; readonly href: stri
   );
 }
 
-/** Reads the account state and the page location; a prerender has no `location` and renders nothing. */
+/** This page's gate, from the account state and the location; a prerender has no `location` and is open. */
+export function pageGate(): GateKind {
+  return gateState(accountState.value, typeof location === 'undefined' ? false : hostedOrigin(location.origin));
+}
+
 export function SignInGate(): ComponentChild {
-  const here = typeof location === 'undefined' ? null : location;
-  const kind = gateState(accountState.value, here === null ? false : hostedOrigin(here.origin));
-  return SignInGateView({ kind, href: signInHref(here === null ? '/' : here.pathname) });
+  return SignInGateView({ kind: pageGate(), href: signInHref(typeof location === 'undefined' ? '/' : location.pathname) });
 }

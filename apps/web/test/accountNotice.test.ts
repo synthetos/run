@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { h } from 'preact';
-import { ACCOUNT_TEXT, ACCOUNT_TITLE, WITHOUT_ACCOUNT } from '../src/live/accountNotice.ts';
+import { ACCOUNT_TEXT, ACCOUNT_TITLE } from '../src/live/accountNotice.ts';
 import { accessProvider, providersFor, RUN_SESSION_PROVIDER, signInAvailable } from '../src/live/authGate.ts';
 import { ConnectPanel, refusalText, refusedTitle } from '../src/live/ConnectPanel.ts';
 import { all, byAttr, root, text } from './tree.ts';
@@ -30,7 +30,7 @@ describe('the account notice (B1)', () => {
     const tree = root(h(ConnectPanel, { ...props, state }));
     expect(tree.props['data-accounts']).toBe('coming-soon');
     expect(text(tree)).toContain(ACCOUNT_TEXT);
-    for (const item of WITHOUT_ACCOUNT) expect(text(tree)).toContain(item);
+    expect(text(tree)).not.toContain('What works without an account');
     expect(all(tree, byAttr('data-account', 'wiring'))[0]?.props['href']).toBe('/wiring/');
     expect(text(tree)).not.toContain('Sign in');
     const dismiss = all(tree, byAttr('data-action', 'dismiss'));

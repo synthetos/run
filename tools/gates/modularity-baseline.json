@@ -189,10 +189,9 @@
       "max-params $/FunctionDeclaration:downloadSvgExport#1": 6
     },
     "apps/web/src/workspace/AppShell.ts": {
-      "complexity $/FunctionDeclaration:AppShell#1": 20,
+      "complexity $/FunctionDeclaration:AppShell#1": 18,
       "complexity $/FunctionDeclaration:Banners#1": 31,
-      "complexity $/FunctionDeclaration:Strip#1": 23,
-      "max-lines-per-function $/FunctionDeclaration:AppShell#1": 90
+      "complexity $/FunctionDeclaration:Strip#1": 23
     },
     "apps/web/src/workspace/FirmwareOffer.ts": {
       "complexity $/FunctionDeclaration:FirmwareOffer#1": 25
