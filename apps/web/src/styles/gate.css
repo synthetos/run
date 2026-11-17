@@ -1,15 +1,16 @@
-/* The sign-in front door (docs/superpowers/specs/2026-11-16-first-run-design.md §5). */
+/* The sign-in front door (docs/superpowers/specs/2026-11-16-first-run-design.md §5). Selectors carry two classes
+   where the shared `.dialog p` and `a.button` rules would otherwise win. */
 .gate-scrim { position: fixed; inset: 0; z-index: calc(var(--z-dialog) + 1); background: color-mix(in srgb, var(--ink) 38%, transparent); backdrop-filter: blur(1.5px); }
 .gate { position: fixed; inset: 0; z-index: calc(var(--z-dialog) + 2); display: flex; align-items: center; justify-content: center; padding: 24px; }
 .gate:focus { outline: none; }
 .gate-dialog { width: 440px; padding: 28px 28px 22px; text-align: center; border-radius: 10px; }
 .gate-dialog > svg { display: block; margin: 0 auto 14px; color: var(--ink); }
 .gate-dialog h2 { font-size: 22px; line-height: 1.25; margin: 2px 0 6px; font-weight: 600; }
-.gate-text { font-size: 13.5px; line-height: 1.55; color: var(--muted); margin: 0 auto 18px; max-width: 34ch; }
-.gate-button { width: 100%; min-height: 44px; gap: 10px; font-size: 14.5px; font-weight: 600; border-radius: 6px; }
-a.gate-button svg { width: 18px; height: 18px; }
-.gate-fine { font-size: 12px; color: var(--muted); margin: 12px 0 0; }
-.gate-fine a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.gate-dialog .gate-text { font-size: 13.5px; line-height: 1.55; color: var(--muted); margin: 0 auto 18px; max-width: 34ch; }
+a.button.gate-button { width: 100%; min-height: 44px; gap: 10px; font-size: 14.5px; font-weight: 600; border-radius: 6px; }
+a.button.gate-button svg { width: 18px; height: 18px; }
+.gate-dialog .gate-fine { font-size: 12px; color: var(--muted); margin: 12px 0 0; }
+.gate-dialog .gate-fine a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .gate-rule { border: 0; border-top: 1px solid var(--rule); margin: 18px 0 12px; }
 .gate-learn { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--ink); text-decoration: none; }
 .gate-learn:hover { text-decoration: underline; text-underline-offset: 2px; }

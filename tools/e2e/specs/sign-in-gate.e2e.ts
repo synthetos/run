@@ -19,16 +19,16 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(dialog.locator('[data-action="sign-in"]')).toHaveAttribute('href', '/auth/login');
     await expect(dialog.locator('[data-action="sign-in"]')).toBeFocused();
     await expect(page.locator('.app')).toHaveAttribute('inert', '');
-    await page.keyboard.press('Tab'); await expect(dialog.getByRole('link', { name: 'What we store' })).toBeFocused();
-    await page.keyboard.press('Tab'); await expect(dialog.getByRole('link', { name: /Read the overview/ })).toBeFocused();
-    for (let i = 0; i < 8; i += 1) {
-      await page.keyboard.press('Tab');
-      expect(await page.evaluate(() => document.activeElement?.closest('.app') ?? null)).toBeNull();
-    }
+    // The walkthrough pictures show what a first-time visitor sees: the button focused, before any Tab.
     for (const width of [1280, 320]) {
       await page.setViewportSize({ width, height: width === 320 ? 740 : 800 });
       await expect(dialog).toBeVisible();
       if (SCREENSHOTS) await page.screenshot({ path: `${SHOT_DIR}gate-${theme}-${width}.png`, fullPage: false });
+    }
+    await page.keyboard.press('Tab'); await expect(dialog.getByRole('link', { name: /Read the overview/ })).toBeFocused();
+    for (let i = 0; i < 8; i += 1) {
+      await page.keyboard.press('Tab');
+      expect(await page.evaluate(() => document.activeElement?.closest('.app') ?? null)).toBeNull();
     }
   });
 }
