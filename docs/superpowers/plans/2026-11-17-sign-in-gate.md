@@ -413,13 +413,65 @@ git commit -m "Lock the workspace behind the sign-in gate; retire the first-visi
 
 ---
 
-### Task 5: Browser tests, spec updates and the walkthrough screenshots
+### Task 5: Remove the browser-to-account copy
+
+Spec §5.5. The signed-in page never imports browser records; the local store serves the bench channel only.
+
+**Files:**
+- Delete: `apps/web/src/workspace/cloud/importFlow.ts`, `apps/web/test/browserSync.test.ts`, `tools/e2e/specs/browser-sync.e2e.ts`
+- Modify: `apps/web/src/workspace/cloud/librarySync.ts` (drop `ask`, `counts`, `browserOnly` from `SyncView`; drop `copy` and `notNow` from `librarySyncActions`; `librarySavedText` loses the `browserOnly` branch; `startLibrarySync` no longer reads `cache.consent` or `cache.importSource`)
+- Modify: `apps/web/src/workspace/cloud/SyncNotice.ts` (the toast only; the `library-import` dialog branch goes)
+- Modify: `apps/web/src/workspace/cloud/cloudCache.ts` (`CloudCache` loses `consent` and `importSource`; `readCache` accepts a stored cache that still carries them and drops them)
+- Modify: `apps/web/src/workspace/cloud/syncBindings.ts:26` and `apps/web/src/workspace/cloud/projectRecords.ts:37` (the `cache.consent ||` term goes; a local-only id is never uploaded)
+- Modify: `apps/web/test/seedCleanup.test.ts`, `apps/web/test/syncReviewIsolation.test.ts`, `apps/web/test/cloudLibrary.test.ts` (remove the cases that set `consent` or expect the import dialog; keep the rest)
+- Test: `apps/web/test/cloudLibrary.test.ts`
+
+**Interfaces:**
+- Consumes: nothing from earlier tasks.
+- Produces: `SyncView` without `ask`/`counts`/`browserOnly`; `CloudCache` without `consent`/`importSource`. Task 6 relies on `[data-dialog="library-import"]` no longer existing.
+
+- [ ] **Step 1: Write the failing tests** in `apps/web/test/cloudLibrary.test.ts`
+
+```ts
+test('a signed-in page shows account records only and never uploads a browser-only record', async () => {
+  // storage holds one browser-only tool (run.ws.tools.v2) and no cache; the records client returns one account tool
+  // after startLibrarySync: the tools binding lists the account tool alone; the client saw no PUT; 'ask' in librarySyncView.value is false
+});
+test('a stored cache with consent and importSource is accepted and both fields are dropped', () => {
+  // saveCache of {v:1, records:[], pending:[], imports:{}, consent:true, importSource:[]} then readCache → no consent key, no importSource key
+});
+```
+
+- [ ] **Step 2: Run them to verify they fail**
+
+Run: `cd apps/web && pnpm exec vitest run test/cloudLibrary.test.ts`
+Expected: FAIL (the first lists the browser tool or uploads it; the second keeps `consent`).
+
+- [ ] **Step 3: Make the changes listed under Files**
+
+Delete the three files first, then follow the type errors: every reference to `prepareImport`, `consent`, `importSource`, `ask`, `counts`, `browserOnly`, `copy` and `notNow` goes. `readCache` strips the two fields with a destructuring rest so an old browser cache still loads.
+
+- [ ] **Step 4: Run the targeted tests and the typecheck**
+
+Run: `cd apps/web && pnpm exec vitest run test/cloudLibrary.test.ts test/seedCleanup.test.ts test/syncReviewIsolation.test.ts && pnpm exec tsc --noEmit -p .`
+Expected: PASS, no type errors.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add -A apps/web/src/workspace/cloud apps/web/test tools/e2e/specs/browser-sync.e2e.ts
+git commit -m "Remove the browser-to-account copy; a signed-in page uses account records only"
+```
+
+---
+
+### Task 6: Browser tests, spec updates and the walkthrough screenshots
 
 **Files:**
 - Create: `tools/e2e/specs/sign-in-gate.e2e.ts`
 - Modify: `tools/e2e/specs/live-entry.e2e.ts:84-118` (delete the three first-visit tests)
 - Modify: `tools/e2e/specs/connect-role.e2e.ts:20` (delete the `first-visit` count assertion)
-- Modify: `tools/e2e/specs/project-zip.e2e.ts:7,31` and `tools/e2e/specs/browser-sync.e2e.ts:16-17,38` (sign the stub in where the test exercised a signed-out browser-only flow)
+- Modify: `tools/e2e/specs/project-zip.e2e.ts:7,31` (sign the stub in where the test exercised a signed-out browser-only flow); `browser-sync.e2e.ts` was deleted in Task 5
 - Create: `docs/design/screenshots/sign-in-gate/` (generated)
 - Create: `docs/design/SIGN_IN_GATE.md`
 
@@ -473,11 +525,11 @@ test('where sign-in is not offered the local page stays open', async ({ page }) 
 
 - [ ] **Step 2: Update the signed-out specs**
 
-`live-entry.e2e.ts`: delete the `for (const theme …) { test('first-visit sign-in card …') }` block and the `first-visit card handles blocked storage …` test. `connect-role.e2e.ts:20`: delete the `first-visit` count line. `project-zip.e2e.ts`: change both stubs to `{ account: { subject: 'usr_zip', display: '@zip', canConnect: false }, signIn: true }`. `browser-sync.e2e.ts`: read lines 10-45; where the test's point is the signed-out → signed-in transition, keep the signed-out phase but assert the gate is present and skip interaction until `signedIn = true` and reload; otherwise start signed in.
+`live-entry.e2e.ts`: delete the `for (const theme …) { test('first-visit sign-in card …') }` block and the `first-visit card handles blocked storage …` test. `connect-role.e2e.ts:20`: delete the `first-visit` count line. `project-zip.e2e.ts`: change both stubs to `{ account: { subject: 'usr_zip', display: '@zip', canConnect: false }, signIn: true }`.
 
 - [ ] **Step 3: Run the new spec and the four changed specs**
 
-Run: `cd tools/e2e && pnpm exec playwright test specs/sign-in-gate.e2e.ts specs/live-entry.e2e.ts specs/connect-role.e2e.ts specs/project-zip.e2e.ts specs/browser-sync.e2e.ts --project e2e`
+Run: `cd tools/e2e && pnpm exec playwright test specs/sign-in-gate.e2e.ts specs/live-entry.e2e.ts specs/connect-role.e2e.ts specs/project-zip.e2e.ts --project e2e`
 (Use the project name the suite defines for `*.e2e.ts`; `pnpm e2e -- --grep` from the root is the lead's form, agents call Playwright directly on named files.)
 Expected: all PASS.
 
@@ -491,7 +543,7 @@ Write `docs/design/SIGN_IN_GATE.md`: what a first-time visitor sees (one paragra
 - [ ] **Step 5: Commit**
 
 ```bash
-git add tools/e2e/specs/sign-in-gate.e2e.ts tools/e2e/specs/live-entry.e2e.ts tools/e2e/specs/connect-role.e2e.ts tools/e2e/specs/project-zip.e2e.ts tools/e2e/specs/browser-sync.e2e.ts docs/design/screenshots/sign-in-gate docs/design/SIGN_IN_GATE.md
+git add tools/e2e/specs/sign-in-gate.e2e.ts tools/e2e/specs/live-entry.e2e.ts tools/e2e/specs/connect-role.e2e.ts tools/e2e/specs/project-zip.e2e.ts docs/design/screenshots/sign-in-gate docs/design/SIGN_IN_GATE.md
 git commit -m "Test the sign-in gate in the browser and document it"
 ```
 

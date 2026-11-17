@@ -168,6 +168,15 @@ to the dialog: run's callback answers with the Worker's existing problem page (`
 The return path brings the visitor back to the page they were on (`/auth/login?return_to=`, Worker rule unchanged).
 The page re-reads the session, the lock lifts, and section 6 decides whether the wizard opens.
 
+### 5.5 No browser-to-account copy **(owner, 2026-11-17: "we are starting from scratch")**
+
+Run opens with accounts; nobody has browser-only records worth carrying over. The "Copy what's in this browser to
+your account?" dialog and the copy flow behind it go. A signed-in page reads and writes account records only: records
+left in browser storage from before go-live are neither shown, uploaded nor deleted. The local store stays for the
+non-hosted bench channel only (5.1: a non-hosted origin is open and local). With this, the signed-in page has no
+"browser only" state and no "Saved in this browser" line: its saved text is "Saved to your account", "Saving…",
+"Not saved yet: will retry" or the refusal line.
+
 ## 6. The setup wizard **(owner: seven steps, wide, fixed frame)**
 
 ### 6.1 When it opens
