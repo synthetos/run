@@ -107,15 +107,25 @@ The page reads `/api/session` as it does today (`live/account.ts`). Three states
 | `checking` / `unavailable` on a **hosted build** | the scrim without the dialog for `checking` (no flash of either state); for `unavailable` the dialog with the button and a second line, "The account service did not answer. Try again in a minute." **(call)** |
 | any state on a **non-hosted build** (bench channel, localhost dev, previews, the e2e builds) | no lock at all, exactly today's page **(call, builder check Q1)** |
 
-**Where the lock applies (call).** The lock is a property of the hosted builds (staging and production, the builds the
-Worker serves), decided at build time through the existing build channel, not inferred from whether `/api/session`
-answered. So a Worker outage on staging keeps the lock (the dialog explains), while the bench build, local dev and every
-existing e2e spec that does not stub the session stay unlocked and untouched. Specs that test the lock stub
-`/api/session` and set the hosted flag. The security result never depended on the lock: Connect is refused by the
-Worker (`authGate.ts`) whatever the page shows.
+**Where the lock applies (call, revised while planning).** The page already keys its signed-out card on the session
+read (`FirstVisitCard.ts`: it shows when `/api/session` says `signIn: true` and nobody is signed in, whatever the
+origin), and the browser tests exercise it by stubbing that endpoint on 127.0.0.1. The lock follows the same rule, plus
+the hosted origin for the states the session read cannot express:
 
-Behind the dialog is the workspace in whatever state it has (the owner first floated a loaded demo project, then chose
-"just dimmed"): no demo is loaded for visitors. **(owner)**
+| Session read | Non-hosted origin (bench, localhost dev, the e2e server) | Hosted origin (`environmentForOrigin(origin)` is staging or production) |
+|---|---|---|
+| `signed-in` | open | open |
+| `signed-out`, `signIn: true` | **locked, sign-in dialog** (this is how e2e tests it) | locked, sign-in dialog |
+| `signed-out`, `signIn: false` | open (today's page) | locked, "Sign-in opens on this site soon" |
+| `checking` | open | scrim only |
+| `unavailable` | open | locked, dialog with the retry line |
+
+The bench build never reads the session (`mount.ts` skips it), so it stays `checking` on a non-hosted origin: open. A
+Worker outage on staging keeps the lock. Existing e2e specs that stub a signed-out `signIn: true` session to exercise
+browser-only flows (`project-zip`, `browser-sync`, the first-visit tests in `live-entry`) change with this slice: those
+flows no longer exist for signed-out visitors where sign-in is offered, so the specs sign their stub in, and the
+first-visit card and its tests are replaced by the gate and its tests. The security result never depended on the lock:
+Connect is refused by the Worker (`authGate.ts`) whatever the page shows.
 
 ### 5.2 The dialog
 
@@ -137,10 +147,9 @@ Dialog frame: 440 px wide, `.dialog` styling (sheet, rule, 10 px radius, `--pop`
 It is `role="dialog" aria-modal="true"`, labelled by the heading, focus starts on the button, Tab cycles inside it,
 Escape does nothing (there is nowhere to go). The dialog does not scroll the workspace.
 
-**Refused sign-in (call, builder check Q5).** On staging a visitor not on the tester list is refused by accounts and
-comes back signed out with the refusal reason in the return URL (the existing accounts behaviour). The same dialog
-shows, with one extra line above the button using the existing text from `accountNotice.ts` ("Sign-in opens with the
-public beta.") and no new state in the model: it is `signed-out` with a message.
+**Refused sign-in (call, builder check Q5, corrected while planning).** A refused or failed sign-in never comes back
+to the dialog: run's callback answers with the Worker's existing problem page (`authCallback.ts` `refused` →
+`authPages.ts` `authProblem`), and accounts shows its own page for a visitor not on the tester list. No new page state.
 
 ### 5.3 The lock
 
