@@ -4,7 +4,7 @@ import { stubFirmwareCatalog } from './firmwareCatalogFixture.ts';
 
 for (const theme of ['light', 'dark']) test(`project zip opens in a fresh browser (${theme})`, async ({ page, browser, baseURL }, testInfo) => {
   await page.addInitScript(theme => localStorage.setItem('run.theme', theme), theme);
-  await page.route('**/api/session', route => route.fulfill({ json: { account: null, signIn: true } }));
+  await page.route('**/api/session', route => route.fulfill({ json: { account: { subject: 'usr_zip', display: '@zip', canConnect: false }, signIn: true } }));
   await page.goto('/'); await ready(page);
   await page.locator('[data-region="rail"] [data-view="projects"]').click();
   await page.locator('[data-action="project-new"]').click();
@@ -28,7 +28,7 @@ for (const theme of ['light', 'dark']) test(`project zip opens in a fresh browse
   try {
     const fresh = await context.newPage(); await stubFirmwareCatalog(fresh);
     await fresh.addInitScript(theme => localStorage.setItem('run.theme', theme), theme);
-    await fresh.route('**/api/session', route => route.fulfill({ json: { account: null, signIn: true } }));
+    await fresh.route('**/api/session', route => route.fulfill({ json: { account: { subject: 'usr_zip', display: '@zip', canConnect: false }, signIn: true } }));
     await fresh.goto('/'); await ready(fresh);
     await fresh.locator('[data-region="rail"] [data-view="projects"]').click();
     await expect(fresh.locator('[data-project-row]')).toHaveCount(0);

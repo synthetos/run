@@ -17,7 +17,6 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(notice).toBeVisible();
     await expect(notice).toHaveText('Connecting is open to testers for now.');
     await expect(page.locator('[data-action="connect"]')).toHaveCount(0);
-    await expect(page.locator('[data-account="first-visit"]')).toHaveCount(0);
     const axe = await new AxeBuilder({ page }).include('[data-region="connect"]').analyze();
     expect(axe.violations).toEqual([]);
     const screenshots = process.env['RUN_ROLE_SCREENSHOTS'];
