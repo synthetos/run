@@ -14,6 +14,8 @@ import {
   NAMESPACE_URIS,
   OUTBOUND_URLS,
   ADMITTED_REPORT_URLS,
+  ADMITTED_GATE_URLS,
+  GATE_URLS,
   REPORT_URL_PREFIXES,
   REPORT_URLS,
   scanBundle as scanBundleFor,
@@ -224,6 +226,15 @@ describe('report destinations (REPORT_A_PROBLEM §6)', () => {
       expect(rules('assets/workspace-abc.js', `const t={url:"${u}"};`), u).toEqual([]);
       expect(rules('assets/workspace-abc.js', `const t={url:'${u}'};`), u).toEqual([]);
     }
+  });
+
+  it('admits the sign-in gate links the same way: whole literals in a chunk, under the reviewed prefixes, never in markup', () => {
+    const overview = 'https://github.com/synthetos/run#readme';
+    expect(GATE_URLS).toEqual([overview]);
+    expect(ADMITTED_GATE_URLS).toEqual(GATE_URLS);
+    expect(rules('assets/workspace-abc.js', `const o="${overview}";`)).toEqual([]);
+    expect(rules('assets/workspace-abc.js', `x("${overview}2")`)).toEqual(['origin-literal']);
+    expect(rules('index.html', `<a href="${overview}">x</a>`)).toEqual(['origin-literal']);
   });
 
   it('refuses anything longer, shorter or different, even under the same prefix', () => {

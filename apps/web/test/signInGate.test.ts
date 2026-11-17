@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { h } from 'preact';
 import { all, byAttr, one, root, text } from './tree.ts';
-import { GATE_BUTTON, GATE_DOWN, GATE_SOON, GATE_TITLE, OVERVIEW_HREF, STORE_HREF, SignInGate, SignInGateView } from '../src/gate/SignInGate.ts';
+import { focusOnMount, GATE_BUTTON, GATE_DOWN, GATE_NEW, GATE_SOON, GATE_TITLE, SignInGate, SignInGateView } from '../src/gate/SignInGate.ts';
+import { OVERVIEW_HREF } from '../src/gate/links.ts';
 import { accountState, CHECKING } from '../src/live/account.ts';
 
 describe('SignInGateView', () => {
@@ -13,7 +14,7 @@ describe('SignInGateView', () => {
     expect(all(el, (e) => e.props['class'] === 'gate-scrim')).toHaveLength(1);
     expect(all(el, byAttr('role', 'dialog'))).toHaveLength(0);
   });
-  it('sign-in: dialog with the wordmark alone, the title, one GitHub button to the return path, and the two links', () => {
+  it('sign-in: dialog with the wordmark alone, the title, one GitHub button to the return path, the newcomer line and the overview link', () => {
     const el = root(h('div', null, SignInGateView({ kind: 'sign-in', href: '/auth/login?return_to=%2Fupdate%2F' })));
     const dialog = one(el, byAttr('role', 'dialog'));
     expect(dialog.props['aria-modal']).toBe('true');
@@ -25,9 +26,15 @@ describe('SignInGateView', () => {
     expect(button.tag).toBe('a');
     expect(button.props['href']).toBe('/auth/login?return_to=%2Fupdate%2F');
     expect(text(button)).toContain(GATE_BUTTON);
-    expect(all(dialog, (e) => e.tag === 'a').map((a) => a.props['href'])).toEqual(['/auth/login?return_to=%2Fupdate%2F', STORE_HREF, OVERVIEW_HREF]);
+    // "What we store" waits for accounts to publish its privacy page (spec §5.2 item 5): no placeholder link.
+    expect(all(dialog, (e) => e.tag === 'a').map((a) => a.props['href'])).toEqual(['/auth/login?return_to=%2Fupdate%2F', OVERVIEW_HREF]);
+    expect(text(dialog)).toContain(GATE_NEW);
     expect(all(dialog, (e) => e.tag === 'button')).toHaveLength(0);
     expect(text(dialog)).not.toMatch(/E-stop|never need|Saved in this browser/);
+    const focus = vi.fn();
+    focusOnMount({ focus } as unknown as HTMLElement);
+    expect(focus).toHaveBeenCalledOnce();
+    expect(() => focusOnMount(null)).not.toThrow();
   });
   it('not-offered: no button, the soon line', () => {
     const dialog = one(root(h('div', null, SignInGateView({ kind: 'not-offered', href: '/auth/login' }))), byAttr('role', 'dialog'));

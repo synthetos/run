@@ -10,20 +10,18 @@ import { RunWordmark } from '../brand/RunWordmark.ts';
 import { accountState, signInHref } from '../live/account.ts';
 import { Icon } from '../workspace/icons.ts';
 import { gateState, hostedOrigin, type GateKind } from './gateState.ts';
+import { OVERVIEW_HREF } from './links.ts';
 
 export const GATE_TITLE = 'Sign in to use Run';
 export const GATE_TEXT = 'Run keeps your machines, tools, materials and projects in your Synthetos account. Signing in takes one click with GitHub.';
 export const GATE_BUTTON = 'Continue with GitHub';
 export const GATE_NEW = 'New here? The same button creates your Synthetos account.';
-export const GATE_STORE = 'What we store';
 export const GATE_OVERVIEW = 'What is Run? Read the overview';
 export const GATE_SOON = 'Sign-in opens on this site soon.';
 export const GATE_DOWN = 'The account service did not answer. Try again in a minute.';
-export const STORE_HREF = 'https://accounts.synthetos.com/privacy';
-export const OVERVIEW_HREF = 'https://github.com/synthetos/run#readme';
 
 /** Stable identity: Preact then calls it on mount and unmount only, never on a parent's re-render. */
-const focusOnMount = (el: HTMLElement | null): void => { el?.focus(); };
+export const focusOnMount = (el: HTMLElement | null): void => { el?.focus(); };
 
 function gateBody(kind: GateKind, href: string): ComponentChild[] {
   const offered = kind === 'sign-in' || kind === 'unavailable';
@@ -34,7 +32,8 @@ function gateBody(kind: GateKind, href: string): ComponentChild[] {
     offered ? h('a', { class: 'button primary gate-button', href, 'data-action': 'sign-in', ref: focusOnMount }, GitHubMark(18), GATE_BUTTON) : null,
     kind === 'unavailable' ? h('p', { class: 'gate-fine', role: 'alert' }, GATE_DOWN) : null,
     kind === 'not-offered' ? h('p', { class: 'gate-fine', 'data-gate-note': 'soon' }, GATE_SOON) : null,
-    offered ? h('p', { class: 'gate-fine' }, GATE_NEW, ' ', h('a', { href: STORE_HREF, rel: 'noopener', target: '_blank' }, GATE_STORE)) : null,
+    // "What we store" joins this line when accounts publishes its privacy page (spec §5.2 item 5).
+    offered ? h('p', { class: 'gate-fine' }, GATE_NEW) : null,
     h('hr', { class: 'gate-rule' }),
     h('a', { class: 'gate-learn', href: OVERVIEW_HREF, rel: 'noopener', target: '_blank' }, Icon('book', 15), GATE_OVERVIEW),
   ];

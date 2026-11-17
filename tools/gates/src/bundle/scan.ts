@@ -30,7 +30,8 @@
  *   GitHub organisation and the Synthetos forum). Report a problem builds a
  *   link from them that the user opens in a new tab; nothing is fetched. A
  *   longer or different URL, or the same URL in markup or CSS, is still an
- *   `origin-literal` finding.
+ *   `origin-literal` finding. The sign-in front door's links
+ *   (apps/web/src/gate/links.ts, `GATE_URLS`) are admitted the same way.
  * - `headers-file` (P0-04): the static-assets `_headers` file at the dist
  *   root is missing or differs from `renderHeadersFile()` in
  *   workers/run/src/headers.ts. Cloudflare applies that file to every asset
@@ -136,6 +137,7 @@ import { NETWORK_IDENTIFIERS } from '../shared/networkIdentifiers.ts';
 import { renderHeadersFile } from '../../../../workers/run/src/headers.ts';
 import { OUTBOUND_URLS } from '../../../../apps/web/src/pages/outbound.ts';
 import { REPORT_URLS } from '../../../../apps/web/src/report/targets.ts';
+import { GATE_URLS } from '../../../../apps/web/src/gate/links.ts';
 import { TESTKIT_MARKER } from '../../../../packages/testkit/src/marker.ts';
 import { BENCH_MARKER } from '../../../../apps/web/src/channel/benchMarker.ts';
 import { WEB_SERIAL_METHODS, WEB_SERIAL_PROPERTY } from '../shared/webSerialNames.ts';
@@ -208,6 +210,18 @@ export const REPORT_URL_PREFIXES: readonly string[] = Object.freeze(['https://gi
 export const ADMITTED_REPORT_URLS: readonly string[] = Object.freeze(REPORT_URLS.filter((u) => REPORT_URL_PREFIXES.some((p) => u.startsWith(p) && u.length > p.length)));
 
 export { REPORT_URLS };
+
+/**
+ * The sign-in front door's links (apps/web/src/gate/links.ts), admitted exactly like the report URLs: a whole
+ * string literal in a JavaScript chunk, under the same reviewed prefixes. The dialog is rendered by the page, so
+ * its links cannot be the prerendered `<a href>` the outbound rule allows.
+ */
+export const ADMITTED_GATE_URLS: readonly string[] = Object.freeze(GATE_URLS.filter((u) => REPORT_URL_PREFIXES.some((p) => u.startsWith(p) && u.length > p.length)));
+
+export { GATE_URLS };
+
+/** Every URL a JavaScript chunk may hold as a whole string literal. */
+const ADMITTED_CHUNK_URLS: readonly string[] = Object.freeze([...ADMITTED_REPORT_URLS, ...ADMITTED_GATE_URLS]);
 
 /**
  * True when the URL starting at `index` in an HTML file is the whole value of
@@ -538,7 +552,7 @@ export function scanText(path: string, text: string, target: ScanTarget): ScanFi
     if (LICENCE_TEXT_RE.test(path) && LICENCE_TEXT_URIS.includes(url)) continue;
     if (cloud && isSelfOrigin(url)) continue;
     if (ext === '.html' && OUTBOUND_URLS.includes(url) && isAnchorHref(text, match.index ?? 0, url)) continue;
-    if ((ext === '.js' || ext === '.mjs') && ADMITTED_REPORT_URLS.includes(url) && isStringLiteral(text, match.index ?? 0, url)) continue;
+    if ((ext === '.js' || ext === '.mjs') && ADMITTED_CHUNK_URLS.includes(url) && isStringLiteral(text, match.index ?? 0, url)) continue;
     findings.push({ file: path, rule: 'origin-literal', match: clip(url) });
   }
   for (const match of text.matchAll(SCRIPT_URL_RE)) {
