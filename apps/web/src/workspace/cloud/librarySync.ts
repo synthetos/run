@@ -5,13 +5,15 @@ import { storedBinding, type StorageLike } from '../storage.ts';
 import { readCache, saveCache } from './cloudCache.ts';
 import { LIBRARY_NAMES } from './libraryRecords.ts';
 import { type SyncStatus } from './syncQueue.ts';
-export interface SyncView { mode: 'local' | 'account'; status: SyncStatus; display: string; notice: string | null; remaining: string[] }
+/** `browserOnly`: a machine or project this browser holds that the account does not is listed (spec §5.5). */
+export interface SyncView { mode: 'local' | 'account'; status: SyncStatus; display: string; notice: string | null; remaining: string[]; browserOnly?: boolean }
 export const librarySyncView = signal<SyncView>({ mode: 'local', status: 'saved', display: '', notice: null, remaining: [] });
 export const librarySyncActions = { dismiss: () => {}, retry: () => {} };
 export function librarySavedText(saved: boolean): string {
   const v = librarySyncView.value;
   if (v.mode === 'local') return saved ? 'Saved in this browser' : 'Not saved: this browser blocks storage';
   if (v.status === 'refused') return 'Not saved to your account: review the notice';
+  if (v.browserOnly && v.status === 'saved') return 'Saved in this browser';
   return v.status === 'saved' ? 'Saved to your account' : v.status === 'saving' ? 'Saving…' : 'Not saved yet: will retry';
 }
 export interface SyncOptions {
@@ -20,7 +22,7 @@ export interface SyncOptions {
   setTimeout(fn: () => void, ms: number): unknown; clearTimeout(handle: unknown): void;
 }
 import { startProjectSync, type ProjectContext } from './projectSync.ts';
-import { connectBindings, showBindings } from './syncBindings.ts';
+import { connectBindings, machineLocals, showBindings } from './syncBindings.ts';
 import { syncRunner } from './syncRunner.ts';
 import { refusal } from './recordReaders.ts';
 
@@ -36,8 +38,10 @@ export function startLibrarySync(options: SyncOptions): { stop(): void; wake(): 
   const persist = () => !stopped && saveCache(options.storage, options.subject, cache);
   const notice = (message: string) => update({ notice: message });
   const pendingNames = () => cache.pending.map(p => (p.content as { name?: string } | null)?.name ?? p.id);
+  const machinesBinding = bindings.find(b => b.name === 'machines');
+  const browserOnly = () => (machinesBinding !== undefined && machineLocals(machinesBinding, cache).length > 0) || (projects?.local().length ?? 0) > 0;
   const status = (value: SyncStatus) => {
-    update({ status: value, remaining: value === 'quota' ? pendingNames() : [] });
+    update({ status: value, browserOnly: browserOnly(), remaining: value === 'quota' ? pendingNames() : [] });
     if (value === 'quota') notice('Your account storage is full. These records stayed local.');
   };
   const show = () => { if (stopped) return; if (queueSeedCleanup(cache)) persist(); showBindings(bindings, cache); projects?.show(); };
@@ -50,8 +54,8 @@ export function startLibrarySync(options: SyncOptions): { stop(): void; wake(): 
     },
   });
   function wake(): void { if (stopped) return; projects?.wake(); if (!['quota', 'refused'].includes(librarySyncView.peek().status)) runner.wake(); }
-  librarySyncView.value = { mode: 'account', status: cache.pending.length ? 'saving' : 'saved', display: options.display, notice: null, remaining: [] };
-  const machines = bindings.find(b => b.name === 'machines')?.local();
+  librarySyncView.value = { mode: 'account', status: cache.pending.length ? 'saving' : 'saved', display: options.display, notice: null, remaining: [], browserOnly: browserOnly() };
+  const machines = machinesBinding?.local();
   if (Array.isArray(machines)) for (const machine of machines) { const issue = refusal('machine', machine); if (issue !== null) notice(issue); }
   connectBindings(bindings, cache, { persist, change, notice });
   if (queueSeedCleanup(cache)) persist();

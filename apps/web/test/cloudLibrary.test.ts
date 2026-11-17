@@ -137,6 +137,14 @@ describe('storage backend lifetime', () => {
     expect(librarySavedText(true)).toBe('Saved to your account'); r.sync.stop(); expect(r.local.value.value[0]?.tool.name).toBe('My tool');
     expect(librarySavedText(true)).toBe('Saved in this browser'); expect(librarySavedText(false)).toContain('blocks storage');
   });
+  it('says "Saved in this browser" while a local-only machine is listed beside the account records', async () => {
+    const storage = memory();
+    const profiles = stored('machines', [{ id: 'machine.local', name: 'Garage router', templateId: 'custom', drive: 'any', travel: { x: 100, y: 100, z: 50 }, spindle: '', createdAt: '2026-11-16T12:00:00Z' }], (v): v is unknown[] => Array.isArray(v), () => storage);
+    const r = setup(client(), storage); await settle();
+    expect(r.api.put).not.toHaveBeenCalled();
+    expect(librarySavedText(true)).toBe('Saved in this browser');
+    expect(profiles.value.value).toMatchObject([{ id: 'machine.local' }]);
+  });
   it.each([401, 503])('falls back to the browser on %i', async status => {
     const api = client(); vi.mocked(api.list).mockRejectedValue(new RecordsError(status)); const r = setup(api); await settle();
     expect(librarySyncView.value.mode).toBe('local'); expect(r.local.value.value[0]?.tool.id).toBe(tool.id);

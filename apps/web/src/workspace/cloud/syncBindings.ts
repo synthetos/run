@@ -5,7 +5,8 @@ import { refusal, validContent } from './recordReaders.ts';
 import { enqueue, visibleRecords } from './syncQueue.ts';
 
 export interface BindingHooks { persist(): boolean; change(): void; notice(message: string): void }
-function machineLocals(binding: StoredBinding, cache: CloudCache): unknown[] {
+/** The machines this browser holds that the account does not: shown beside the account's, never uploaded. */
+export function machineLocals(binding: StoredBinding, cache: CloudCache): unknown[] {
   const local = binding.local();
   if (!Array.isArray(local)) return [];
   const known = new Set([...cache.records, ...cache.pending].filter(r => r.kind === 'machine').map(r => r.id));
