@@ -3,8 +3,8 @@
  *
  * Production accepts only the run session (authGate.ts), which has not shipped, so a Connect there can never
  * succeed. "Sign in to connect" with only an OK was a dead end: the sign-in it asked for was greyed out. This says
- * plainly that connecting needs a Synthetos account, that accounts are coming soon, and what works meanwhile, with
- * a Close. Plain words, no signal word: it is not a SAFETY §5 warning. Bench and staging keep the sign-in text.
+ * plainly that connecting needs a Synthetos account and that accounts are coming soon, with a Close (the "what works
+ * meanwhile" list went with the sign-in front door, 2026-11-17). Plain words, no signal word: it is not a SAFETY §5 warning. Bench and staging keep the sign-in text.
  *
  * A1-07 (owner, 2026-11-09: "staging first, just my github account for now"): where the host offers sign-in, the
  * notice keeps its words and adds one small link for beta testers. accounts admits only the D37 allowlist; anyone

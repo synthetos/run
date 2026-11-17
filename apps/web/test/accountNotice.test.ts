@@ -1,6 +1,6 @@
 /**
  * Connect where no one can sign in yet (owner 2026-11-08; first-time walk B1): production says connecting needs a
- * Synthetos account, that accounts are coming soon, and what works meanwhile, with a Close. Staging and the bench
+ * Synthetos account and that accounts are coming soon, with a Close. Staging and the bench
  * keep the sign-in refusal.
  */
 import { describe, expect, it } from 'vitest';
@@ -25,7 +25,7 @@ describe('signInAvailable', () => {
 });
 
 describe('the account notice (B1)', () => {
-  it('says plainly why, what works meanwhile, links the wiring guide, and offers Close, not OK', () => {
+  it('says plainly why, links the wiring guide, and offers Close, not OK', () => {
     const state = { step: 'refused' as const, refusal: { kind: 'signed-out' as const, signIn: false } };
     const tree = root(h(ConnectPanel, { ...props, state }));
     expect(tree.props['data-accounts']).toBe('coming-soon');
