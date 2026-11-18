@@ -1,7 +1,9 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { h } from 'preact';
 import { all, root } from './tree.ts';
 import { RunWordmark, WORDMARK_GEOMETRY } from '../src/brand/RunWordmark.ts';
+import { WORDMARK_GEOMETRY as GEOMETRY } from '../src/brand/wordmarkGeometry.ts';
 import { GitHubMark } from '../src/brand/GitHubMark.ts';
 import { Icon } from '../src/workspace/icons.ts';
 
@@ -23,6 +25,10 @@ describe('RunWordmark', () => {
   });
   it('takes a label for the lockup', () => {
     expect(root(h(RunWordmark, { height: 22, label: 'Synthetos run' })).props['aria-label']).toBe('Synthetos run');
+  });
+  it('the geometry module is the single source and imports nothing, so the Node tools can read it', () => {
+    expect(GEOMETRY).toBe(WORDMARK_GEOMETRY);
+    expect(readFileSync(new URL('../src/brand/wordmarkGeometry.ts', import.meta.url), 'utf8')).not.toMatch(/^import /m);
   });
 });
 
