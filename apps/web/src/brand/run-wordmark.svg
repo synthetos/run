@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 2 66 46" role="img" aria-label="run">
+  <g fill="none" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 40V16M4 25a9 9 0 0 1 9-9" stroke="#15222c"/>
+    <path d="M20 16v16a8 8 0 0 0 16 0V16M36 16v24" stroke="#15222c"/>
+    <path d="M44 40V16" stroke="#15222c" stroke-dasharray="0.01 7.14"/>
+    <path d="M44 24a8 8 0 0 1 16 0v16" stroke="#1d5aa6"/>
+  </g>
+  <circle cx="60" cy="40" r="3.4" fill="#1d5aa6"/>
+</svg>

@@ -35,6 +35,7 @@
     "e2e:fake-serial": "pnpm build && pnpm build:fake-serial && pnpm fake-serial:diff && pnpm --filter @synthetos/e2e e2e:fake-serial",
     "gen:contrast": "node tools/gates/src/tokens/contrast-cli.ts",
     "gen:icons": "node tools/gates/src/icons/gen.ts",
+    "gen:brand": "node tools/gates/src/brand/gen.ts",
     "tokens:drift": "node tools/gates/src/tokens/drift-cli.ts",
     "gen:schema": "node tools/gates/src/schema/gen.ts",
     "gen:boards": "node tools/gates/src/boards/gen.ts",
