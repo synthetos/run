@@ -112,5 +112,54 @@ for (const theme of ['light', 'dark'] as const) {
       }
       await shot(page, `step-6-${theme}-${width}`);
     });
+
+    test(`147: the catalog opens as a whole page, lists tools without a search, and adding one returns to the step (${theme}, ${width})`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: theme });
+      const height = width === 1280 ? 800 : 700;
+      await page.setViewportSize({ width, height });
+      await open(page, [setupRecord({ step: 5, done: [1, 2, 3, 4] })], 5);
+      await shot(page, `step-5-${theme}-${width}`);
+      await page.locator('[data-action="wizard-catalog"]').click();
+      const catalog = page.locator('.wizard-catalog');
+      await expect(catalog.locator('tbody tr').first()).toBeVisible({ timeout: 15_000 });
+      expect(await catalog.boundingBox()).toEqual({ x: 0, y: 0, width, height });
+      expect(await catalog.locator('tbody tr').count()).toBeGreaterThan(10);
+      await expect(catalog.getByLabel('Search catalog')).toHaveValue('');
+      await expect(page.locator('[data-action="wizard-catalog-back"]')).toBeFocused();
+      await shot(page, `step-5-catalog-${theme}-${width}`);
+      await catalog.getByLabel('Search catalog').fill('1/4 2 flute');
+      expect(await catalog.locator('tbody tr').count()).toBeGreaterThan(0);
+      await catalog.locator('tbody tr').first().locator('[data-action="catalog-add"]').click();
+      const modal = page.locator('.tool-modal');
+      const box = await modal.boundingBox();
+      expect(box !== null && box.x >= 0 && box.y >= 0 && box.x + box.width <= width && box.y + box.height <= height).toBe(true);
+      await modal.locator('[data-action="save-tool"]').click();
+      await expect(catalog).toHaveCount(0);
+      await expect(wizard(page).locator('[data-wizard="tool"]')).toContainText('6.35 mm');
+      await expect(page.locator('[data-wizard-step="5"]')).toBeVisible();
+    });
+
+    test(`147: Create a tool opens the editor above the frame, never cut to it (${theme}, ${width})`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: theme });
+      const height = width === 1280 ? 800 : 700;
+      await page.setViewportSize({ width, height });
+      await open(page, [setupRecord({ step: 5, done: [1, 2, 3, 4] })], 5);
+      await page.locator('[data-action="wizard-create-tool"]').click();
+      const modal = page.locator('.tool-modal');
+      await expect(modal).toBeVisible();
+      const g = await modal.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + 20);
+        return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, onTop: hit !== null && el.contains(hit) };
+      });
+      expect(g.left).toBeGreaterThanOrEqual(0);
+      expect(g.top).toBeGreaterThanOrEqual(0);
+      expect(g.right).toBeLessThanOrEqual(width);
+      expect(g.bottom).toBeLessThanOrEqual(height);
+      expect(g.onTop).toBe(true);
+      await shot(page, `step-5-create-${theme}-${width}`);
+      await page.keyboard.press('Escape');
+      await expect(modal).toHaveCount(0);
+    });
   }
 }

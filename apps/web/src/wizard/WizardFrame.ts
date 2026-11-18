@@ -17,6 +17,8 @@ export interface FrameProps {
   /** Null for a step that cannot be skipped. */
   readonly onSkip: (() => void) | null;
   readonly onClose: () => void;
+  /** A whole-page layer over the frame (the catalog page, the tool editor), inside the wizard's dialog. */
+  readonly overlay?: ComponentChild;
   readonly children?: ComponentChildren;
 }
 
@@ -52,6 +54,7 @@ export function WizardFrame(p: FrameProps): ComponentChild {
         ),
         h('button', { type: 'button', class: 'small quiet wizard-close', 'data-action': 'wizard-close', 'aria-label': CLOSE_LABEL, onClick: p.onClose }, CLOSE_LABEL),
       ),
+      p.overlay ?? null,
     ),
   );
 }

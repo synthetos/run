@@ -255,6 +255,10 @@ machine name about 300 px; the board picker about 200 px). Options are radio car
    - **available** (supported, newer released): the offer text, one or two lines on what changes, "Update firmware" as
      the primary and "Next: homing" enabled. Skippable; a skipped update is offered again on the Board page as today.
    - **no offer** (up to date, or no listed release applies): one line, "Next: homing".
+   **Amended (owner, 2026-11-18, picture 146 in docs/design/WIZARD_FIXES.md):** the step judges the board against the
+   release list itself; the offer only decides whether the update can run now. "Current" only when the list is loaded
+   and names nothing newer for this hardware; while it loads, "checking"; if it fails, one line. A newer release the
+   offer withholds (busy, read-only, no updater on this site) shows the facts and why, never "current".
    The walkthrough must show a `needed` update running on bench 2 with the step refusing to advance until it is done.
 4. **Homing** **(owner, 2026-11-17: choice only; the wizard never writes TinyG settings)**. Needs a connected board (same line and skip rule as Firmware). Two radio cards: "Limit switches fitted" (homing seeks each switch, then backs off) and "No limit
    switches" (you set the home position by hand; Run remembers it for this machine). The choice writes the machine
@@ -269,12 +273,17 @@ machine name about 300 px; the board picker about 200 px). Options are radio car
    project setup), so "Add stock" keeps the stock in the **setup record** with the builtin MDF material as its
    `materialRef` **(call, builder check Q2)**; step 6 writes it into the project it creates, and if step 6 is skipped
    the setup record keeps it and the new-project dialog offers it as the default stock until a project uses it. Primary
-   "Next: project". Skippable.
+   "Next: project". Skippable. **Amended (owner, 2026-11-18, OD-42): "Tools" only; the wizard sets up the machine, not
+   the job.** No stock card and no stock on the setup record (older records that carry one still read); new drafts
+   take the seed stock and the job's own Stock step owns stock. "Add from catalog" opens the catalog as a whole page
+   over the wizard; adding a tool closes it and the step shows the choice. The catalog lists every tool without a
+   search and its search matches name, type, diameter and flutes as well as part number.
 6. **First project.** Two pick cards: **Demo project** and **New project**. Demo: a small named part whose G-code, tool
    and stock already match, created as a real project in the account (copy, not reference) so it can be edited or
    deleted like any other. The demo creates the records it references when they are missing, so it is complete even
    when step 5 was skipped: the catalog ¼" two-flute tool as a `tool` record, the builtin MDF material by its builtin
-   id, the stock from step 5 or the demo's own 180 × 120 × 6.35 mm **(call, builder check Q7)**. Unlike the existing
+   id, the stock from step 5 or the demo's own 180 × 120 × 6.35 mm **(call, builder check Q7; since OD-42 always the
+   demo's own)**. Unlike the existing
    samples, the demo is a tested program: the sanitizer and the analyze engine pass it in unit tests. New: opens the existing new-project dialog. Primary "Open project". Skippable.
 7. **You are set** (not skippable). "Name plate is open on the Job page" (or the project's name), one line on what to
    do next ("Place the job on the stock, check it, then run it."), primary "Go to the Job page". Below it a **"More

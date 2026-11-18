@@ -4,8 +4,8 @@
  * every other account record; nothing here touches browser storage of its own. `setupView` is the page's view of
  * it, `saveSetup` the write: both are inert until `connectSetup` has run for a signed-in account.
  */
-import { computed, signal } from '@preact/signals';
-import { EMPTY_SETUP_RECORD, SETUP_RECORD_ID, type SetupRecord, type Stock } from '@synthetos/library';
+import { signal } from '@preact/signals';
+import { EMPTY_SETUP_RECORD, SETUP_RECORD_ID, type SetupRecord } from '@synthetos/library';
 import type { CloudCache } from './cloudCache.ts';
 import { enqueue, visibleRecords } from './syncQueue.ts';
 
@@ -21,12 +21,6 @@ export interface SetupView {
 
 const NO_ACCOUNT: SetupView = Object.freeze({ record: null, machines: 0, refreshed: false, account: false });
 export const setupView = signal<SetupView>(NO_ACCOUNT);
-
-/** The stock chosen in setup, offered to new jobs until a project uses it (R12). */
-export const defaultStock = computed<Stock | null>(() => {
-  const record = setupView.value.record;
-  return record !== null && record.projectId === null ? record.stock : null;
-});
 
 export type SetupPatch = Partial<Omit<SetupRecord, 'v' | 'id' | 'updatedAt'>>;
 type Writer = (patch: SetupPatch, now: () => Date) => boolean;

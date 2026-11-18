@@ -78,10 +78,17 @@ test('walks all seven steps with the fake board, saves the setup record as it go
   await expect(homeQuick.getByRole('button', { name: /^Home all/ })).toBeHidden();
   await shot(page, 'step-4-light-1280');
   await next(page).click();
-  // 5 Tools and stock: the stock, then the tool editor opens on top and closes.
+  // 5 Tools (OD-42: no stock): the catalog opens as a whole page, a tool added there brings the step back with it;
+  // the tool editor opens on top and closes.
   await expect(step(page, 5)).toBeVisible();
-  await page.locator('[data-action="wizard-add-stock"]').click();
-  await expect(page.locator('[data-action="wizard-add-stock"]')).toHaveText('Stock saved');
+  await expect(wizard(page).locator('[data-action="wizard-add-stock"]')).toHaveCount(0);
+  await page.locator('[data-action="wizard-catalog"]').click();
+  const catalog = page.locator('.wizard-catalog');
+  await expect(catalog.locator('[data-catalog-part="52-280"]')).toBeVisible({ timeout: 15_000 });
+  await catalog.locator('[data-catalog-part="52-280"] [data-action="catalog-add"]').click();
+  await page.locator('.tool-modal [data-action="save-tool"]').click();
+  await expect(catalog).toHaveCount(0);
+  await expect(page.locator('[data-wizard="tool"]')).toContainText('6.35 mm end mill');
   await page.locator('[data-action="wizard-create-tool"]').click();
   await expect(page.locator('.tool-modal')).toBeVisible();
   await page.keyboard.press('Escape');
@@ -107,12 +114,17 @@ test('walks all seven steps with the fake board, saves the setup record as it go
   if (await w29.isVisible()) await w29.click();
   await shot(page, 'job-demo-light-1280');
   await expect.poll(() => (account.records.get('setup:setup')?.content as { dismissed: boolean } | undefined)?.dismissed, { timeout: 10_000 }).toBe(true);
-  const setup = account.records.get('setup:setup')?.content as { done: number[]; projectId: string | null; homing: string | null; stock: { width: number } | null };
+  const setup = account.records.get('setup:setup')?.content as { done: number[]; projectId: string | null; homing: string | null; stock: unknown; toolId: string | null };
   expect(setup.done).toEqual([1, 2, 3, 4, 5, 6, 7]);
   expect(setup.homing).toBe('none');
-  expect(setup.stock?.width).toBe(180);
+  // OD-42: the wizard writes no stock; the demo keeps its own 180 × 120 × 6.35 mm block.
+  expect(setup.stock).toBeNull();
+  const added = account.ofKind('tool').find((r) => (r.content as { partNumber?: string }).partNumber === '52-280');
+  expect(setup.toolId).toBe(added?.id);
   expect(setup.projectId).not.toBeNull();
-  expect(account.ofKind('project').map((r) => (r.content as { name: string }).name)).toEqual(['Name plate']);
+  const projects = account.ofKind('project');
+  expect(projects.map((r) => (r.content as { name: string }).name)).toEqual(['Name plate']);
+  expect((projects[0]?.content as { setup?: { stockSnapshot?: { width: number } } }).setup?.stockSnapshot?.width).toBe(180);
   expect(account.ofKind('tool').map((r) => r.id)).toContain('demo.quarter-2f');
 });
 

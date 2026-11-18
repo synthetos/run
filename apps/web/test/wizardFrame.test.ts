@@ -36,6 +36,11 @@ describe('WizardFrame', () => {
     (one(dialog, byAttr('data-action', 'wizard-next')).props['onClick'] as () => void)();
     expect(onClick).toHaveBeenCalledOnce();
   });
+  it('an overlay (the catalog page, the tool editor) renders inside the wizard dialog, after the frame, not in its body', () => {
+    const dialog = one(root(h('div', null, h(WizardFrame, { step: 5, marks, title: 'Tools', lead: '', primary: { label: 'Next: project', onClick: () => undefined }, onSkip: null, onClose: () => undefined, overlay: h('div', { class: 'overlay-mark' }) }))), byAttr('role', 'dialog'));
+    const kids = dialog.children.filter((c) => typeof c !== 'string') as { props: Record<string, unknown> }[];
+    expect(kids.map((k) => k.props['class'])).toEqual(['wizard-dialog', 'overlay-mark']);
+  });
 });
 
 describe('WizardRail', () => {

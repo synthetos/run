@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EMPTY_SETUP_RECORD, type SetupRecord } from '@synthetos/library';
 import { RecordsError } from '../src/cloud/recordsClient.ts';
 import { emptyCache } from '../src/workspace/cloud/cloudCache.ts';
-import { connectSetup, defaultStock, saveSetup, setupView } from '../src/workspace/cloud/setupSync.ts';
+import { connectSetup, saveSetup, setupView } from '../src/workspace/cloud/setupSync.ts';
+import { newDraftJob } from '../src/workspace/jobModel.ts';
 import { drainQueue } from '../src/workspace/cloud/syncQueue.ts';
 import { SEED_SETUP } from '../src/workspace/library.ts';
 import { api, machine, record } from './syncFixtures.ts';
@@ -75,12 +76,14 @@ describe('the account setup record on the page', () => {
     expect(cache.pending).toEqual([]);
   });
 
-  it('defaultStock is the record stock until a project uses it', () => {
-    const cache = emptyCache(); cache.records = [record('setup', setup({ stock: SEED_SETUP.stock }))];
+  it('OD-42: an older record with a stock still reads, and new drafts keep the seed stock, not the record’s', () => {
+    const old = { ...SEED_SETUP.stock, width: 200, depth: 150, thickness: 12 };
+    const cache = emptyCache(); cache.records = [record('setup', setup({ stock: old, step: 6 }))];
     const link = connectSetup(cache, hooks()); stop = link.stop;
-    expect(defaultStock.value).toEqual(SEED_SETUP.stock);
-    saveSetup({ projectId: 'p-1' }, NOW);
-    expect(defaultStock.value).toBeNull();
+    expect(setupView.value.record?.stock).toEqual(old);
+    expect(setupView.value.record?.step).toBe(6);
+    const draft = newDraftJob({ now: NOW, newId: () => 'd-1' });
+    expect(draft.setup.stock).toMatchObject({ width: SEED_SETUP.stock.width, depth: SEED_SETUP.stock.depth, thickness: SEED_SETUP.stock.thickness });
   });
 
   it('stop resets the view to no account', () => {

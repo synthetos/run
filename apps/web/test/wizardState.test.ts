@@ -30,7 +30,7 @@ describe('steps and progress', () => {
   it('seven steps; 1 and 7 are not skippable, the other five are', () => {
     expect(STEPS.map((s) => s.id)).toEqual([1, 2, 3, 4, 5, 6, 7]);
     expect(STEPS.map((s) => s.skippable)).toEqual([false, true, true, true, true, true, false]);
-    expect(STEPS.map((s) => s.label)).toEqual(['Welcome', 'Machine', 'Firmware', 'Homing', 'Tools & stock', 'Project', 'Done']);
+    expect(STEPS.map((s) => s.label)).toEqual(['Welcome', 'Machine', 'Firmware', 'Homing', 'Tools', 'Project', 'Done']);
   });
   it('markDone adds the step and advances; the last step stays 7 and done never repeats', () => {
     expect(markDone({ ...EMPTY_SETUP_RECORD, step: 2, done: [1] }, 2)).toEqual({ step: 3, done: [1, 2] });
@@ -55,6 +55,6 @@ describe('steps and progress', () => {
   });
   it('the primary label per step', () => {
     const labels = ([1, 2, 3, 4, 5, 6, 7] as StepId[]).map((s) => NEXT_LABEL[s]);
-    expect(labels).toEqual(['Set up my machine', 'Next: firmware', 'Next: homing', 'Next: tools & stock', 'Next: project', 'Open project', 'Go to the Job page']);
+    expect(labels).toEqual(['Set up my machine', 'Next: firmware', 'Next: homing', 'Next: tools', 'Next: project', 'Open project', 'Go to the Job page']);
   });
 });

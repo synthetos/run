@@ -50,6 +50,15 @@ li[data-mark="done"] .wizard-step-mark { border-color: var(--ok); color: var(--o
 .wizard-card { border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; min-width: 0; }
 .wizard-card-title { font-size: 14px; margin: 0 0 6px; }
 .wizard-embed { border: 1px solid var(--rule); border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
+/* Step 5's catalog page (owner 147): the catalog's own layout at the full viewport, above the frame and below the
+   catalog's own dialogs (`.wizard .dialog-wrap`). */
+.wizard-catalog { position: fixed; inset: 0; z-index: 4; display: flex; flex-direction: column; background: var(--paper); text-align: left; }
+.wizard-catalog-bar { flex: none; display: flex; align-items: center; gap: 14px; padding: 10px 20px; border-bottom: 1px solid var(--rule); background: var(--sheet); }
+.wizard-catalog-bar .wizard-line { margin: 0; }
+.wizard-catalog-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.wizard-catalog-body > .catalog-view { flex: 1; min-height: 0; }
+.wizard-catalog-body > .catalog-view > .list-panel { display: flex; flex-direction: column; min-height: 0; }
+.wizard-catalog-body .tool-table-wrap { flex: 1; min-height: 0; overflow: auto; }
 /* The Board tab's update flow inside the frame (R5): its two panels stack and scroll on their own; the frame stays put. */
 .wizard-embed .configure-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; height: auto; }
 .wizard-embed .list-panel, .wizard-embed .inspector { max-height: 300px; overflow: auto; }

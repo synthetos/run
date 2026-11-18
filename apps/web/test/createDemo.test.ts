@@ -28,11 +28,10 @@ describe('createDemo (spec §6.3 step 6, §6.4)', () => {
     await createDemo(d.deps);
     expect(toolStore.value.value.filter((e) => e.tool.id === DEMO_TOOL.id)).toHaveLength(1);
   });
-  it('uses the stock from setup when there is one', async () => {
+  it('OD-42: the demo keeps its own built-in stock, 180 × 120 × 6.35 mm MDF, whatever an older setup record says', async () => {
     const d = deps();
-    const result = await createDemo(d.deps, { width: 200, depth: 150, thickness: 12, shape: 'block', materialRef: { id: 'builtin.mdf', version: 1 }, position: { x: 0, y: 0 }, zero: { corner: 'front-left', height: 'top' } });
-    expect(d.store.find(result.projectId as string)?.setup.stockSnapshot).toMatchObject({ width: 200, depth: 150, thickness: 12 });
-  });
+    const result = await createDemo(d.deps);
+    expect(d.store.find(result.projectId as string)?.setup.stockSnapshot).toMatchObject({ width: 180, depth: 120, thickness: 6.35, materialRef: { id: 'builtin.mdf' } });  });
   it('with a job running the project is created but the file is not opened, and the lock is the reason (Review Focus 5)', async () => {
     const d = deps('A job is running.');
     const result = await createDemo(d.deps);

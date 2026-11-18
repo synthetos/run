@@ -1,8 +1,10 @@
 /**
  * The account's setup record (docs/superpowers/specs/2026-11-16-first-run-design.md §6.1): one document per
  * account, id `setup`, holding whether the setup wizard was dismissed, the step to resume on, the steps finished,
- * the homing choice (choice only; never a board setting), the stock chosen in step 5 and the ids of what the
- * wizard created. The type and the strict reader live here so the browser and the account store agree.
+ * the homing choice (choice only; never a board setting) and the ids of what the wizard created. `stock` was
+ * written by the first wizard's step 5; OD-42 took stock out of the wizard, so nothing writes it now, but records
+ * that carry one still read (no migration). The type and the strict reader live here so the browser and the
+ * account store agree.
  */
 import { frozenCopy } from './freeze.ts';
 import { isArray, isDateTime, isObject } from './shape.ts';
@@ -22,6 +24,7 @@ export interface SetupRecord {
   /** Steps finished (not skipped), each 1..7, unique. */
   readonly done: readonly number[];
   readonly homing: HomingChoice | null;
+  /** Older records only (OD-42): read, never written. */
   readonly stock: Stock | null;
   readonly toolId: string | null;
   readonly machineId: string | null;

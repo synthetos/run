@@ -44,7 +44,6 @@ import {
 } from '@synthetos/library';
 import { SAMPLE_HASH, SEED_SETUP, bedOf, legacySetupStore, machineRevision, type MachineBed, type MachineProfile, type SetupState } from './library.ts';
 import { afterLoad, stored } from './storage.ts';
-import { defaultStock } from './cloud/setupSync.ts';
 
 // The record types and the readers are the package's (`@synthetos/library` job.ts), shared with the account store.
 export { JOB_FORMAT, isBed, isJob };
@@ -135,10 +134,9 @@ export function jobFromSetup(setup: SetupState, name: string, clock: JobClock): 
   };
 }
 
-/** A fresh draft from the seed setup, on the stock chosen in setup while no project has used it (first-run R12). */
+/** A fresh draft from the seed setup; the job's own Stock step sets the stock (OD-42: setup no longer does). */
 export function newDraftJob(clock: JobClock = BROWSER_CLOCK): Job {
-  const stock = defaultStock.peek();
-  return jobFromSetup(stock === null ? SEED_SETUP : { ...SEED_SETUP, stock }, DRAFT_NAME, clock);
+  return jobFromSetup(SEED_SETUP, DRAFT_NAME, clock);
 }
 
 /** The job the prerendered page shows before the stores load: the seed, with fixed ids and dates so hydration matches. */

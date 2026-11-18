@@ -4,7 +4,6 @@
  * existing opener; or an empty named project (R10). Everything goes through the existing project store and tool
  * library, which the account sync carries; nothing here touches storage of its own.
  */
-import type { Stock } from '@synthetos/library';
 import { withProjects } from '../projects/browserStore.ts';
 import type { ProjectStore } from '../projects/store.ts';
 import { executionLock, openProjectFile, type OpenResult } from '../workspace/fileBridge.ts';
@@ -33,13 +32,14 @@ export function ensureDemoTool(): ToolEntry {
   return entry;
 }
 
-export async function createDemo(deps: CreateDeps = LIVE, stock: Stock | null = null): Promise<CreateResult> {
+/** The demo on its own built-in stock (OD-42: the wizard no longer asks for stock). */
+export async function createDemo(deps: CreateDeps = LIVE): Promise<CreateResult> {
   const tool = ensureDemoTool();
   const machine = selectedMachine.value;
   const project = await deps.projects(async (s) => {
     const p = await s.create(DEMO_NAME);
     await s.add(p.id, [demoFile()]);
-    return s.setSetup(p.id, demoSetup(machine, tool, stock ?? DEMO_STOCK));
+    return s.setSetup(p.id, demoSetup(machine, tool, DEMO_STOCK));
   });
   const result = { projectId: project.id, name: project.name };
   const fileId = project.files[0]?.id;

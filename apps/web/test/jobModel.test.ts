@@ -26,7 +26,7 @@ import { parseDxfOutline, parseSvgOutline } from '../src/workspace/outline.ts';
 import { analyseBytes } from '../src/gcode-worker/pipeline.ts';
 import { EMPTY_SETUP_RECORD } from '@synthetos/library';
 import { emptyCache } from '../src/workspace/cloud/cloudCache.ts';
-import { connectSetup, saveSetup } from '../src/workspace/cloud/setupSync.ts';
+import { connectSetup } from '../src/workspace/cloud/setupSync.ts';
 import { record } from './syncFixtures.ts';
 
 const clock = (): JobClock => {
@@ -99,18 +99,16 @@ describe('Job records and the migration of the global setup', () => {
     expect(SEED_JOB.id).toBe('seed-draft');
   });
 
-  it('a new draft takes the stock chosen in setup until a project uses it (R12), else the seed stock', () => {
+  it('OD-42: a new draft takes the seed stock, even when an older setup record carries one (R12 retired)', () => {
     const cache = emptyCache();
     const chosen = { ...SEED_SETUP.stock, width: 200, depth: 100, thickness: 12 };
     const content = { ...EMPTY_SETUP_RECORD, stock: chosen };
     cache.records = [record('setup', content, 1)];
     const link = connectSetup(cache, { persist: () => true, change: () => undefined });
     try {
-      expect(newDraftJob(clock()).setup.stock).toMatchObject({ width: 200, depth: 100, thickness: 12 });
-      saveSetup({ projectId: 'p-1' }, () => new Date(0));
       expect(newDraftJob(clock()).setup.stock.width).toBe(SEED_SETUP.stock.width);
+      expect(newDraftJob(clock()).setup.stock.thickness).toBe(SEED_SETUP.stock.thickness);
     } finally { link.stop(); }
-    expect(newDraftJob(clock()).setup.stock.width).toBe(SEED_SETUP.stock.width);
   });
 
   it('revisions bump on every change; illustrative clamps follow the stock, placed clamps do not; the datum mirrors into the stock', () => {

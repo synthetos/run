@@ -26,8 +26,10 @@ import { boardMismatch } from './homingStep.ts';
 import { Homing, HOMING_LEAD, HOMING_TITLE } from './steps/Homing.ts';
 import { createDemo, createNamed, openExisting, type CreateResult } from './createDemo.ts';
 import { CREATE_LABEL, FirstProject, PROJECT_LEAD, PROJECT_TITLE, projectBusy, projectChoice, projectError, projectName, type ProjectChoice } from './steps/FirstProject.ts';
-import { fieldsFromStock, newToolSince, stockFromFields } from './stockFields.ts';
-import { catalogOpen, creatingTool, stockFields, ToolsStock, TOOLS_LEAD, TOOLS_TITLE, toolsBefore } from './steps/ToolsStock.ts';
+import { newToolSince } from './toolChoice.ts';
+import { catalogFrom, creatingTool, Tools, TOOLS_LEAD, TOOLS_TITLE, toolsBefore } from './steps/Tools.ts';
+import { CatalogPage } from './CatalogPage.ts';
+import { ToolModal } from '../workspace/views/tools/ToolModal.ts';
 import { liveBoardId, Machine, MACHINE_LEAD, MACHINE_TITLE, machineDraft } from './steps/Machine.ts';
 import { Welcome, WELCOME_LEAD, WELCOME_TITLE } from './steps/Welcome.ts';
 import { WizardFrame } from './WizardFrame.ts';
@@ -45,6 +47,8 @@ interface StepView {
   readonly nextDisabled?: boolean; readonly next?: () => void; readonly nextLabel?: string | undefined;
   /** Overrides the step definition (the firmware step is not skippable while an update is needed). */
   readonly skippable?: boolean;
+  /** A whole-page layer over the frame (step 5's catalog page or tool editor). */
+  readonly overlay?: ComponentChild;
 }
 
 /** Step 7's primary: the wizard is over; it never opens again on its own (Preferences brings it back). */
@@ -98,30 +102,43 @@ export function addedTool(): ToolEntry | null {
   return newToolSince(toolsBefore.value ?? tools, tools);
 }
 
-/** Step 5: the tool added while the step is open and the stock saved to the record. */
-function toolsStockStepView(): StepView {
+/**
+ * Step 5's effect: a wizard that resumed on step 5 (no Next pressed) captures the tool list it opened with; the
+ * tool added since becomes the record's choice; a tool added from the catalog page closes it (owner 147).
+ */
+function syncToolChoice(onStep5: boolean, tools: readonly ToolEntry[]): void {
+  if (!onStep5) return;
+  if (toolsBefore.peek() === null) toolsBefore.value = tools;
+  const added = addedTool();
+  if (added !== null && setupView.peek().record?.toolId !== added.tool.id) saveSetup({ toolId: added.tool.id });
+  const from = catalogFrom.peek();
+  if (from !== null && newToolSince(from, tools) !== null) catalogFrom.value = null;
+}
+
+/** Step 5's layer over the frame: the catalog page, or the tool editor (both above the frame, never cut to it). */
+function toolsOverlay(): ComponentChild {
+  if (catalogFrom.value !== null) return h(CatalogPage, { onBack: () => { catalogFrom.value = null; } });
+  return creatingTool.value ? h(ToolModal, { entry: null, onClose: () => { creatingTool.value = false; } }) : null;
+}
+
+/** Step 5 (OD-42: tools only): the tool added while the step is open, or the record's. */
+function toolsStepView(): StepView {
   const record = setupView.value.record;
   const tools = toolStore.value.value;
   const added = addedTool();
   const tool = tools.find((e) => e.tool.id === (added?.tool.id ?? record?.toolId)) ?? null;
-  const fields = stockFields.value ?? fieldsFromStock(record?.stock ?? null);
-  const body = h(ToolsStock, {
-    tool, stock: record?.stock ?? null, fields, onFields: (f) => { stockFields.value = f; },
-    onAddStock: () => { const stock = stockFromFields(fields); if (stock !== null) saveSetup({ stock }); },
-    onCatalog: () => { catalogOpen.value = true; }, onCreate: () => { creatingTool.value = true; },
-    catalogOpen: catalogOpen.value, creating: creatingTool.value, onCloseModal: () => { catalogOpen.value = false; creatingTool.value = false; },
-  });
-  return { title: TOOLS_TITLE, lead: TOOLS_LEAD, body };
+  const body = h(Tools, { tool, onCatalog: () => { catalogFrom.value = toolStore.value.peek(); }, onCreate: () => { creatingTool.value = true; } });
+  return { title: TOOLS_TITLE, lead: TOOLS_LEAD, body, overlay: toolsOverlay() };
 }
 
-/** The demo, or the project a refused earlier press already made (never a second one). */
+/** The demo (with its own built-in stock), or the project a refused earlier press already made (never a second one). */
 function makeProject(choice: ProjectChoice): Promise<CreateResult> {
   const record = setupView.peek().record;
   if (choice === 'new') return createNamed(projectName.peek());
-  return record?.projectId == null ? createDemo(undefined, record?.stock ?? null) : openExisting(record.projectId);
+  return record?.projectId == null ? createDemo() : openExisting(record.projectId);
 }
 
-/** Step 6: "Open project" makes the demo (with the stock from step 5) or an empty named project, then moves on. */
+/** Step 6: "Open project" makes the demo or an empty named project, then moves on. */
 function projectStepView(): StepView {
   const choice = projectChoice.value;
   const create = async (): Promise<void> => {
@@ -150,7 +167,7 @@ function stepView(step: StepId, ctx: WizardContext): StepView {
     case 2: return machineStep(ctx);
     case 3: return firmwareStepView(ctx);
     case 4: return homingStepView(ctx);
-    case 5: return toolsStockStepView();
+    case 5: return toolsStepView();
     case 6: return projectStepView();
     default: return doneStepView(ctx);
   }
@@ -172,7 +189,7 @@ function doneStepView(ctx: WizardContext): StepView {
 function resetStepState(entering: boolean): void {
   machineDraft.value = null;
   firmwareUpdating.value = false;
-  stockFields.value = null; catalogOpen.value = false; creatingTool.value = false;
+  catalogFrom.value = null; creatingTool.value = false;
   projectError.value = null; projectBusy.value = false;
   toolsBefore.value = entering ? toolStore.value.peek() : null;
 }
@@ -187,10 +204,7 @@ export function SetupWizard(p: WizardContext): ComponentChild {
   }, [showing, step]);
   // Step 5: the tool added while the step is open becomes the choice, written outside render.
   const tools = toolStore.value.value;
-  useEffect(() => {
-    const added = step === 5 && showing ? addedTool() : null;
-    if (added !== null && setupView.peek().record?.toolId !== added.tool.id) saveSetup({ toolId: added.tool.id });
-  }, [tools, step, showing]);
+  useEffect(() => { syncToolChoice(step === 5 && showing, tools); }, [tools, step, showing]);
   if (!showing) return null;
   const view = stepView(step, p);
   const skippable = view.skippable ?? STEPS[step - 1]?.skippable === true;
@@ -204,6 +218,7 @@ export function SetupWizard(p: WizardContext): ComponentChild {
       primary: { label: view.nextLabel ?? NEXT_LABEL[step], onClick: () => { const go = view.next ?? (() => finishStep(step)); resetStepState(true); go(); }, disabled: view.nextDisabled === true },
       onSkip: skippable ? () => { resetStepState(true); skipStep(step); } : null,
       onClose: () => { resetStepState(false); closeSetup(); },
+      overlay: view.overlay,
     },
     view.body,
   );
