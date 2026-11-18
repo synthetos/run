@@ -19,6 +19,7 @@ import { ProjectSetupChoice } from '../projects/ProjectSetupChoice.ts';
 import { BrandLockup } from '../brand/BrandLockup.ts';
 import { SignInGate } from '../gate/SignInGate.ts';
 import { useShellLock } from '../gate/useShellLock.ts';
+import { SetupWizard, wizardShowing } from '../wizard/SetupWizard.ts';
 import { LibrarySyncNotice } from './cloud/SyncNotice.ts';
 import { Fragment, h, type ComponentChild } from 'preact';
 import type { ReadonlySignal } from '@preact/signals';
@@ -244,8 +245,9 @@ export function AppShell(props: AppShellProps): ComponentChild {
       h('span', null, v.label),
     );
   const pane = (id: ViewId, child: ComponentChild): ComponentChild => h('section', { class: 'view', 'data-screen': id, hidden: current !== id, 'aria-label': VIEWS.find((v) => v.id === id)?.label, key: id }, child);
-  // The sign-in front door (gate/): the whole app is inert while locked; the dialog is its sibling, never inside it.
-  const { ref: appRoot, lock } = useShellLock();
+  // The sign-in front door (gate/) and the setup wizard (wizard/): the whole app is inert while either shows; both
+  // are siblings of the app root, never inside it.
+  const { ref: appRoot, lock } = useShellLock(wizardShowing.value);
   return h(
     Fragment,
     null,
@@ -288,5 +290,6 @@ export function AppShell(props: AppShellProps): ComponentChild {
     ),
     ),
     h(SignInGate, null),
+    h(SetupWizard, { model, onView }),
   );
 }

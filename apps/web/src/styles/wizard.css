@@ -1,0 +1,66 @@
+/* The setup wizard (docs/superpowers/specs/2026-11-16-first-run-design.md §6.2): one 960 × 520 frame over the
+   front door's scrim (gate.css). The frame never changes size between steps; the body scrolls instead. */
+.wizard { position: fixed; inset: 0; z-index: calc(var(--z-dialog) + 2); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.wizard-dialog { position: relative; width: 960px; height: 520px; max-width: 100%; max-height: 100%; padding: 0; display: grid; grid-template-columns: 210px minmax(0, 1fr); overflow: hidden; border-radius: 10px; }
+.wizard-rail { background: var(--paper); border-right: 1px solid var(--rule); padding: 22px 18px; display: flex; flex-direction: column; gap: 18px; }
+.wizard-rail > svg { display: block; color: var(--ink); }
+.wizard-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.wizard-steps li { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); padding: 4px 0; }
+.wizard-steps li[data-mark="current"] { color: var(--ink); font-weight: 600; }
+.wizard-step-mark { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--rule); display: inline-flex; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 600; flex: none; color: var(--muted); }
+li[data-mark="current"] .wizard-step-mark { background: var(--blue); border-color: var(--blue); color: var(--on-blue); }
+li[data-mark="done"] .wizard-step-mark { border-color: var(--ok); color: var(--ok); }
+.wizard-dot-name { display: none; margin: 0; font-size: 14px; font-weight: 600; color: var(--ink); }
+.wizard-content { min-width: 0; display: flex; flex-direction: column; padding: 28px 34px 0; }
+.wizard-content h2 { font-size: 22px; line-height: 1.25; margin: 0 0 6px; font-weight: 600; }
+.wizard-content h2:focus { outline: none; }
+.wizard-content .wizard-lead { font-size: 14px; line-height: 1.5; color: var(--muted); margin: 0 0 18px; }
+.wizard-body { flex: 1; min-height: 0; overflow: auto; padding-bottom: 12px; }
+.wizard-body p { font-size: 13.5px; line-height: 1.55; margin: 0 0 10px; }
+.wizard-foot { flex: none; border-top: 1px solid var(--rule); padding: 14px 0 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.wizard-close { position: absolute; top: 10px; right: 10px; }
+/* Fields are sized to their content (spec §6.3). */
+.wizard .field-row { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end; margin: 0 0 14px; }
+.wizard .field { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--muted); }
+.wizard .field input, .wizard .field select { height: 32px; border: 1px solid var(--rule); border-radius: var(--r-sm); background: var(--sheet); color: var(--ink); padding: 0 8px; font: inherit; font-size: 13.5px; }
+.wizard .f-num input { width: 96px; }
+.wizard .f-name input { width: 300px; }
+.wizard .f-pick select { width: 200px; }
+.wizard .unit-input { display: inline-flex; align-items: center; gap: 6px; }
+.wizard .unit-input i { font-style: normal; color: var(--muted); font-size: 12px; }
+/* Radio cards at natural width, at most 440 px. */
+.wizard .pick-card { display: block; max-width: 440px; border: 1px solid var(--rule); border-radius: 8px; padding: 10px 14px; margin: 0 0 10px; cursor: pointer; background: var(--sheet); }
+.wizard .pick-card:has(input:checked) { border-color: var(--blue); background: var(--blue-wash); }
+.wizard .pick-card input { margin: 0 8px 0 0; }
+.wizard .pick-card strong { font-size: 13.5px; }
+.wizard .pick-card p { margin: 4px 0 0 22px; color: var(--muted); font-size: 12.5px; }
+.wizard .wizard-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.wizard .wizard-card { border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; min-width: 0; }
+.wizard .wizard-card h3 { font-size: 14px; margin: 0 0 6px; }
+.wizard .wizard-embed { border: 1px solid var(--rule); border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
+.wizard .wizard-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+.wizard .wizard-line { font-size: 13px; color: var(--muted); margin: 0 0 10px; }
+.wizard table.wizard-facts { border-collapse: collapse; margin: 0 0 14px; font-size: 13px; }
+.wizard table.wizard-facts th { text-align: left; font-weight: 500; color: var(--muted); padding: 6px 18px 6px 0; }
+.wizard table.wizard-facts td { padding: 6px 18px 6px 0; }
+.wizard table.wizard-facts tr + tr th, .wizard table.wizard-facts tr + tr td { border-top: 1px solid var(--rule); }
+.wizard .wizard-topics { list-style: none; margin: 12px 0 0; padding: 0; }
+.wizard .wizard-topics li { border-top: 1px solid var(--rule); }
+.wizard .wizard-topics li:nth-child(even) { background: var(--paper); }
+.wizard .wizard-topics summary { cursor: pointer; padding: 8px 6px; font-size: 13.5px; }
+.wizard .wizard-topics details > div { padding: 0 6px 10px 22px; font-size: 13px; }
+.wizard .wizard-topics details p { margin: 0 0 6px; }
+@media (max-width: 1023px) {
+  .wizard { padding: 0; }
+  .wizard-dialog { width: 100vw; height: 100vh; height: 100dvh; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); border-radius: 0; border: 0; }
+  .wizard-rail { border-right: 0; border-bottom: 1px solid var(--rule); flex-direction: row; align-items: center; flex-wrap: wrap; gap: 12px 16px; padding: 12px 56px 12px 16px; }
+  .wizard-steps { flex-direction: row; gap: 6px; }
+  .wizard-steps li { padding: 0; }
+  .wizard-steps li .label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .wizard-step-mark { width: 12px; height: 12px; font-size: 0; }
+  li[data-mark="done"] .wizard-step-mark { background: var(--ok); border-color: var(--ok); }
+  li[data-mark="done"] .wizard-step-mark svg { display: none; }
+  .wizard-dot-name { display: block; }
+  .wizard-content { padding: 20px 16px 0; }
+  .wizard .wizard-cards { grid-template-columns: 1fr; }
+}
