@@ -189,7 +189,7 @@ Settings → Secrets and variables → Actions → Variables:
 |---|---|---|
 | `CLOUDFLARE_ACCOUNT_ID` | the current account's id (D39), the same id that replaces `RUN_ACCOUNT_ID_PLACEHOLDER` in `workers/run/wrangler.jsonc` | when the D39 lockdown (`docs/ops/account.md` §2) is in place |
 | `RUN_WORKERS_DEV_SUBDOMAIN` | the account's workers.dev subdomain | with the account id. The smoke test probes `https://run.<it>.workers.dev/` and fails if anything answers (SAFETY H45) |
-| `RUN_DEPLOY_ENABLED` | `true` | only after D39 (the account locked down), D11 (Workers Paid), P0-04 (Worker configuration) and D31 (Access on staging) are all done. While it is unset, the deploy jobs are skipped |
+| `RUN_DEPLOY_ENABLED` | `true` | only after D39 (the account locked down), D11 (Workers Paid) and P0-04 (Worker configuration) are all done (D31, Access on staging, was superseded by OD-40). While it is unset, the deploy jobs are skipped |
 
 ## 4. Actions settings
 

@@ -9,7 +9,7 @@ This page is for the owner. Every step here is a deploy, a DNS or Cloudflare cha
 - Never use `wrangler login` on a laptop for run or accounts (D39). Cloudflare changes are made in the dashboard, signed in with the hardware key.
 - Staging only. Production comes later (§7) and needs its own go-ahead.
 
-**What you end up with.** `staging.accounts.synthetos.com` and `staging.run.synthetos.com`, both behind Cloudflare Access. The staging run app has a Sign in link. Signing in with GitHub as `ril3y` gives "Signed in as @ril3y", and Connect then passes the sign-in gate with the run session. Any other GitHub account is refused by accounts with "Sign-in opens with the public beta."
+**What you end up with.** `staging.accounts.synthetos.com` and `staging.run.synthetos.com`. (They sat behind Cloudflare Access at the time; OD-40 took that off on 2026-11-18, docs/ops/access.md.) The staging run app has a Sign in link. Signing in with GitHub as `ril3y` gives "Signed in as @ril3y", and Connect then passes the sign-in gate with the run session. Any other GitHub account is refused by accounts with "Sign-in opens with the public beta."
 
 ## 0. Before you start (checks only)
 
@@ -45,7 +45,7 @@ GitHub → Settings → Developer settings → GitHub Apps → Synthetos → Cal
 
 Use this same app's client ID and client secret for staging accounts. Read the secret from the password manager; never put it in a repository. No new private key is needed.
 
-**Check.** Both callback URLs appear on Synthetos. The production webhook is still active at its existing URL. Staging remains behind Access; this does not add a second webhook destination.
+**Check.** Both callback URLs appear on Synthetos. The production webhook is still active at its existing URL. This does not add a second webhook destination.
 
 ## 2. Cloudflare (dashboard, hardware key)
 
@@ -69,22 +69,18 @@ Note both database ids (each a UUID). They are not secret.
 
 **Check.** Both databases exist, empty. Do not run anything in them: the deploy jobs apply the reviewed migrations.
 
-### 2.3 Cloudflare Access on staging accounts
+### 2.3 No Cloudflare Access on staging (OD-40)
 
-Zero Trust → Access → Applications → Add → Self-hosted, exactly as docs/ops/access.md §1, with these differences:
-- Application name `accounts-staging`;
-- Domain `staging.accounts.synthetos.com`, path empty (the whole host).
+Since 2026-11-18 staging is public (docs/ops/access.md). Zero Trust → Access → Applications must list **no** application covering `staging.accounts.synthetos.com` or `staging.run.synthetos.com`; delete `accounts-staging` and `run-staging` if they still exist. The deploy jobs check this through the Cloudflare API before anything else and refuse, before the deploy step, while one still covers the host.
 
-Same policies: allow the owner only, no Bypass, no Everyone. If `run-staging` (staging.run.synthetos.com) is not set up yet, do it now too (docs/ops/access.md).
-
-**Check (stop if it fails).** In Zero Trust → Access → Applications, `accounts-staging` exists for the whole host with only your allow policy. Then, from your terminal:
+**Check.** From your terminal:
 
 ```sh
-curl -sS -o /dev/null -w '%{http_code} %{redirect_url}\n' https://staging.accounts.synthetos.com/
+curl -sS -o /dev/null -w '%{http_code} %{redirect_url}\n' https://staging.accounts.synthetos.com/login
 ```
 
-- Before step 4 the name may not resolve yet (`curl` reports a DNS error). That is fine; the deploy job checks Access again through the API before anything else and refuses if the application is missing.
-- After step 4 it **must** print `302` and a `https://…cloudflareaccess.com/…` address. Anything else (a 200, a 503, another address) means staging accounts is public: stop, take the custom domain off the Worker in the dashboard, and fix Access before going on. The deploy job also checks this after the deploy and deletes the staging Worker if it fails.
+- Before step 4 the name may not resolve yet (`curl` reports a DNS error). That is fine.
+- After step 4 it must print a status below 500 and no `cloudflareaccess.com` address. A `302` to `https://…cloudflareaccess.com/…` means an Access application is still in front: delete it and re-run the deploy.
 
 ### 2.4 DNS
 
@@ -124,12 +120,12 @@ run's staging Worker binds `accounts-staging`, so accounts must exist first.
 2. Merge the PR from step 3 to `main` (or push `main`).
 3. The `deploy-staging` job runs, in this order:
    - verify the artifact's attestation;
-   - the Cloudflare Access check (it refuses if no Access application covers staging accounts);
+   - the staging public check (OD-40: it refuses while an Access application still covers staging accounts);
    - preflight;
    - apply the migrations to `identity-staging`;
    - register run's client (`clients/staging.sql`);
    - deploy;
-   - the Access check again (an anonymous request must go to the Access login); if it fails, the job deletes the staging Worker.
+   - the public check again (anonymous `/` and `/login` must reach the Worker, not an Access login); if it fails, the job deletes the staging Worker.
 4. The `deploy-production` job then waits for your approval. **Do not approve it.** Reject it (its preflight would refuse the production placeholders anyway).
 
 **Check.** The `deploy-staging` job is green, and `staging.accounts.synthetos.com` shows in Workers & Pages → `accounts-staging` → Domains. Until step 4.2 the Worker answers every request with a 503: without its secrets it fails closed.
@@ -152,7 +148,7 @@ Only the GitHub app client credentials are shared (OD-37). Generate separate ses
 Saving a secret makes a new Worker version outside CI, so the D39 audit-log alert fires. That is expected: note it in the release audit (docs/ops/account.md §3).
 
 **Check.**
-1. Signed in to Access in your normal browser, open `https://staging.accounts.synthetos.com/login`. It shows the sign-in form, not "not enabled".
+1. Open `https://staging.accounts.synthetos.com/login`. It shows the sign-in form, not "not enabled".
 2. Sign in with GitHub as `ril3y`. You land on the account page with your login.
 3. If you have a second GitHub account: signing in with it shows "Sign-in opens with the public beta." and creates no account.
 
@@ -162,7 +158,7 @@ Saving a secret makes a new Worker version outside CI, so the D39 audit-log aler
 
 Merge the `accounts-live` branch (with the database id from step 3) to run's `main`. The `deploy-staging` job runs:
 - preflight (it strips unconfigured sign-in bindings);
-- the Access pre-check;
+- the staging public pre-check (OD-40);
 - the `RUN_AUTH` migrations on `run-auth-staging`;
 - the deploy (it binds `accounts-staging`'s `RunEntrypoint`);
 - the smoke test.
@@ -184,7 +180,7 @@ The same audit-log note applies as in 4.2.
 
 ### 5.3 Check the whole sign-in
 
-Signed in to Access, at `https://staging.run.synthetos.com`:
+At `https://staging.run.synthetos.com` (no Access login since OD-40; the run sign-in dialog is in front):
 
 1. **Preferences → Account** says "Not signed in" with a **Sign in** link.
 2. **Sign in.** The address bar goes to staging.accounts, then GitHub (the existing Synthetos app; approve it if needed), and back to run.

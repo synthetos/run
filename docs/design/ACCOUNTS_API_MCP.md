@@ -51,7 +51,7 @@ Taken as given (owner, 2026-11-09):
 | `run-data` (new) | **none**: `workers_dev` and `preview_urls` off, no routes | D1 `run`, R2 `run-files` | run (`AppEntrypoint`); mcp (`McpEntrypoint`) |
 | `mcp` (new) | mcp.synthetos.com | nothing stored | MCP clients over HTTPS |
 
-Each has a staging twin behind Cloudflare Access (D31).
+Each has a staging twin (public since OD-40, gated like production; D31 superseded).
 
 **A separate data Worker.** RUN_PLAN §5.2 puts D1 `run` inside the run Worker. Splitting it out means mcp never binds run, run never sees a key or token, and the data has no hostname at all.
 
@@ -379,7 +379,7 @@ The residual risk is real. The consent screen and the key page both say so.
    - `DataEntrypoint`, actor labels, the proposals inbox;
    - the §10 safety rows, including the C31 rule;
    - check which registration method claude.ai and ChatGPT use.
-4. **MCP read-only**, on staging behind Access, then production:
+4. **MCP read-only**, on staging, then production:
    - Protected Resource Metadata and the read tools;
    - keys and OAuth both, with a claude.ai and a ChatGPT connector tested end to end;
    - rate limits, the injection framing, the frozen tool list.

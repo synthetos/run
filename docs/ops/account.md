@@ -38,7 +38,7 @@ a 32-character hex id) is there, and deploys stay off until
 | Worker | Hostname | Notes |
 |---|---|---|
 | `run` | run.synthetos.com (custom domain) | this repository, `wrangler.jsonc` top level |
-| `run-staging` | staging.run.synthetos.com (custom domain) | `--env staging`, behind Cloudflare Access (docs/ops/access.md) |
+| `run-staging` | staging.run.synthetos.com (custom domain) | `--env staging`, public since OD-40 and gated like production (docs/ops/access.md) |
 | `accounts`, `accounts-staging` | accounts.synthetos.com, staging.accounts.synthetos.com | the accounts repository, A1-07 |
 | `synthetos` (the site), forumbot, others | their own hostnames | **not** deployed by run's CI token; they keep their own deploy paths |
 
@@ -96,8 +96,9 @@ Record in those repositories' own lead-actions lists that this is done.
      Worker in the account, the site and forumbot included: say so here, and
      rely on the audit alerts in step 8 to catch any use against them);
    - plus **Account → Access: Apps and Policies → Read** (read only): the
-     staging deploy confirms through the API that Access protects staging
-     before it deploys (docs/ops/access.md §2, P0 review). No Access edit;
+     staging deploy confirms through the API that no Access application
+     covers staging before it deploys (docs/ops/access.md §2, OD-40). No
+     Access edit;
    - no zone permissions, no DNS, no account settings;
    - client IP filtering is not possible for GitHub-hosted runners; keep the
      TTL at one year and rotate it at each yearly audit;

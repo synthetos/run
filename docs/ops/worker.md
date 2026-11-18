@@ -9,24 +9,21 @@ ROADMAP P0-04, RUN_PLAN §5.2, §6.3, §6.4, SAFETY H45, H46, T-S25.
 | production and staging: every path (P1-00 staging; OD-29 production) | the Worker first (`run_worker_first: true`), which fetches static paths from the asset layer (`html_handling: auto-trailing-slash`, `not_found_handling: 404-page`) | `withSecurityHeaders()` in `workers/run/src/headers.ts`, with `serial=(self)` when `grantsSerial` holds |
 | anything that ever bypassed the Worker | the asset layer | `apps/web/public/_headers` (the fail-closed set, `serial=()`) |
 
-### Permissions-Policy per environment (P1-00)
+### Permissions-Policy per environment (OD-29, OD-40)
 
 | Where | `serial` | How |
 |---|---|---|
-| production (`run.synthetos.com`) | `serial=(self)` | the Worker, only when `RUN_ENV` is exactly `production` AND the request is `https://run.synthetos.com` (`grantsSerial`; OD-29, owner 2026-11-09). Who may connect is the D1 sign-in gate's decision (accounts admits the D37 allowlist only) |
-| staging (`staging.run.synthetos.com`, behind Access) | `serial=(self)` | the Worker, only when `RUN_ENV` is exactly `staging` AND the request is `https://staging.run.synthetos.com` (`grantsSerial`); any other combination gets `serial=()` |
+| production (`run.synthetos.com`) | `serial=(self)` only with a validated `run.connect` session (or the exact open `/update/` HTML page); `serial=()` otherwise | the Worker, only when `RUN_ENV` is exactly `production` AND the request is `https://run.synthetos.com` (`grantsSerial`; OD-29, owner 2026-11-09). Who may connect is the D1 sign-in gate's decision (accounts admits the D37 allowlist only) |
+| staging (`staging.run.synthetos.com`, public since OD-40) | the same rule as production | the Worker, only when `RUN_ENV` is exactly `staging` AND the request is `https://staging.run.synthetos.com` (`grantsSerial`); any other combination gets `serial=()` |
 | the localhost bench build | `serial=(self)` | the bench server (`pnpm bench:serve`), loopback only |
-| `wrangler dev` (e2e) | `serial=()`, or `serial=(self)` in the staging suite, which runs `--env staging` with the Worker seeing the staging URL | `tools/e2e/src/served.ts` |
+| `wrangler dev` (e2e) | `serial=()` in both suites (an anonymous document); the staging suite runs `--env staging` with the Worker seeing the staging URL | `tools/e2e/src/served.ts` |
 
 Every other header is identical in all of them. The static `_headers` file
-always carries the production set, so a response that somehow bypassed the
-staging Worker would deny serial (it fails closed). The Worker sets the
-immutable cache policy on `/assets/*` itself when it serves them, because
-`_headers` does not apply to Worker responses. Staging sits behind Access,
-so the post-deploy smoke test cannot read its headers; checking them after
-the first staging deploy is an owner action: open the staging site signed in through Access and
-check in DevTools that `Permissions-Policy` starts with `serial=(self)` and
-every other header matches this page.
+always carries the fail-closed set, so a response that somehow bypassed the
+Worker would deny serial (it fails closed). The Worker sets the immutable
+cache policy on `/assets/*` itself when it serves them, because `_headers`
+does not apply to Worker responses. The post-deploy smoke test reads the
+headers off both hosts (docs/ops/access.md §2).
 
 Both carry the same headers because both come from one module:
 `workers/run/src/headers.ts`. `_headers` is generated from it
@@ -127,12 +124,13 @@ to a bundler inside the build toolchain. The artifact is `run-web.tar` and
    `CLOUDFLARE_API_BASE_URL` there would send the deploy token elsewhere.
    ci-policy `deploy-config` refuses `--cwd` and `--env-file` on wrangler
    calls and requires the exact `--config` path.
-3. Staging only: **Access must already be in front** (`smoke/cli.ts --env
-   staging --pre-deploy`): a positive check through the Cloudflare Access
-   API (docs/ops/access.md §2); "not reachable" alone never passes. The step
-   is given `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in its own
-   `env:` (ci-policy `smoke-credentials`); without them it refuses and names
-   the missing variable.
+3. Staging only: **staging must be public** (`smoke/cli.ts --env staging
+   --pre-deploy`, OD-40): the Cloudflare Access API must list no application
+   covering the host, and an anonymous request must reach the Worker
+   (docs/ops/access.md §2); "not reachable" alone never passes. The step is
+   given `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in its own `env:`
+   (ci-policy `smoke-credentials`); without them it refuses and names the
+   missing variable.
 4. **Previous state**: the newest `run-deployed-<env>` artifact from a `push`
    run of `ci.yml` on `main` in this repository (`deploy/previous.ts`; a pull
    request run can never qualify). None means a first deploy, with a warning.
@@ -154,17 +152,18 @@ to a bundler inside the build toolchain. The artifact is `run-web.tar` and
 6. `wrangler deploy worker/index.mjs --no-bundle --config workers/run/wrangler.deploy.json --assets deploy-site`
    (100%, never gradual).
 7. **Smoke test** (`smoke/cli.ts --env <env>`):
-   - production: the shell, its entry script, a 404 and `/api/health` with
-     the exact headers; staging: anonymous `/` and `/api/health` are sent to
-     the Access login (the deploy job holds no Access credential, and the
-     same artifact's headers are checked in production);
+   - both: the shell, its entry script, a 404 and `/api/health` with the
+     exact fail-closed headers (an anonymous document carries `serial=()`);
+   - staging also: no Access application covers the host (Cloudflare API)
+     and an anonymous `/` reaches the Worker, not an Access login (OD-40);
    - both: workers.dev and preview URLs off (Cloudflare API) and the
      workers.dev hostname dead (probe); DNSSEC validated by two resolvers;
      a CAA record naming only the allowed CAs; the certificate issuer.
    Any finding fails the job, so a header regression on staging stops the
-   production deploy, and one on production fails visibly. **A failure after
-   the deploy step undoes the deploy** (`deploy/rollback-cli.ts`): staging is
-   deleted, production rolled back (docs/ops/access.md §2).
+   production deploy, and one on production fails visibly. **A smoke failure
+   after a successful deploy step rolls the deployment back** to the previous
+   version (`deploy/rollback-cli.ts`), in both environments
+   (docs/ops/access.md §2).
 8. Upload `run-deployed-<env>` (`retention.json` plus every asset it lists)
    for the next deploy.
 
@@ -180,7 +179,8 @@ Rollback is `wrangler rollback` from the dashboard by the owner, plus a
   proven by `tools/gates/test/smoke.test.ts`: the real CLI against a server
   that breaks one header at a time, on the shell, an asset, the 404 page and
   `/api/health`. The deployed drill needs an owner decision, because deploys
-  run only from `main` and staging is behind Access:
+  run only from `main` (the options below predate OD-40, when staging sat
+  behind Access; the service-token option is moot now):
   - **Option A (recommended):** create an Access service token for the
     smoke test, add a policy rule that admits it on staging, and allow the
     deploy jobs one more secret pair for it (a reviewed change to

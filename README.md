@@ -30,8 +30,8 @@ account.
 > tag) is not done: there is no GitHub remote or Cloudflare deployment yet,
 > and the owner decisions D39 and D40 are still to be carried into the gates.
 > The owner's steps are on the ops pages (`docs/ops/`): the account
-> (`account.md`), branch protection (`branch-protection.md`), Access
-> (`access.md`), the Worker (`worker.md`) and firmware sources (`firmware-sources.md`).
+> (`account.md`), branch protection (`branch-protection.md`), the public
+> staging host (`access.md`), the Worker (`worker.md`) and firmware sources (`firmware-sources.md`).
 
 > **This software is not an emergency stop.** Any machine it drives must have
 > a hardwired, latching E-stop that removes motor and spindle power in
@@ -126,7 +126,7 @@ safety-path review (`.github/CODEOWNERS`).
   protected environments, and deploy only the attested artifact, then run
   the post-deploy smoke test.
 
-The Worker, its headers, staging behind Cloudflare Access and the locked-down
+The Worker, its headers, the public staging host (OD-40) and the locked-down
 Cloudflare account (D39): docs/ops/worker.md, docs/ops/access.md,
 docs/ops/account.md.
 

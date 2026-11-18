@@ -5,6 +5,16 @@ is a tag `run-v<major>.<minor>.<patch>` on the `main` commit whose attested
 artifact CI deployed to production. The tag never triggers a build or a
 deploy; it records one.
 
+## Staging is public (2026-11-18, OD-40)
+
+Not a tagged release: it records the owner's decision to take Cloudflare Access
+off `staging.run.synthetos.com` and `staging.accounts.synthetos.com` (D31
+superseded), so staging shows the same run sign-in dialog as production. The
+Worker grants serial on staging only with a validated `run.connect` session,
+as in production; the deploy gates refuse while an Access application still
+covers staging and roll a failed staging smoke back instead of deleting the
+Worker. docs/ops/access.md.
+
 ## Staging go-live: sign-in with Synthetos accounts (2026-11-12)
 
 Not a tagged release: it records the staging go-live of docs/ops/go-live-staging.md §6.
