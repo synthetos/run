@@ -22,6 +22,20 @@ export const accountMenuProps = (model?: WorkspaceModel): AccountMenuProps => ({
 
 export const SIGN_IN_WHILE_LIVE = 'Disconnect the machine before signing in.';
 export const NOT_OFFERED = 'Signing in is not available on this site yet.';
+/** The signed-in user's GitHub picture, served same-origin by the run Worker (avatarRoute.ts); the page never talks to GitHub. */
+export const AVATAR_SRC = '/api/avatar';
+
+/** The round avatar: the cloud icon, and when signed in the picture over it; a failed picture hides itself and leaves the icon. */
+function avatar(state: AccountState, size: 32 | 40): ComponentChild {
+  return h(
+    'span',
+    { class: size === 40 ? 'avatar large' : 'avatar', 'aria-hidden': 'true' },
+    Icon('cloud', size === 40 ? 18 : 16),
+    state.status === 'signed-in'
+      ? h('img', { class: 'avatar-image', src: AVATAR_SRC, alt: '', width: size, height: size, decoding: 'async', referrerpolicy: 'no-referrer', onError: (e: Event) => { (e.currentTarget as HTMLImageElement).hidden = true; } })
+      : null,
+  );
+}
 
 export interface AccountSummary { readonly head: string; readonly note: string; readonly sync: 'account' | 'local' }
 
@@ -65,14 +79,14 @@ export function AccountMenuView(p: AccountMenuViewProps): ComponentChild {
     h(
       'button',
       { type: 'button', class: 'account-button', 'aria-haspopup': 'true', 'aria-expanded': p.open ? 'true' : 'false', 'aria-controls': 'account-menu', 'aria-label': `Account: ${summary.head}. ${summary.note}`, onClick: p.onToggle },
-      h('span', { class: 'avatar', 'aria-hidden': 'true' }, Icon('cloud', 16)),
+      avatar(p.state, 32),
       h('span', { class: 'sync-badge', 'data-sync': summary.sync, 'aria-hidden': 'true' }),
     ),
     p.open
       ? h(
           'div',
           { class: 'account-menu', id: 'account-menu', role: 'menu' },
-          h('div', { class: 'account-id', 'data-account': p.state.status }, h('span', { class: 'avatar large', 'aria-hidden': 'true' }, Icon('cloud', 18)), h('div', null, h('strong', null, h('bdi', null, summary.head)), h('small', null, summary.note))),
+          h('div', { class: 'account-id', 'data-account': p.state.status }, avatar(p.state, 40), h('div', null, h('strong', null, h('bdi', null, summary.head)), h('small', null, summary.note))),
           syncRow(summary.sync),
           entry(p),
           h('button', { type: 'button', class: 'menu-item', role: 'menuitem', 'data-action': 'report-problem', onClick: p.onReport }, Icon('flag', 15), 'Report a problem'),

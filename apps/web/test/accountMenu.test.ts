@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import { h } from 'preact';
 import { CHECKING, SIGN_OUT_WHILE_LIVE, type AccountState } from '../src/live/account.ts';
-import { AccountMenuView, accountSummary, NOT_OFFERED, SIGN_IN_WHILE_LIVE } from '../src/workspace/AccountMenu.ts';
+import { AccountMenuView, accountSummary, AVATAR_SRC, NOT_OFFERED, SIGN_IN_WHILE_LIVE } from '../src/workspace/AccountMenu.ts';
 import { all, byAttr, root, text } from './tree.ts';
 
 const signedOut: AccountState = { status: 'signed-out', display: null, signIn: true, message: null };
@@ -52,6 +52,27 @@ describe('the account menu', () => {
     const live = all(menu(signedIn, true), byAttr('data-action', 'sign-out'))[0];
     expect(live?.props['disabled']).toBe(true);
     expect(live?.props['title']).toBe(SIGN_OUT_WHILE_LIVE);
+  });
+
+  it('signed in: the GitHub picture from /api/avatar in the button and the menu head, falling back to the icon on error', () => {
+    const images = all(menu(signedIn), (e) => e.tag === 'img');
+    expect(images.map((i) => [i.props['src'], i.props['alt'], i.props['width'], i.props['height']])).toEqual([[AVATAR_SRC, '', 32, 32], [AVATAR_SRC, '', 40, 40]]);
+    expect(AVATAR_SRC).toBe('/api/avatar');
+    for (const img of images) {
+      expect(img.props['class']).toBe('avatar-image');
+      expect(img.props['referrerpolicy']).toBe('no-referrer');
+      expect(img.props['decoding']).toBe('async');
+      const el = { hidden: false };
+      (img.props['onError'] as (e: { currentTarget: { hidden: boolean } }) => void)({ currentTarget: el });
+      expect(el.hidden).toBe(true);
+    }
+    // The cloud icon stays under the picture, so the button never goes blank.
+    expect(all(menu(signedIn, false, false), (e) => e.tag === 'svg').length).toBeGreaterThan(0);
+  });
+
+  it('signed out or checking: no picture is requested', () => {
+    expect(all(menu(signedOut), (e) => e.tag === 'img')).toHaveLength(0);
+    expect(all(menu(CHECKING), (e) => e.tag === 'img')).toHaveLength(0);
   });
 
   it('elsewhere: one plain line, no control; a sign-out message shows as an alert', () => {
