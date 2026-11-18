@@ -16,8 +16,10 @@ import { saveSetup } from '../workspace/cloud/setupSync.ts';
 import { machineStore, selectedMachineStore } from '../workspace/library.ts';
 import { CATALOGUE, type MachineTemplate } from '../workspace/machineDrawings.ts';
 import { boardOwner, draftFromMachine, draftFromTemplate, draftValid, saveDraft, type MachineDraft } from './machineDraft.ts';
+import { firmwareGate, firmwareState } from './firmwareStep.ts';
 import { closeSetup, finishStep, skipStep } from './setupActions.ts';
 import { Done, DONE_LEAD, DONE_TITLE } from './steps/Done.ts';
+import { Firmware, FIRMWARE_LEAD, FIRMWARE_TITLE, firmwareUpdating, startUpdate } from './steps/Firmware.ts';
 import { liveBoardId, Machine, MACHINE_LEAD, MACHINE_TITLE, machineDraft } from './steps/Machine.ts';
 import { Welcome, WELCOME_LEAD, WELCOME_TITLE } from './steps/Welcome.ts';
 import { WizardFrame } from './WizardFrame.ts';
@@ -30,7 +32,12 @@ export interface WizardContext {
   readonly onView: (v: string) => void;
 }
 
-interface StepView { readonly title: string; readonly lead: string; readonly body: ComponentChild; readonly nextDisabled?: boolean; readonly next?: () => void }
+interface StepView {
+  readonly title: string; readonly lead: string; readonly body: ComponentChild;
+  readonly nextDisabled?: boolean; readonly next?: () => void;
+  /** Overrides the step definition (the firmware step is not skippable while an update is needed). */
+  readonly skippable?: boolean;
+}
 
 /** Step 7's primary: the wizard is over; it never opens again on its own (Preferences brings it back). */
 function finishWizard(ctx: WizardContext): void {
@@ -58,11 +65,20 @@ function draftFor(machineId: string | null, machines: readonly MachineProfile[])
   return mine === undefined ? draftFromTemplate(CATALOGUE[0] as MachineTemplate) : draftFromMachine(mine);
 }
 
+/** Step 3: the offer decides; `needed` hides Skip and holds Next (the frame reads `skippable` from here). */
+function firmwareStepView(ctx: WizardContext): StepView {
+  const state = firmwareState(ctx.model?.live.value ?? null);
+  const gate = firmwareGate(state);
+  const body = h(Firmware, { model: ctx.model, state, updating: firmwareUpdating.value, onUpdate: () => startUpdate(state) });
+  return { title: FIRMWARE_TITLE, lead: FIRMWARE_LEAD, body, nextDisabled: !gate.nextEnabled, skippable: gate.skippable };
+}
+
 /** The step's content; each step module fills its own case. */
 function stepView(step: StepId, ctx: WizardContext): StepView {
   switch (step) {
     case 1: return { title: WELCOME_TITLE, lead: WELCOME_LEAD, body: h(Welcome, null) };
     case 2: return machineStep(ctx);
+    case 3: return firmwareStepView(ctx);
     case 7: {
       const id = setupView.value.record?.projectId ?? null;
       const name = id === null ? null : projectsState.value.list.find((p) => p.id === id)?.name ?? null;
@@ -79,11 +95,12 @@ export function SetupWizard(p: WizardContext): ComponentChild {
   // Keyboard first: every step starts on its heading. A step's own draft starts fresh each time it opens.
   useEffect(() => {
     machineDraft.value = null;
+    firmwareUpdating.value = false;
     if (showing && typeof document !== 'undefined') document.getElementById('wizard-title')?.focus();
   }, [showing, step]);
   if (!showing) return null;
   const view = stepView(step, p);
-  const skippable = STEPS[step - 1]?.skippable === true;
+  const skippable = view.skippable ?? STEPS[step - 1]?.skippable === true;
   return h(
     WizardFrame,
     {
