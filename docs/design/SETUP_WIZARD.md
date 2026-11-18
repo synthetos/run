@@ -22,7 +22,7 @@ person who connects from the wizard never sees that.
 | 3 Firmware | The board's build against the newest release Run supports, decided by `firmware/updateOffer.ts`. Here the simulated board runs 450.02 and 450.06 is released: skippable, Next on. | ![Step 3](screenshots/setup-wizard/step-3-light-1280.png) |
 | 3 Firmware, needed | Below what Run controls: no Skip, Next held, the exact offer text, "Update firmware". | ![Step 3 needed](screenshots/setup-wizard/step-3-needed-light-1280.png) |
 | 3 Firmware, updating | "Update firmware" runs the Board tab's own update flow inside the frame with the offered release marked. The flash itself is the existing flow, unchanged (`flasher.fake-serial.ts` covers it). | ![Step 3 update](screenshots/setup-wizard/step-3-update-light-1280.png) |
-| 4 Homing | Two radio cards; the choice is written to the setup record as it is made and never to the board. The chosen card decides which of the existing Home controls shows: Home all, or Set machine zero. | ![Step 4](screenshots/setup-wizard/step-4-light-1280.png) |
+| 4 Homing | Two radio cards; the choice is written to the setup record as it is made and never to the board. Homing moves the machine and Pause and Stop sit under the wizard's lock, so the wizard never offers Home: with switches it points to the Job page; without switches it shows the existing Set machine zero control (no motion). | ![Step 4](screenshots/setup-wizard/step-4-light-1280.png) |
 | 5 Tools and stock | Add from catalog (the catalog picker, in place) or Create a tool (the tool editor, on top); the stock's three sizes, saved to the setup record by Add stock. | ![Step 5](screenshots/setup-wizard/step-5-light-1280.png) |
 | 6 First project | The demo name plate, or a new project by name. Open project makes the demo as a real project in the account and opens its file. | ![Step 6](screenshots/setup-wizard/step-6-light-1280.png) |
 | 7 You are set | The project that is open, one line on what to do next, and the "More to set up" rows, each collapsed with a link to the place in Run where it is done. | ![Step 7](screenshots/setup-wizard/step-7-light-1280.png) |
@@ -62,9 +62,12 @@ its file and setup, and the setup record itself (`dismissed`, `step`, `done`, `h
 
 | Ruling | Cost if wrong |
 |---|---|
-| The wizard opens when signed in, after the first record read, with no machine record and no dismissal; once under way (step above 1) it stays open after step 2 saved the machine. | A started wizard shows on every load until finished or closed, which is the resume behaviour the spec asks for. |
+| The wizard opens when signed in, after the first record read, with no dismissal, and either no machine record or a setup record at all (a started wizard, or "Run setup again"). A legacy account with machines and no record never sees it uninvited. | A started wizard shows on every load until finished or closed, which is the resume behaviour the spec asks for. |
 | The homing choice lives on the setup record; the board is never written. | None: owner's decision 2026-11-17. |
-| "Update firmware" embeds the Board tab's whole update flow in the frame; Next unlocks when the offer is no longer `needed` for the live board. | A cramped layout in the content column; it scrolls. |
+| The wizard never offers "Home": Pause and Stop are in the machine strip under the wizard's lock (SAFETY §4.1). With switches the step points to the Job page; without switches it shows Set machine zero, which does not move the machine. | The spec's "Home now" waits for the Job page; a slice that keeps the strip outside the lock could bring it back. |
+| "Update firmware" embeds the Board tab's whole update flow in the frame. While the flash runs, or while the update was started and the session is closed, the step is `updating`: no Skip, Next held, the flow stays on screen. Next unlocks when the board is back and the offer is no longer `needed`. | A cramped layout in the content column; it scrolls. |
+| Steps 3 and 4 name the connected board and refuse another board than the machine's with one line; step 3 then hides "Update firmware" and holds Next. | None visible. |
+| A refused "Open project" (a running job, a missing file) still records the project it made; the next press opens that project instead of making another. | None visible. |
 | Closing is a quiet "Close setup" button; Escape does nothing. Preferences brings it back at step 1. | One extra button. |
 | The chosen tool is the entry added while step 5 is open; the stock is written when Add stock is pressed. | A tool added elsewhere during the step counts as the choice. |
 | The demo tool is defined in code with the catalog's values (id `demo.quarter-2f`); the catalog is not fetched. | A duplicate of one catalog row. |
