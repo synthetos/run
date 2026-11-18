@@ -38,6 +38,8 @@ export async function resolveConflict(cache: CloudCache, pending: PendingWrite, 
   const latest = cache.pending.find(p => p.kind === pending.kind && p.id === pending.id) ?? pending;
   cache.pending = cache.pending.filter(p => p.kind !== pending.kind || p.id !== pending.id);
   if (current !== null) cache.records = cache.records.filter(r => r.kind !== current.kind || r.id !== current.id).concat(current);
+  // One setup document per account: another browser's progress wins; the next wizard action saves on top of it.
+  if (pending.kind === 'setup') return false;
   if (latest.content !== null && validContent(latest.kind, latest.content)) {
     const id = `copy-${(await contentHash(latest.content)).slice(0, 48)}`;
     for (const [key, target] of Object.entries(cache.imports)) if (target === latest.id) cache.imports[key] = id;

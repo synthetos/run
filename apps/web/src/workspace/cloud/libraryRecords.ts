@@ -45,6 +45,8 @@ export function fromRecords(name: string, records: readonly LibraryRecord[], loc
     used.add(number); return { ...entry, number };
   });
 }
-export function browserCopy(content: AccountContent, id: string): AccountContent {
-  if ('jobs' in content) return copyProject(content, id, `${content.name.slice(0, 100)} (from this browser)`);
+export function browserCopy<T extends AccountContent>(content: T, id: string): T {
+  if ('jobs' in content) return copyProject(content, id, `${content.name.slice(0, 100)} (from this browser)`) as T;
+  // The setup record has no name and is never copied (queueConflict.ts keeps the account version); the id is all.
+  if (!('name' in content)) return { ...content, id };
   return { ...content, id, name: `${('geometry' in content ? toolDisplayName(content) : content.name).slice(0, 100)} (from this browser)` }; }

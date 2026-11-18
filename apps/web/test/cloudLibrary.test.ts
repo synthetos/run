@@ -6,11 +6,15 @@ import { stored, loadStoredLibraries, storedBinding, type StorageLike } from '..
 import { RecordsError, recordsClient, type RecordsClient } from '../src/cloud/recordsClient.ts';
 import { cacheKey, canonical, contentHash, emptyCache, readCache, saveCache } from '../src/workspace/cloud/cloudCache.ts';
 import { toRecords, fromRecords, browserCopy, validContent } from '../src/workspace/cloud/libraryRecords.ts';
+import { isRecordKind, RECORD_KINDS, refusal } from '../src/workspace/cloud/recordReaders.ts';
+import { EMPTY_SETUP_RECORD } from '@synthetos/library';
 import { enqueue, drainQueue, visibleRecords, retryDelay } from '../src/workspace/cloud/syncQueue.ts';
 import { librarySyncActions, librarySyncView, librarySavedText, startLibrarySync } from '../src/workspace/cloud/librarySync.ts';
 const tool = { ...SEED_TOOLS[0]!.tool, id: 'mine.one', name: 'My tool' };
 const rec = (content = tool, rev = 1): CloudRecord => ({ id: content.id, kind: 'tool', rev, archivedAt: null, content, sha256: 'a'.repeat(64) });
 const signal = () => new AbortController().signal;
+/** The name a library record carries (a setup record has none). */
+const nameOf = (r: { content: unknown } | undefined): string | undefined => (r?.content as { name?: string } | undefined)?.name;
 function memory(): StorageLike { const values = new Map<string, string>(); return { getItem: key => values.get(key) ?? null, setItem: (key, value) => { values.set(key, value); } }; }
 const client = (): RecordsClient => ({ list: vi.fn(async () => []), put: vi.fn(async (_k, _id, parent, content) => rec(content as typeof tool, (parent ?? 0) + 1)), archive: vi.fn(async () => ({ ...rec(), archivedAt: 1 })) });
 const hooks = () => ({ persist: vi.fn(() => true), change: vi.fn(), notice: vi.fn() });
@@ -83,7 +87,7 @@ describe('CAS queue', () => {
   it('queues edits immediately, coalesces, archives, and checks the pause gate before each call', async () => {
     const cache = emptyCache(); const api = client(); const h = hooks();
     enqueue(cache, 'tool', tool.id, tool); enqueue(cache, 'tool', tool.id, { ...tool, name: 'Latest' });
-    expect(cache.pending).toHaveLength(1); expect(visibleRecords(cache)[0]?.content.name).toBe('Latest');
+    expect(cache.pending).toHaveLength(1); expect(nameOf(visibleRecords(cache)[0])).toBe('Latest');
     expect(await drainQueue(cache, api, () => false, signal(), h)).toBe('saving'); expect(api.put).not.toHaveBeenCalled();
     expect(await drainQueue(cache, api, () => true, signal(), h)).toBe('saved');
     enqueue(cache, 'tool', tool.id, null); expect(visibleRecords(cache)).toEqual([]);
@@ -94,7 +98,7 @@ describe('CAS queue', () => {
     const cache = emptyCache(); cache.records = [rec()]; const edit = { ...tool, name: 'Changed' }; enqueue(cache, 'tool', tool.id, edit);
     const api = client(); vi.mocked(api.put).mockRejectedValueOnce(new RecordsError(409, rec()));
     const h = hooks(); expect(await drainQueue(cache, api, () => true, signal(), h)).toBe('saved');
-    expect(visibleRecords(cache).map(r => r.content.name)).toEqual(['My tool', 'Changed (from this browser)']); expect(h.notice).toHaveBeenCalledOnce();
+    expect(visibleRecords(cache).map(nameOf)).toEqual(['My tool', 'Changed (from this browser)']); expect(h.notice).toHaveBeenCalledOnce();
     enqueue(cache, 'tool', tool.id, tool); vi.mocked(api.put).mockRejectedValueOnce(new RecordsError(409, rec()));
     expect(await drainQueue(cache, api, () => true, signal(), h)).toBe('saved'); expect(cache.pending).toEqual([]);
   });
@@ -176,8 +180,9 @@ describe('page-side safety gating and identity isolation', () => {
       model.live.value = { ...INITIAL_LIVE_VIEW, message: { snapshot: { base, overlays: [] } } as never };
       const stop = mountLibrarySync(model, 'staging.run.synthetos.com');
       accountIdentity.value = { subject: 'usr_a', display: '@a' }; await settle(); expect(fetch).not.toHaveBeenCalled();
-      model.live.value = INITIAL_LIVE_VIEW; await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(4));
-      accountIdentity.value = { subject: 'usr_b', display: '@b' }; await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(8));
+      // One list request per record kind on each account's first read.
+      model.live.value = INITIAL_LIVE_VIEW; await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(RECORD_KINDS.length));
+      accountIdentity.value = { subject: 'usr_b', display: '@b' }; await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2 * RECORD_KINDS.length));
       accountIdentity.value = null; stop(); fetch.mockClear();
     }
     mountLibrarySync(model, 'run.synthetos.com')(); expect(fetch).not.toHaveBeenCalled();
@@ -259,7 +264,7 @@ describe('sync lifecycle interruptions', () => {
     let finish!: () => void; const wait = new Promise<void>(resolve => { finish = resolve; }); const api = client();
     vi.mocked(api.list).mockImplementationOnce(async () => { await wait; return []; });
     const r = start(api); r.pause(); r.resume(); finish(); await settle();
-    expect(r.scheduled).toHaveLength(1); r.scheduled[0]!(); await settle(); expect(api.list).toHaveBeenCalledTimes(5);
+    expect(r.scheduled).toHaveLength(1); r.scheduled[0]!(); await settle(); expect(api.list).toHaveBeenCalledTimes(RECORD_KINDS.length + 1);
   });
   it.each([Error('offline'), new RecordsError(500)])('retries failed refreshes', async error => {
     const api = client(); vi.mocked(api.list).mockRejectedValueOnce(error); const r = start(api); await settle();
@@ -428,7 +433,7 @@ it('does not archive a concurrent account edit when creating a seed tombstone co
   vi.mocked(api.put).mockRejectedValueOnce(new RecordsError(409, rec({ ...seed, name: 'Account edit' })));
   expect(await drainQueue(cache, api, () => true, signal(), h)).toBe('saved');
   expect(api.archive).not.toHaveBeenCalled();
-  expect(visibleRecords(cache)[0]?.content.name).toBe('Account edit');
+  expect(nameOf(visibleRecords(cache)[0])).toBe('Account edit');
   expect(h.notice).toHaveBeenCalledOnce();
 });
 
@@ -449,4 +454,11 @@ it('own cutting rows survive upload/download and a concurrent sync conflict copy
   const visible = fromRecords('tools.v2', visibleRecords(cache)) as typeof SEED_TOOLS;
   expect(visible.find(e => e.tool.name.includes('from this browser'))?.tool.cuttingData).toEqual([own]);
   expect(visible.find(e => e.tool.name === 'Changed elsewhere')?.tool.cuttingData).toEqual([]);
+});
+it('the setup record is an account kind the page reads and refuses like the others', () => {
+  expect(RECORD_KINDS).toContain('setup');
+  expect(isRecordKind('setup')).toBe(true);
+  expect(validContent('setup', EMPTY_SETUP_RECORD)).toBe(true);
+  expect(refusal('setup', { ...EMPTY_SETUP_RECORD, step: 0 })).toMatch(/^Not saved to your account: setup: \/step /);
+  expect(browserCopy(EMPTY_SETUP_RECORD, 'copy.setup')).toEqual({ ...EMPTY_SETUP_RECORD, id: 'copy.setup' });
 });

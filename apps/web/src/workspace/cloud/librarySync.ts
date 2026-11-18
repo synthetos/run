@@ -25,6 +25,7 @@ import { startProjectSync, type ProjectContext } from './projectSync.ts';
 import { connectBindings, machineLocals, showBindings } from './syncBindings.ts';
 import { syncRunner } from './syncRunner.ts';
 import { refusal } from './recordReaders.ts';
+import { connectSetup } from './setupSync.ts';
 
 /**
  * Owns one account lifetime; stopping restores the browser-only stores. A signed-in page reads and writes account
@@ -44,11 +45,13 @@ export function startLibrarySync(options: SyncOptions): { stop(): void; wake(): 
     update({ status: value, browserOnly: browserOnly(), remaining: value === 'quota' ? pendingNames() : [] });
     if (value === 'quota') notice('Your account storage is full. These records stayed local.');
   };
-  const show = () => { if (stopped) return; if (queueSeedCleanup(cache)) persist(); showBindings(bindings, cache); projects?.show(); };
+  const show = () => { if (stopped) return; if (queueSeedCleanup(cache)) persist(); showBindings(bindings, cache); projects?.show(); setup.show(); };
   const change = () => { if (stopped) return; status(librarySyncView.peek().status === 'quota' ? 'quota' : 'saving'); show(); wake(); };
   const projects = options.projects === undefined ? undefined : startProjectSync({ subject: options.subject, context: options.projects, cache, allowed: options.allowed, persist, change, notice });
-  const detach = () => { for (const b of bindings) b.disconnect(); projects?.stop(); };
-  const runner = syncRunner({ ...options, cache, hooks: { persist, change: show, notice, ...(projects ? { prepare: projects.prepare } : {}) }, status,
+  // The setup wizard's record (setupSync.ts): shown with the rest; the runner's change means the account was read.
+  const setup = connectSetup(cache, { persist, change });
+  const detach = () => { for (const b of bindings) b.disconnect(); projects?.stop(); setup.stop(); };
+  const runner = syncRunner({ ...options, cache, hooks: { persist, change: () => { show(); setup.refreshed(); }, notice, ...(projects ? { prepare: projects.prepare } : {}) }, status,
     ...(projects ? { cleanup: projects.cleanup } : {}), unavailable() {
       stopped = true; detach(); librarySyncView.value = { mode: 'local', status: 'saved', display: '', notice: cache.pending.length ? 'Account sync is unavailable. Pending account edits remain in this browser.' : null, remaining: [] };
     },
