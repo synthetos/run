@@ -46,9 +46,6 @@ li[data-mark="done"] .wizard-step-mark { border-color: var(--ok); color: var(--o
 .wizard-pick-title { font-size: 13.5px; line-height: 20px; color: var(--ink); }
 .wizard-pick-text { font-size: 12.5px; line-height: 1.5; color: var(--muted); }
 .wizard-pick .wizard-field { margin-top: 8px; }
-.wizard-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.wizard-card { border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; min-width: 0; }
-.wizard-card-title { font-size: 14px; margin: 0 0 6px; }
 .wizard-embed { border: 1px solid var(--rule); border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
 /* Step 5's catalog page (owner 147): the catalog's own layout at the full viewport, above the frame and below the
    catalog's own dialogs (`.wizard .dialog-wrap`). */
@@ -86,7 +83,6 @@ table.wizard-facts tr + tr th, table.wizard-facts tr + tr td { border-top: 1px s
   li[data-mark="done"] .wizard-step-mark svg { display: none; }
   .wizard-dot-name { display: block; }
   .wizard-content { padding: 20px 16px 0; }
-  .wizard-cards { grid-template-columns: 1fr; }
 }
 /* Step 4: without switches the step shows the existing Set machine zero control (homing.ts HomeQuick, unchanged)
    and hides its Home button: homing moves the machine and Pause and Stop are under the wizard's lock. */
