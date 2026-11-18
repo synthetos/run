@@ -101,7 +101,7 @@ describe('deploy-config', () => {
 });
 
 describe('smoke-credentials', () => {
-  const preDeploy = '      - name: Staging must already be behind Cloudflare Access (D31)\n';
+  const preDeploy = '      - name: Staging must be public, with no Cloudflare Access application (OD-40)\n';
 
   it('fails on the regression: the pre-deploy Access check without the token and account', () => {
     const bad = mutate(

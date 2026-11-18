@@ -37,8 +37,8 @@ export interface Observed {
 }
 
 /**
- * The unauthenticated production smoke probe expects serial=(). A signed-in document check may opt into
- * serial=(self). Staging retains its Access-protected grant; every other host fails closed.
+ * An anonymous smoke probe of either deployed host expects serial=(); a signed-in document check may opt into
+ * serial=(self) there (OD-29 production, OD-40 staging). Every other host fails closed.
  */
 export function expectedHeadersFor(url: string, signedIn = false): Readonly<Record<string, string>> {
   let parsed: URL;
@@ -47,8 +47,8 @@ export function expectedHeadersFor(url: string, signedIn = false): Readonly<Reco
   } catch {
     return SECURITY_HEADERS;
   }
-  const own = parsed.protocol === 'https:' && parsed.port === '' && ((parsed.hostname === PRODUCTION_HOST && signedIn) || parsed.hostname === STAGING_HOST);
-  return own ? SERIAL_GRANTED_SECURITY_HEADERS : SECURITY_HEADERS;
+  const own = parsed.protocol === 'https:' && parsed.port === '' && (parsed.hostname === PRODUCTION_HOST || parsed.hostname === STAGING_HOST);
+  return own && signedIn ? SERIAL_GRANTED_SECURITY_HEADERS : SECURITY_HEADERS;
 }
 
 /** Every security header present exactly once with exactly the expected value for its URL. */
@@ -110,43 +110,40 @@ export function checkWorkersDevProbe(url: string, outcome: { status: number } | 
   return [{ check: 'preview', message: `${url} answered ${outcome.status}: the workers.dev origin is live` }];
 }
 
-/** Staging must be behind Cloudflare Access (D31): an anonymous request is sent to the Access login. */
-export function checkAccessGate(url: string, outcome: { status: number; location: string | null } | 'unreachable', allowUnreachable: boolean): SmokeFinding[] {
+/** The hostname a redirect points at, lower-cased; '' when there is none or it does not parse. */
+function redirectHost(outcome: { status: number; location: string | null }, url: string): string {
+  if (![301, 302, 303, 307, 308].includes(outcome.status) || outcome.location === null) return '';
+  try {
+    return new URL(outcome.location, url).hostname.toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Staging is public (OD-40, superseding D31): an anonymous request must reach the Worker. A redirect to a
+ * `*.cloudflareaccess.com` login means the Access application is still in front; a 5xx means the host is not
+ * serving. Anything else the Worker answers (content, a 404, its own redirects) passes.
+ */
+export function checkPublicGate(url: string, outcome: { status: number; location: string | null } | 'unreachable', allowUnreachable: boolean): SmokeFinding[] {
   if (outcome === 'unreachable') {
     return allowUnreachable ? [] : [{ check: 'access', message: `${url} is unreachable` }];
   }
-  const redirect = [301, 302, 303, 307, 308].includes(outcome.status);
-  let host = '';
-  try {
-    host = new URL(outcome.location ?? '', url).hostname;
-  } catch {
-    host = '';
+  if (redirectHost(outcome, url).endsWith('.cloudflareaccess.com')) {
+    return [{ check: 'access', message: `${url} sent an anonymous request to ${outcome.location ?? ''}: staging is still behind Cloudflare Access (OD-40 removed it; delete the application in Zero Trust → Access → Applications)` }];
   }
-  if (redirect && host.endsWith('.cloudflareaccess.com')) return [];
-  return [
-    {
-      check: 'access',
-      message: `${url} answered ${outcome.status}${outcome.location === null ? '' : ` -> ${outcome.location}`} to an anonymous request: staging is NOT behind Cloudflare Access`,
-    },
-  ];
+  if (outcome.status >= 500) return [{ check: 'access', message: `${url} answered ${outcome.status} to an anonymous request` }];
+  return [];
 }
 
 /** The parts of a Cloudflare Access application (API `GET /accounts/{id}/access/apps`) the gate reads. */
 export interface AccessApp {
   readonly id?: unknown;
+  readonly name?: unknown;
   readonly type?: unknown;
   readonly domain?: unknown;
   readonly self_hosted_domains?: unknown;
   readonly destinations?: unknown;
-  /** Embedded policies (newer API shape); otherwise read from `GET .../apps/{id}/policies`. */
-  readonly policies?: unknown;
-}
-
-/** One Access policy: its decision and its include rules. */
-export interface AccessPolicy {
-  readonly name?: unknown;
-  readonly decision?: unknown;
-  readonly include?: unknown;
 }
 
 /** True when an Access domain entry covers the whole of `host` (no path, `/` or `/*`, or a `*.` wildcard over it). */
@@ -167,33 +164,17 @@ function domainsOf(app: AccessApp): unknown[] {
 }
 
 /**
- * A POSITIVE Access check (D31, SAFETY H45), from the Cloudflare API rather
- * than from what the host answers: an application of type `self_hosted`
- * must cover the whole host, and none of its policies may be a `bypass` or
- * include `everyone`. `policiesOf` returns an application's policies (its
- * embedded ones, or those the API listed for it).
+ * The Access check since OD-40, from the Cloudflare API rather than from what the host answers: NO application of
+ * type `self_hosted` may cover the whole host. One that still does is named, so the owner can delete it; the
+ * staging deploy is refused before anything is deployed. An unreadable list is a finding, never "no application".
  */
-export function checkAccessApplications(host: string, apps: unknown, policiesOf: (app: AccessApp) => unknown): SmokeFinding[] {
+export function checkNoAccessApplications(host: string, apps: unknown): SmokeFinding[] {
   if (!Array.isArray(apps)) return [{ check: 'access', message: 'the Cloudflare Access application list could not be read' }];
   const covering = (apps as AccessApp[]).filter((a) => typeof a === 'object' && a !== null && a.type === 'self_hosted' && domainsOf(a).some((d) => coversHost(d, host)));
-  if (covering.length === 0) return [{ check: 'access', message: `no Cloudflare Access application covers the whole of ${host}: staging would be public` }];
-  const findings: SmokeFinding[] = [];
-  for (const app of covering) {
-    const policies = policiesOf(app);
-    if (!Array.isArray(policies)) {
-      findings.push({ check: 'access', message: `the policies of the Access application for ${host} could not be read` });
-      continue;
-    }
-    for (const p of policies as AccessPolicy[]) {
-      const name = typeof p?.name === 'string' ? p.name : '?';
-      if (p?.decision === 'bypass') findings.push({ check: 'access', message: `Access policy '${name}' for ${host} is a Bypass` });
-      const include = Array.isArray(p?.include) ? (p.include as unknown[]) : [];
-      if (include.some((r) => typeof r === 'object' && r !== null && 'everyone' in r)) {
-        findings.push({ check: 'access', message: `Access policy '${name}' for ${host} includes Everyone` });
-      }
-    }
-  }
-  return findings;
+  return covering.map((app) => {
+    const label = typeof app.name === 'string' ? app.name : String(app.id ?? '?');
+    return { check: 'access', message: `the Cloudflare Access application '${label}' still covers ${host}: staging is public since OD-40; delete it in Zero Trust → Access → Applications, then re-run the deploy` };
+  });
 }
 
 /** DNS-over-HTTPS JSON answer (RFC 8484 JSON form used by 1.1.1.1 and dns.google): validated (AD) and NOERROR. */

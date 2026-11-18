@@ -12,12 +12,12 @@ import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
-  checkAccessApplications,
-  checkAccessGate,
   checkCaa,
   checkDnssec,
   checkHealth,
   checkIssuer,
+  checkNoAccessApplications,
+  checkPublicGate,
   checkSecurityHeaders,
   expectedHeadersFor,
   checkShell,
@@ -55,7 +55,9 @@ describe('checkSecurityHeaders', () => {
     expect(expectedHeadersFor('https://run.synthetos.com/')).toBe(SECURITY_HEADERS);
     expect(expectedHeadersFor('https://run.synthetos.com/', true)).toBe(SERIAL_GRANTED_SECURITY_HEADERS);
     expect(checkSecurityHeaders(observed({ headers: { 'permissions-policy': SERIAL_GRANTED_SECURITY_HEADERS['permissions-policy'] ?? '' } }), true)).toEqual([]);
-    expect(expectedHeadersFor('https://staging.run.synthetos.com/api/health')).toBe(SERIAL_GRANTED_SECURITY_HEADERS);
+    // OD-40: staging is public and follows the same rule; anonymous probes expect the fail-closed set there too.
+    expect(expectedHeadersFor('https://staging.run.synthetos.com/api/health')).toBe(SECURITY_HEADERS);
+    expect(expectedHeadersFor('https://staging.run.synthetos.com/', true)).toBe(SERIAL_GRANTED_SECURITY_HEADERS);
     for (const other of ['http://127.0.0.1:8787/', 'https://run.synthetos.com:8443/', 'https://run.example.workers.dev/', 'not a url']) expect(expectedHeadersFor(other)).toBe(SECURITY_HEADERS);
     const denied = observed({ headers: { 'permissions-policy': SERIAL_GRANTED_SECURITY_HEADERS['permissions-policy'] as string } });
     expect(checkSecurityHeaders(denied).map((f) => f.message)).toEqual([expect.stringContaining('permissions-policy')]);
@@ -111,54 +113,65 @@ describe('preview URLs and workers.dev (H45)', () => {
   });
 });
 
-describe('checkAccessApplications: the positive Access check (D31, P0 review)', () => {
+describe('checkNoAccessApplications: staging is public (OD-40 supersedes D31)', () => {
   const host = 'staging.run.synthetos.com';
-  const owner = { name: 'owner', decision: 'allow', include: [{ email: { email: 'owner@example.com' } }] };
-  const app = (over: Record<string, unknown> = {}) => ({ id: 'a1', type: 'self_hosted', domain: host, policies: [owner], ...over });
-  const embedded = (a: { policies?: unknown }) => a.policies;
+  const app = (over: Record<string, unknown> = {}) => ({ id: 'a1', name: 'run-staging', type: 'self_hosted', domain: host, ...over });
 
-  it('passes an application covering the whole host with only identity policies', () => {
-    expect(checkAccessApplications(host, [app()], embedded)).toEqual([]);
-    expect(checkAccessApplications(host, [app({ domain: `${host}/*` })], embedded)).toEqual([]);
-    expect(checkAccessApplications(host, [app({ domain: '*.run.synthetos.com' })], embedded)).toEqual([]);
-    expect(checkAccessApplications(host, [app({ domain: 'other.example', self_hosted_domains: [host] })], embedded)).toEqual([]);
-    expect(checkAccessApplications(host, [app({ domain: undefined, destinations: [{ type: 'public', uri: host }] })], embedded)).toEqual([]);
-    // A bench service token (non_identity) is allowed (docs/ops/access.md).
-    expect(checkAccessApplications(host, [app({ policies: [owner, { name: 'bench', decision: 'non_identity', include: [{ service_token: { token_id: 't' } }] }] })], embedded)).toEqual([]);
-  });
-
-  it('fails when nothing covers the host: none at all, a path-only app, another type, or a different host', () => {
+  it('passes when no application covers the host: none at all, a path-only app, another type, or a different host', () => {
     for (const apps of [[], [app({ domain: `${host}/admin` })], [app({ type: 'saas' })], [app({ domain: 'run.synthetos.com' })], [app({ domain: '*.synthetos.com.evil' })]]) {
-      expect(checkAccessApplications(host, apps, embedded), JSON.stringify(apps)).toEqual([expect.objectContaining({ check: 'access', message: expect.stringContaining('no Cloudflare Access application') })]);
+      expect(checkNoAccessApplications(host, apps), JSON.stringify(apps)).toEqual([]);
     }
   });
 
-  it('fails on a Bypass or an Everyone policy, and on unreadable data', () => {
-    expect(checkAccessApplications(host, [app({ policies: [{ name: 'open', decision: 'bypass', include: [] }] })], embedded)).toHaveLength(1);
-    expect(checkAccessApplications(host, [app({ policies: [{ name: 'all', decision: 'allow', include: [{ everyone: {} }] }] })], embedded)).toHaveLength(1);
-    expect(checkAccessApplications(host, [app({ policies: undefined })], () => undefined)).toHaveLength(1);
-    expect(checkAccessApplications(host, null, embedded)).toHaveLength(1);
+  it('fails, naming the application, while one still covers the whole host in any of the API shapes', () => {
+    for (const apps of [
+      [app()],
+      [app({ domain: `${host}/*` })],
+      [app({ domain: '*.run.synthetos.com' })],
+      [app({ domain: 'other.example', self_hosted_domains: [host] })],
+      [app({ domain: undefined, destinations: [{ type: 'public', uri: host }] })],
+    ]) {
+      const findings = checkNoAccessApplications(host, apps);
+      expect(findings, JSON.stringify(apps)).toHaveLength(1);
+      expect(findings[0]?.check).toBe('access');
+      expect(findings[0]?.message).toContain("'run-staging'");
+      expect(findings[0]?.message).toContain('still covers');
+      expect(findings[0]?.message).toContain('Zero Trust');
+    }
+    expect(checkNoAccessApplications(host, [app(), app({ id: 'a2', name: 'other' })])).toHaveLength(2);
+    expect(checkNoAccessApplications(host, [app({ name: undefined })])[0]?.message).toContain("'a1'");
   });
 
-  it('reads separately listed policies when the app does not embed them', () => {
-    const listed = new Map([['a1', [{ name: 'all', decision: 'allow', include: [{ everyone: {} }] }]]]);
-    expect(checkAccessApplications(host, [app({ policies: undefined })], (a) => listed.get(a.id as string))).toHaveLength(1);
+  it('treats an unreadable list as a finding, never as "no application"', () => {
+    expect(checkNoAccessApplications(host, null)).toEqual([{ check: 'access', message: 'the Cloudflare Access application list could not be read' }]);
+    expect(checkNoAccessApplications(host, undefined)).toHaveLength(1);
+    expect(checkNoAccessApplications(host, 'nope')).toHaveLength(1);
   });
 });
 
-describe('checkAccessGate (D31)', () => {
+describe('checkPublicGate (OD-40): an anonymous request reaches the Worker, not Cloudflare Access', () => {
   const url = 'https://staging.run.synthetos.com/';
-  it('passes a redirect to the Access login', () => {
-    expect(checkAccessGate(url, { status: 302, location: 'https://synthetos.cloudflareaccess.com/cdn-cgi/access/login/staging.run.synthetos.com' }, false)).toEqual([]);
+  it('passes an answer from the Worker: content, a redirect elsewhere, a 404', () => {
+    expect(checkPublicGate(url, { status: 200, location: null }, false)).toEqual([]);
+    expect(checkPublicGate(url, { status: 302, location: '/update/' }, false)).toEqual([]);
+    expect(checkPublicGate(url, { status: 302, location: 'https://evil.example/cloudflareaccess.com' }, false)).toEqual([]);
+    expect(checkPublicGate(url, { status: 404, location: null }, false)).toEqual([]);
   });
-  it('fails content served to an anonymous request, or a redirect elsewhere', () => {
-    expect(checkAccessGate(url, { status: 200, location: null }, false)).toHaveLength(1);
-    expect(checkAccessGate(url, { status: 302, location: 'https://evil.example/cloudflareaccess.com' }, false)).toHaveLength(1);
-    expect(checkAccessGate(url, { status: 302, location: 'https://cloudflareaccess.com.evil.example/' }, false)).toHaveLength(1);
+  it('fails a redirect to the Access login, however the location is written', () => {
+    for (const location of ['https://synthetos.cloudflareaccess.com/cdn-cgi/access/login/staging.run.synthetos.com', 'https://battlewithbytes.cloudflareaccess.com/x', 'HTTPS://Team.CloudflareAccess.com/']) {
+      const findings = checkPublicGate(url, { status: 302, location }, false);
+      expect(findings, location).toHaveLength(1);
+      expect(findings[0]?.message).toContain('still behind Cloudflare Access');
+    }
+    expect(checkPublicGate(url, { status: 302, location: 'https://cloudflareaccess.com.evil.example/' }, false)).toEqual([]);
   });
-  it('accepts an unreachable host only before the first deploy', () => {
-    expect(checkAccessGate(url, 'unreachable', true)).toEqual([]);
-    expect(checkAccessGate(url, 'unreachable', false)).toHaveLength(1);
+  it('fails a server error', () => {
+    expect(checkPublicGate(url, { status: 503, location: null }, false)).toHaveLength(1);
+    expect(checkPublicGate(url, { status: 500, location: null }, false)[0]?.message).toContain('500');
+  });
+  it('accepts an unreachable host only before the first deploy, after the API check passed', () => {
+    expect(checkPublicGate(url, 'unreachable', true)).toEqual([]);
+    expect(checkPublicGate(url, 'unreachable', false)).toHaveLength(1);
   });
 });
 

@@ -1,7 +1,7 @@
 /**
  * A deployment whose post-deploy smoke test failed is undone (P0 review;
- * SAFETY H45, D31): staging is deleted, production rolled back. The CLI is
- * run against a fake wrangler binary that records its arguments.
+ * SAFETY H45; OD-40): both environments roll back to the previous version.
+ * The CLI is run against a fake wrangler binary that records its arguments.
  */
 import { spawnSync } from 'node:child_process';
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -39,8 +39,9 @@ function cli(args: string[], presenceStatus?: number): { status: number | null; 
 
 describe('rollbackPlan', () => {
   it('deletes staging (a removed Access application is not fixed by older code) and rolls production back', () => {
-    expect(rollbackPlan('staging')).toEqual([['delete', '--config', WRANGLER_CONFIG, '--env', 'staging']]);
+    expect(rollbackPlan('staging')).toEqual([['rollback', '--config', WRANGLER_CONFIG, '--env', 'staging', '--yes', '--message', 'post-deploy smoke test failed']]);
     expect(rollbackPlan('production')).toEqual([['rollback', '--config', WRANGLER_CONFIG, '--yes', '--message', 'post-deploy smoke test failed']]);
+    expect(rollbackPlan('staging').flat()).not.toContain('delete');
   });
 });
 
@@ -49,7 +50,7 @@ describe('rollback CLI', () => {
     const w = fakeWrangler(0);
     const r = cli(['staging', w.bin]);
     expect(r.status, r.output).toBe(0);
-    expect(readFileSync(w.log, 'utf8')).toBe(`delete --config ${WRANGLER_CONFIG} --env staging\n`);
+    expect(readFileSync(w.log, 'utf8')).toBe(`rollback --config ${WRANGLER_CONFIG} --env staging --yes --message post-deploy smoke test failed\n`);
   });
 
   it('reports unknown rather than claiming live when existence cannot be checked', () => {
@@ -60,11 +61,11 @@ describe('rollback CLI', () => {
     expect(r.output).not.toMatch(/STILL LIVE/);
   });
 
-  it('checks existence after Wrangler errors and reports deleted versus still live', () => {
-    const deleted = cli(['staging', fakeWrangler(1).bin], 404);
-    expect(deleted.status).toBe(1);
-    expect(deleted.output).toContain('staging Worker deleted; cleanup step failed');
-    expect(deleted.output).not.toContain('STILL LIVE');
+  it('checks existence after Wrangler errors and reports absent versus still live', () => {
+    const absent = cli(['staging', fakeWrangler(1).bin], 404);
+    expect(absent.status).toBe(1);
+    expect(absent.output).toContain('staging Worker absent; cleanup step failed');
+    expect(absent.output).not.toContain('STILL LIVE');
     const live = cli(['production', fakeWrangler(1).bin], 200);
     expect(live.status).toBe(1);
     expect(live.output).toContain('production Worker STILL LIVE');

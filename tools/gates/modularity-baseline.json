@@ -1325,9 +1325,6 @@
     "tools/gates/src/schema/render.ts": {
       "complexity $/FunctionDeclaration:parseVendoredTable#1": 35
     },
-    "tools/gates/src/smoke/cli.ts": {
-      "complexity $/FunctionDeclaration:accessApi#1": 20
-    },
     "tools/gates/src/source/scan.ts": {
       "complexity $/FunctionDeclaration:isNamePosition#1": 18,
       "complexity $/FunctionDeclaration:runtimeBindings#1/ArrowFunctionExpression:visit#1": 16,

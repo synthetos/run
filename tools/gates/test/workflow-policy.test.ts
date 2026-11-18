@@ -353,8 +353,9 @@ describe('undo a failed deployment (P0 review)', () => {
   it.each(['staging', 'production'])('fails when deploy-%s loses its undo step, its condition or the deploy id', (env) => {
     const undo = `        run: node tools/gates/src/deploy/rollback-cli.ts ${env} ci/deploy-toolchain/node_modules/.bin/wrangler\n`;
     expect(rules(mutate(CI, undo, ''))).toEqual(['deploy-rollback']);
-    const condition = env === 'production' ? "failure() && steps.deploy.outcome == 'success' && steps.site_smoke.outcome == 'failure'" : "failure() && (steps.deploy.outcome == 'failure' || steps.site_smoke.outcome == 'failure')";
-    const step = `      - name: Undo the deployment when site deployment or smoke failed (staging is deleted, production rolled back)\n        if: ${condition}\n`;
+    // OD-40: both environments roll back to the previous version, only after a successful deploy whose smoke failed.
+    const condition = "failure() && steps.deploy.outcome == 'success' && steps.site_smoke.outcome == 'failure'";
+    const step = `      - name: Undo the deployment when the smoke test failed (rolled back to the previous version)\n        if: ${condition}\n`;
     const start = CI.indexOf(`  deploy-${env}:\n`);
     const at = CI.indexOf(step, start);
     expect(at).toBeGreaterThan(-1);
