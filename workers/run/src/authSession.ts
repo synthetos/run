@@ -19,19 +19,35 @@ export interface RunSessionIdentity {
   readonly canConnect: boolean;
 }
 
-/** The signed-in run session's identity, or null (no cookie, invalid, revoked, expired, or accounts unreachable). */
-export async function runSessionIdentity(request: Request, config: AuthConfig): Promise<RunSessionIdentity | null> {
+/**
+ * The validated accounts session behind this request's cookie, or null (no cookie, invalid, revoked, expired, another
+ * client, or accounts unreachable). Every check the identity needs happens here, once.
+ */
+export async function validRunSession(request: Request, config: AuthConfig): Promise<AccountsSession | null> {
   const token = readCookie(request, SESSION_COOKIE);
   if (token === null) return null;
   try {
     const session = await config.accounts.validateSession(token);
     if (session === null || !Number.isSafeInteger(session.absoluteExpiresAt) || session.absoluteExpiresAt <= Math.floor(Date.now() / 1000) || session.client !== 'run' || typeof session.sub !== 'string' || !session.sub.startsWith('usr_')) return null;
-    const login = session.identities.find((i) => i.provider === 'github')?.login;
-    const display = typeof login === 'string' && /^[A-Za-z0-9-]{1,39}$/.test(login) ? `@${login}` : 'your Synthetos account';
-    return { provider: 'run-session', subject: session.sub, display, canConnect: sessionCanConnect(session) };
+    return session;
   } catch {
     return null;
   }
+}
+
+/** The signed-in run session's identity, or null. */
+export async function runSessionIdentity(request: Request, config: AuthConfig): Promise<RunSessionIdentity | null> {
+  const session = await validRunSession(request, config);
+  if (session === null) return null;
+  const login = session.identities.find((i) => i.provider === 'github')?.login;
+  const display = typeof login === 'string' && /^[A-Za-z0-9-]{1,39}$/.test(login) ? `@${login}` : 'your Synthetos account';
+  return { provider: 'run-session', subject: session.sub, display, canConnect: sessionCanConnect(session) };
+}
+
+/** The session's GitHub identity id when it is a plain number (the only form avatars.githubusercontent.com takes), else null. */
+export function githubIdentityId(session: Pick<AccountsSession, 'identities'>): string | null {
+  const id = session.identities.find((i) => i.provider === 'github')?.id;
+  return typeof id === 'string' && /^\d{1,20}$/.test(id) ? id : null;
 }
 
 /** Accounts owns the role mapping. Missing/malformed capabilities never grant a port, even for an admin role. */
