@@ -105,6 +105,45 @@ it('shows surface speeds only when supplied, and retains uncertain warnings', ()
   expect(renderToString(h(ToolCuttingTab, { tool: uncertain, unit: 'mm' }))).toContain('Check the catalog: this value may be misprinted');
 });
 
+describe('catalog search without a part number (owner 147)', () => {
+  const find = (q: string) => ONSRUD_CATALOG.filter((t) => matchesCatalog(t, q, ''));
+  it('an empty query lists every tool, and the picker shows them all', () => {
+    expect(find('')).toHaveLength(ONSRUD_CATALOG.length);
+    expect(find('   ')).toHaveLength(ONSRUD_CATALOG.length);
+    const props = { tools: ONSRUD_CATALOG, query: '', size: '', maker: '', type: '', entries: [], unit: 'mm' as const, setQuery: () => undefined, setSize: () => undefined, setMaker: () => undefined, setType: () => undefined, onPreview: () => undefined, onPick: () => undefined };
+    expect(all(root(h(CatalogChoices, props)), (e) => e.props['data-catalog-part'] !== undefined)).toHaveLength(ONSRUD_CATALOG.length);
+  });
+  it('the diameter matches as millimetres or as an inch fraction', () => {
+    const quarter = ONSRUD_CATALOG.filter((t) => t.geometry.diameter === 6.35);
+    expect(quarter.length).toBeGreaterThan(0);
+    for (const q of ['1/4', '1/4"', '6.35', '6.35mm', '6.35 mm']) expect(find(q).map((t) => t.id)).toEqual(quarter.map((t) => t.id));
+    expect(find('1/8').every((t) => t.geometry.diameter === 3.175)).toBe(true);
+  });
+  it('a flute count filters by flutes, never by digits in part numbers', () => {
+    for (const n of [1, 2, 3]) {
+      const want = ONSRUD_CATALOG.filter((t) => t.geometry.flutes === n).map((t) => t.id);
+      for (const q of [`${n} flute`, `${n} flutes`, `${n}-flute`, `${n}fl`]) expect(find(q).map((t) => t.id)).toEqual(want);
+    }
+    expect(find('2 flute').length).toBeGreaterThan(0);
+  });
+  it('the name, the tool words and the type label match; words combine', () => {
+    expect(matchesCatalog({ ...template, name: 'Sign cutter' }, 'sign', '')).toBe(true);
+    expect(find('spiral').length).toBeGreaterThan(0);
+    expect(find('ball nose').every((t) => t.type === 'ball')).toBe(true);
+    expect(find('ball nose').length).toBeGreaterThan(0);
+    expect(find('end mill').every((t) => t.type === 'flat')).toBe(true);
+    const combined = find('1/4 upcut 2 flute');
+    expect(combined.length).toBeGreaterThan(0);
+    expect(combined.every((t) => t.geometry.diameter === 6.35 && t.geometry.flutes === 2 && /upcut/i.test(t.description))).toBe(true);
+    expect(find('52-280').map((t) => t.partNumber)).toContain('52-280');
+    expect(find('52-280').every((t) => t.partNumber?.startsWith('52-280'))).toBe(true);
+  });
+  it('the search box says what it searches', () => {
+    const props = { tools: ONSRUD_CATALOG, query: '', size: '', maker: '', type: '', entries: [], unit: 'mm' as const, setQuery: () => undefined, setSize: () => undefined, setMaker: () => undefined, setType: () => undefined, onPreview: () => undefined, onPick: () => undefined };
+    expect(one(root(h(CatalogChoices, props)), (e) => e.tag === 'input').props['placeholder']).toBe('Search name, size, flutes or part');
+  });
+});
+
 it('catalog rows preview by click, Enter or Space, but leave links and buttons alone', () => {
   const seen: string[] = [];
   const tree = root(h(CatalogTable, { tools: [template], entries: [], unit: 'mm', onPick: () => seen.push('add'), onPreview: () => seen.push('preview') }));

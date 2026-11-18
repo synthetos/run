@@ -50,7 +50,7 @@ export function CatalogChoices({ tools, query, size, maker, type, setQuery, setS
   const matches = tools.filter(t => matchesCatalog(t, query, size, maker, type));
   return h('div', { class: 'list-panel' },
     h('div', { class: 'catalog-filters' },
-      h('input', { type: 'search', 'aria-label': 'Search catalog', placeholder: 'Search by part number or name', value: query, onInput: (e: Event) => setQuery((e.currentTarget as HTMLInputElement).value) }),
+      h('input', { type: 'search', 'aria-label': 'Search catalog', placeholder: 'Search name, size, flutes or part', value: query, onInput: (e: Event) => setQuery((e.currentTarget as HTMLInputElement).value) }),
       h('label', null, 'Maker', h('div', { class: 'select-wrap' }, h('select', { 'aria-label': 'Maker', value: maker, onChange: (e: Event) => setMaker((e.currentTarget as HTMLSelectElement).value) }, h('option', { value: '' }, 'All makers'), h('option', { value: 'Onsrud' }, 'Onsrud')))),
       h('div', { class: 'catalog-sizes', role: 'group', 'aria-label': 'Catalog size' }, ...[['', 'All sizes'], ['3.175', '1/8"'], ['6.35', '1/4"']].map(([value, label]) => h('button', { type: 'button', class: `chip${size === value ? ' selected' : ''}`, 'aria-pressed': size === value, onClick: () => setSize(value!) }, label))),
       h('label', null, 'Type', h('div', { class: 'select-wrap' }, h('select', { 'aria-label': 'Type', value: type, onChange: (e: Event) => setType((e.currentTarget as HTMLSelectElement).value) }, h('option', { value: '' }, 'All types'), ...(['flat', 'ball', 'o-flute'] as const).map(t => h('option', { value: t }, TOOL_KINDS[t])))))),
