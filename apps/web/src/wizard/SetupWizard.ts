@@ -10,9 +10,15 @@ import { useEffect } from 'preact/hooks';
 import { pageGate } from '../gate/SignInGate.ts';
 import { setupView } from '../workspace/cloud/setupSync.ts';
 import type { WorkspaceModel } from '../workspace/model.ts';
+import type { MachineProfile } from '@synthetos/library';
 import { projectsState } from '../projects/store.ts';
+import { saveSetup } from '../workspace/cloud/setupSync.ts';
+import { machineStore, selectedMachineStore } from '../workspace/library.ts';
+import { CATALOGUE, type MachineTemplate } from '../workspace/machineDrawings.ts';
+import { boardOwner, draftFromMachine, draftFromTemplate, draftValid, saveDraft, type MachineDraft } from './machineDraft.ts';
 import { closeSetup, finishStep, skipStep } from './setupActions.ts';
 import { Done, DONE_LEAD, DONE_TITLE } from './steps/Done.ts';
+import { liveBoardId, Machine, MACHINE_LEAD, MACHINE_TITLE, machineDraft } from './steps/Machine.ts';
 import { Welcome, WELCOME_LEAD, WELCOME_TITLE } from './steps/Welcome.ts';
 import { WizardFrame } from './WizardFrame.ts';
 import { currentStep, NEXT_LABEL, railMarks, STEPS, wizardOpen, type StepId } from './wizardState.ts';
@@ -32,10 +38,31 @@ function finishWizard(ctx: WizardContext): void {
   ctx.onView('job');
 }
 
+/** Step 2: the draft from the record's machine (resume) or the first template; Next saves and binds the board. */
+function machineStep(ctx: WizardContext): StepView {
+  const record = setupView.value.record;
+  const machines = machineStore.value.value;
+  const draft = machineDraft.value ?? draftFor(record?.machineId ?? null, machines);
+  const boardId = liveBoardId(ctx.model);
+  const owner = boardOwner(boardId, machines);
+  const body = h(Machine, {
+    model: ctx.model, draft, onDraft: (d) => { machineDraft.value = d; },
+    owner: owner !== null && owner.id !== record?.machineId ? owner : null,
+    onUseOwner: (m) => { machineDraft.value = draftFromMachine(m); selectedMachineStore.set(m.id); saveSetup({ machineId: m.id }); },
+  });
+  return { title: MACHINE_TITLE, lead: MACHINE_LEAD, body, nextDisabled: !draftValid(draft), next: () => { const id = saveDraft(draft, record?.machineId ?? null, boardId); finishStep(2, { machineId: id }); } };
+}
+
+function draftFor(machineId: string | null, machines: readonly MachineProfile[]): MachineDraft {
+  const mine = machines.find((m) => m.id === machineId);
+  return mine === undefined ? draftFromTemplate(CATALOGUE[0] as MachineTemplate) : draftFromMachine(mine);
+}
+
 /** The step's content; each step module fills its own case. */
 function stepView(step: StepId, ctx: WizardContext): StepView {
   switch (step) {
     case 1: return { title: WELCOME_TITLE, lead: WELCOME_LEAD, body: h(Welcome, null) };
+    case 2: return machineStep(ctx);
     case 7: {
       const id = setupView.value.record?.projectId ?? null;
       const name = id === null ? null : projectsState.value.list.find((p) => p.id === id)?.name ?? null;
@@ -49,8 +76,9 @@ export function SetupWizard(p: WizardContext): ComponentChild {
   const showing = wizardShowing.value;
   const record = setupView.value.record;
   const step = currentStep(record);
-  // Keyboard first: every step starts on its heading.
+  // Keyboard first: every step starts on its heading. A step's own draft starts fresh each time it opens.
   useEffect(() => {
+    machineDraft.value = null;
     if (showing && typeof document !== 'undefined') document.getElementById('wizard-title')?.focus();
   }, [showing, step]);
   if (!showing) return null;
