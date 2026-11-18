@@ -60,6 +60,8 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
       'div',
       { class: 'job-main' },
       // The top "No file open" bar is gone (spec §7): the file opens at step 3, projects live in the Projects view.
+      // The bar carried the page's level-one heading; the page keeps one for the document outline, unseen.
+      h('h1', { class: 'sr-only', id: 'run-title' }, 'Job'),
       h(OverrideControls, { model }),
       h('nav', { class: 'job-step-bar', 'aria-label': 'Job steps' }, JOB_STEPS.map((item, i) => h('button', { type: 'button', key: item.id, 'data-action': `job-step-${item.id}`, 'data-job-step': item.id, 'aria-current': step === item.id ? 'step' : undefined, 'aria-controls': 'job-work-panel', onClick: () => { jobStep.value = item.id; } }, h('span', { class: 'step-number' }, String(i + 1)), h('span', null, h('strong', null, item.label), h('small', null, stepStatus(item.id, parts, model)))))),
       h(

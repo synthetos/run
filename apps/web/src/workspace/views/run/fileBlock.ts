@@ -3,8 +3,8 @@
  * these controls is gone; this block keeps what worked: the file's name and lines, the picker (which the viewer's
  * "Open a file" prompt clicks by its `data-preview="file"`), Close job, and Save to project for a draft. It stays in
  * the tree on every step, hidden while no file is open, so the picker is always there to click. Once a file is open
- * the file's name and Close job stay in view on every step (a job finished at step 5 is closed there, as it was from
- * the old bar); the heading, the picker and the project line wait for step 3.
+ * the file's name, its project line and Close job stay in view on every step (a job finished at step 5 is closed
+ * there, as it was from the old bar); the heading and the picker wait for step 3.
  */
 import { h, type ComponentChild } from 'preact';
 import { useState, type Dispatch, type StateUpdater } from 'preact/hooks';
@@ -45,7 +45,7 @@ export function JobFileBlock({ parts, model, step }: { readonly parts: PreviewPa
       open ? closeButton({ actions, locked, setNote }) : null,
       executionLock.value === null ? null : h(ContextHelp, { id: 'job-file-lock-help', label: 'Why closing or replacing the job is unavailable' }, `${executionLock.value} Stop the current job before closing it or opening another file.`),
     ),
-    here ? h(JobProjectLine, { job: activeJob.value, fileOpen: result !== null, onNote: setNote }) : null,
+    h(JobProjectLine, { job: activeJob.value, fileOpen: result !== null, onNote: setNote }),
     note === null ? null : h('p', { class: 'fine tone-warn', role: 'status', 'data-job': 'note' }, note),
   );
 }

@@ -17,6 +17,9 @@ test('the Job page opens on the steps; the file lives at step 3; Check hints its
   await page.route('**/api/session', (route) => route.fulfill({ json: SIGNED_IN }));
   await page.goto('/'); await ready(page);
   await expect(page.locator('.job-card, .job-files-drawer, [data-action="job-files"], [data-action="job-projects"]')).toHaveCount(0);
+  // The bar carried the Job page's level-one heading; the page keeps one, unseen (the safety-bar spec's axe run needs it).
+  await expect(page.locator('#run-title')).toHaveText('Job');
+  await expect(page.locator('.job-view h1')).toHaveCount(1);
   await expect(page.locator('.job-step-bar [data-job-step]')).toHaveCount(5);
   await expect(page.locator('[data-job-step="check"] small')).toHaveText('Review the safety verdict');
   const footer = page.locator('.footer');

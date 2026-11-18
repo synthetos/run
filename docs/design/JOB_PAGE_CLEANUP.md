@@ -11,8 +11,8 @@ owner asked for on 2026-11-18: the GitHub picture of the signed-in account in th
 - **The file lives at step 3.** "Open & place job" starts with a small File block: the picker, and once a file is
   open its name and line count, Open another, Close job, and Save to project for a draft. At steps 1 and 2 the drawing
   says "Step 3 opens your file"; at step 3 the drawing offers Open a file and the two samples, as before. Projects and
-  their files are opened from the Projects view in the left rail. Once a file is open, its name and Close job follow
-  you to every step, so a job finished at step 5 is closed right there; the picker and Save to project stay at step 3.
+  their files are opened from the Projects view in the left rail. Once a file is open, its name, its project line and
+  Close job follow you to every step, so a job finished at step 5 is closed right there; the picker stays at step 3.
 - **Step 4 says what Check does.** Its hint is "Review the safety verdict" until a file is checked, then the verdict
   (File checked, Review findings, Blocked).
 - **The footer is the version.** "Review settings before applying" and "Libraries saved in this browser" are gone.
