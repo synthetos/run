@@ -6,21 +6,22 @@
 import { describe, expect, it } from 'vitest';
 import { h } from 'preact';
 import { ACCOUNT_TEXT, ACCOUNT_TITLE } from '../src/live/accountNotice.ts';
-import { accessProvider, providersFor, RUN_SESSION_PROVIDER, signInAvailable } from '../src/live/authGate.ts';
+import { providersFor, RUN_SESSION_PROVIDER, signInAvailable } from '../src/live/authGate.ts';
 import { ConnectPanel, refusalText, refusedTitle } from '../src/live/ConnectPanel.ts';
 import { all, byAttr, root, text } from './tree.ts';
 
 const props = { advisoryBlocked: null, onConnect: () => undefined, onConfirm: () => undefined, onCancel: () => undefined, onDisconnect: () => undefined };
-const access = accessProvider(() => Promise.resolve(null));
 const release = { kind: 'release' as const, benchIdentity: null };
 
 describe('signInAvailable', () => {
-  it('is false for production (the run session only) and any other release origin, true for staging', () => {
-    expect(signInAvailable(providersFor(release, 'production', access))).toBe(false);
-    expect(signInAvailable(providersFor(release, null, access))).toBe(false);
-    expect(signInAvailable(providersFor(release, 'staging', access))).toBe(true);
+  it('is false for every hosted release origin (the run session only; staging too since OD-40), true only with a bench identity', () => {
+    expect(signInAvailable(providersFor(release, 'production'))).toBe(false);
+    expect(signInAvailable(providersFor(release, null))).toBe(false);
+    expect(signInAvailable(providersFor(release, 'staging'))).toBe(false);
     expect(signInAvailable([RUN_SESSION_PROVIDER])).toBe(false);
     expect(signInAvailable([])).toBe(false);
+    const bench = { kind: 'bench' as const, current: () => Promise.resolve({ provider: 'bench' as const, subject: 'b' }) };
+    expect(signInAvailable(providersFor({ kind: 'bench', benchIdentity: bench }, 'staging'))).toBe(true);
   });
 });
 

@@ -18,7 +18,6 @@ import {
   IDENTITY_GATED,
   NEVER_GATED,
   RUN_SESSION_PROVIDER,
-  accessProvider,
   providersFor,
   type Identity,
   type IdentityProvider,
@@ -119,7 +118,7 @@ describe('advisory gate (H27, T-S31, T-S75)', () => {
     );
     poller.start();
     expect(intervals.map((i) => i.ms)).toEqual([ADVISORY_POLL_MS]);
-    const signedIn: IdentityProvider = { kind: 'access', current: () => Promise.resolve({ provider: 'access', subject: 'o' }) };
+    const signedIn: IdentityProvider = { kind: 'run-session', current: () => Promise.resolve({ provider: 'run-session', subject: 'o' }) };
     const gates = new LiveGates(new AuthGate([signedIn]), () => poller.blocked);
     await poller.tick();
     expect(await gates.check('armOrStart')).toEqual({ allowed: true });
@@ -165,26 +164,22 @@ describe('D1 sign-in gate (RUN_PLAN §2.2, D41, accepted 2026-11-02)', () => {
   it('signed out (no provider says yes): Connect is refused; a provider claiming another kind does not count', async () => {
     expect(await new AuthGate([]).check('connect')).toEqual({ allowed: false, reason: 'signed-out' });
     expect(await new AuthGate([RUN_SESSION_PROVIDER]).check('connect')).toEqual({ allowed: false, reason: 'signed-out' });
-    const liar = provider('access', () => ({ provider: 'bench', subject: 'x' }));
+    const liar = provider('run-session', () => ({ provider: 'bench', subject: 'x' }));
     expect(await new AuthGate([liar]).check('connect')).toEqual({ allowed: false, reason: 'signed-out' });
-    const thrower: IdentityProvider = { kind: 'access', current: () => Promise.reject(new Error('down')) };
+    const thrower: IdentityProvider = { kind: 'run-session', current: () => Promise.reject(new Error('down')) };
     expect(await new AuthGate([thrower]).check('connect')).toEqual({ allowed: false, reason: 'signed-out' });
   });
 
-  it('providers: production accepts only the run session; staging adds Access; the bench channel only its bench identity', () => {
-    const access = provider('access', () => ({ provider: 'access', subject: 'o' }));
+  it('providers: every hosted page accepts only the run session (staging too since OD-40); the bench channel only its bench identity', () => {
     const release = { kind: 'release' as const, benchIdentity: null };
-    expect(providersFor(release, 'production', access).map((p) => p.kind)).toEqual(['run-session']);
-    expect(providersFor(release, null, access).map((p) => p.kind)).toEqual(['run-session']);
-    expect(providersFor(release, 'staging', access).map((p) => p.kind)).toEqual(['run-session', 'access']);
+    const session = provider('run-session', () => ({ provider: 'run-session', subject: 'o' }));
+    expect(providersFor(release, 'production', session)).toEqual([session]);
+    expect(providersFor(release, null, session)).toEqual([session]);
+    expect(providersFor(release, 'staging', session)).toEqual([session]);
+    expect(providersFor(release, 'staging').map((p) => p.kind)).toEqual(['run-session']);
     const bench = { kind: 'bench' as const, current: () => Promise.resolve({ provider: 'bench' as const, subject: 'b' }) };
-    expect(providersFor({ kind: 'bench', benchIdentity: bench }, 'staging', access)).toEqual([bench]);
-  });
-
-  it('the Access provider accepts only an access identity from the Worker', async () => {
-    expect(await accessProvider(() => Promise.resolve({ provider: 'access', subject: 'o' })).current()).toEqual({ provider: 'access', subject: 'o' });
-    expect(await accessProvider(() => Promise.resolve({ provider: 'run-session', subject: 'o' })).current()).toBeNull();
-    expect(await accessProvider(() => Promise.reject(new Error('x'))).current()).toBeNull();
+    expect(providersFor({ kind: 'bench', benchIdentity: bench }, 'staging', session)).toEqual([bench]);
+    expect(providersFor({ kind: 'bench', benchIdentity: null }, 'staging', session)).toEqual([]);
   });
 });
 
@@ -198,13 +193,15 @@ describe('cloud reads', () => {
     expect(await fetchSafetyAdvisory(ok(200, { a: 1 }))).toEqual({ ok: true, body: { a: 1 } });
     expect(await fetchSafetyAdvisory(ok(404, {}))).toEqual({ ok: false });
     expect(await fetchSafetyAdvisory(() => Promise.reject(new Error('offline')))).toEqual({ ok: false });
-    expect(await fetchIdentity(ok(200, { identity: { provider: 'access', subject: 'o' } }))).toEqual({ provider: 'access', subject: 'o' });
+    expect(await fetchIdentity(ok(200, { identity: { provider: 'run-session', subject: 'o' } }))).toEqual({ provider: 'run-session', subject: 'o' });
     expect(await fetchIdentity(ok(401, { identity: null }))).toBeNull();
     expect(await fetchIdentity(ok(200, { identity: { provider: 'bench', subject: 'o' } }))).toBeNull();
-    expect(await fetchIdentity(ok(200, { identity: { provider: 'access', subject: '' } }))).toBeNull();
+    expect(await fetchIdentity(ok(200, { identity: { provider: 'access', subject: 'o' } }))).toBeNull();
+    expect(await fetchIdentity(ok(200, { identity: { provider: 'run-session', subject: '' } }))).toBeNull();
     expect(seen.map(([u, i]) => [u, i.cache])).toEqual([
       ['/safety-advisory.json', 'no-store'],
       ['/safety-advisory.json', 'no-store'],
+      ['/api/identity', 'no-store'],
       ['/api/identity', 'no-store'],
       ['/api/identity', 'no-store'],
       ['/api/identity', 'no-store'],
@@ -290,12 +287,12 @@ function harness(over: Partial<LiveEntryDeps> = {}, store = memoryDeviceSafety()
   const h: Harness = {
     calls,
     store,
-    identity: { provider: 'access', subject: 'owner' },
+    identity: { provider: 'bench', subject: 'owner' },
     entry: undefined as unknown as LiveEntry,
   };
   const auth = new AuthGate([
     {
-      kind: 'access',
+      kind: 'bench',
       current: () => {
         calls.push('auth');
         return Promise.resolve(h.identity);
@@ -464,7 +461,7 @@ describe('LiveEntry', () => {
     const t = harness();
     await t.entry.begin();
     await t.entry.confirm([true, true, true, true, true]);
-    const gates = new LiveGates(new AuthGate([provider('access', () => t.identity)]), () => null);
+    const gates = new LiveGates(new AuthGate([provider('bench', () => t.identity)]), () => null);
     t.identity = null;
     const before = [...t.calls];
     for (const a of NEVER_GATED) expect(await gates.check(a), a).toEqual({ allowed: true });

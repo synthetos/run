@@ -126,16 +126,16 @@ describe('errors', () => {
   });
 });
 
-describe('P1-00, OD-29: serial=(self) on each deployed Worker\'s own host only, decided per request', () => {
+describe('OD-29, OD-40: serial=(self) only on a deployed Worker\'s own host with a validated session, decided per request', () => {
   const STAGING = 'https://staging.run.synthetos.com';
   const at = (origin: string, path: string, method = 'GET'): Request => new Request(`${origin}${path}`, { method });
   const pp = (res: Response): string | null => res.headers.get('permissions-policy');
 
   it.each(['/', '/safety/', '/no-such-page', '/assets/workspace-abc12345.js', '/api/health', '/api/nope', '/auth/login'])(
-    'the staging Worker on the staging host grants serial=(self) on %s, with every other header unchanged',
+    'OD-40: unconfigured staging denies serial on %s to an anonymous request, with every other header unchanged',
     async (path) => {
       const res = await worker.fetch(at(STAGING, path), env('staging'));
-      for (const [name, value] of Object.entries(SERIAL_GRANTED_SECURITY_HEADERS)) expect(res.headers.get(name), name).toBe(value);
+      for (const [name, value] of Object.entries(SECURITY_HEADERS)) expect(res.headers.get(name), name).toBe(value);
     },
   );
 
@@ -160,11 +160,12 @@ describe('P1-00, OD-29: serial=(self) on each deployed Worker\'s own host only, 
     }
   });
 
-  it('an error inside the Worker on staging still gets the staging set and no detail', async () => {
+  it('an error inside the Worker on staging still gets the fail-closed set and no detail', async () => {
     const broken: Env = { RUN_ENV: 'staging', ASSETS: { fetch: () => Promise.reject(new Error('boom')) } };
     const res = await worker.fetch(at(STAGING, '/'), broken);
     expect(res.status).toBe(500);
-    expect(pp(res)).toBe(SERIAL_GRANTED_SECURITY_HEADERS['permissions-policy']);
+    expect(pp(res)).toBe(SECURITY_HEADERS['permissions-policy']);
+    expect(pp(res)).not.toBe(SERIAL_GRANTED_SECURITY_HEADERS['permissions-policy']);
   });
 
   it('a hashed asset the Worker serves gets the immutable cache policy; other paths and failures do not', async () => {

@@ -23,7 +23,7 @@ import {
   releasesEnvironment,
   type FirmwareProxyDeps,
 } from '../src/firmwareProxy.ts';
-import { HASHED_ASSET_CACHE_CONTROL, SECURITY_HEADERS, SERIAL_GRANTED_SECURITY_HEADERS } from '../src/headers.ts';
+import { HASHED_ASSET_CACHE_CONTROL, SECURITY_HEADERS } from '../src/headers.ts';
 import { type Env, route } from '../src/routes.ts';
 
 const STAGING = 'https://staging.run.synthetos.com';
@@ -211,13 +211,13 @@ describe('GET /firmware/... through the Worker', () => {
   it('serves a listed, verified asset same-origin: text/plain, immutable; HEAD carries no body', async () => {
     const r = await release();
     const fake = github({ [HEX_URL]: () => new Response(r.bytes), [SUMS_URL]: () => new Response(r.sums) }, memoryCache(), [r.entry]);
-    const res = await route(new Request(`${STAGING}${PATH}`), env('staging'), undefined, fake.deps);
+    const res = await route(new Request(`${STAGING}${PATH}`), env('staging'), fake.deps);
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('text/plain; charset=utf-8');
     expect(res.headers.get('cache-control')).toBe(HASHED_ASSET_CACHE_CONTROL);
     expect(res.headers.get('content-length')).toBe(String(r.bytes.byteLength));
     expect(await res.text()).toBe(r.text);
-    const head = await route(new Request(`${STAGING}${PATH}`, { method: 'HEAD' }), env('staging'), undefined, fake.deps);
+    const head = await route(new Request(`${STAGING}${PATH}`, { method: 'HEAD' }), env('staging'), fake.deps);
     expect(head.status).toBe(200);
     expect(await head.text()).toBe('');
     expect(fake.calls).toEqual([HEX_URL]);
@@ -226,7 +226,7 @@ describe('GET /firmware/... through the Worker', () => {
   it('the committed list: a body that is not the real 440.21 image is a detail-free 404, and the Worker asked GitHub for it', async () => {
     const r = await release();
     const fake = github({ [HEX_URL]: () => new Response(r.bytes), [SUMS_URL]: () => new Response(r.sums) }, memoryCache(), [{ ...r.entry, sha256: 'a'.repeat(64) }]);
-    const res = await route(new Request(`${STAGING}${PATH}`), env('staging'), undefined, fake.deps);
+    const res = await route(new Request(`${STAGING}${PATH}`), env('staging'), fake.deps);
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: 'not_found' });
     expect(fake.calls).toEqual([HEX_URL]);
@@ -235,24 +235,24 @@ describe('GET /firmware/... through the Worker', () => {
   it('a 404 for an unlisted path, a 405 for POST, and a 502 when GitHub is down, each with no detail', async () => {
     const r = await release();
     const down = github({ [HEX_URL]: () => new Response('down', { status: 503 }) }, memoryCache(), [r.entry]);
-    const notFound = await route(new Request(`${STAGING}/firmware/synthetos/TinyG/440.20/tinyg-440.20.hex`), env('staging'), undefined, down.deps);
+    const notFound = await route(new Request(`${STAGING}/firmware/synthetos/TinyG/440.20/tinyg-440.20.hex`), env('staging'), down.deps);
     expect(notFound.status).toBe(404);
     expect(await notFound.text()).toBe('{"error":"not_found"}\n');
     expect(down.calls).toEqual([]);
-    const post = await route(new Request(`${STAGING}${PATH}`, { method: 'POST' }), env('staging'), undefined, down.deps);
+    const post = await route(new Request(`${STAGING}${PATH}`, { method: 'POST' }), env('staging'), down.deps);
     expect(post.status).toBe(405);
     expect(post.headers.get('allow')).toBe('GET, HEAD');
-    const upstream = await route(new Request(`${STAGING}${PATH}`), env('staging'), undefined, down.deps);
+    const upstream = await route(new Request(`${STAGING}${PATH}`), env('staging'), down.deps);
     expect(upstream.status).toBe(502);
     expect(upstream.headers.get('cache-control')).toBe('no-store');
     expect(await upstream.text()).toBe('{"error":"upstream_unavailable"}\n');
     const mismatch = github({ [HEX_URL]: () => new Response(enc.encode('not the image')) }, memoryCache(), [r.entry]);
-    expect((await route(new Request(`${STAGING}${PATH}`), env('staging'), undefined, mismatch.deps)).status).toBe(404);
+    expect((await route(new Request(`${STAGING}${PATH}`), env('staging'), mismatch.deps)).status).toBe(404);
   });
 
   afterEach(() => { vi.unstubAllGlobals(); });
 
-  it('through the handler every answer carries the security headers (staging grants serial behind Access; production grants nothing without a validated session, OD-29)', async () => {
+  it('through the handler every answer carries the security headers (nothing grants serial without a validated session: OD-29, and OD-40 for staging)', async () => {
     // The handler has no injected deps, so the release list would come from GitHub: a fake fetch that refuses keeps this
     // test off the network (a GitHub failure is a 502) and independent of what GitHub lists today.
     const refused: string[] = [];
@@ -260,7 +260,7 @@ describe('GET /firmware/... through the Worker', () => {
     const staging = await worker.fetch(new Request(`${STAGING}/firmware/synthetos/TinyG/440.20/tinyg-440.20.hex`), env('staging'));
     expect(staging.status).toBe(502);
     expect(refused).toHaveLength(1);
-    for (const [name, value] of Object.entries(SERIAL_GRANTED_SECURITY_HEADERS)) expect(staging.headers.get(name), name).toBe(value);
+    for (const [name, value] of Object.entries(SECURITY_HEADERS)) expect(staging.headers.get(name), name).toBe(value);
     const production = await worker.fetch(new Request(`https://run.synthetos.com${PATH}`), env('production'));
     expect(production.status).toBe(502);
     for (const [name, value] of Object.entries(SECURITY_HEADERS)) expect(production.headers.get(name), name).toBe(value);

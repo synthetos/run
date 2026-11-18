@@ -13,10 +13,9 @@ export const VERSION = '0.0.0';
  * `GET /api/identity` (ROADMAP P1-05, RUN_PLAN §2.2). Who the run Worker
  * verified the caller to be, for the D1 sign-in gate in the web app's UI
  * layer: the run session (accounts.synthetos.com, A1-06/A1-07) where sign-in
- * is on, and the verified Cloudflare Access identity on staging. Never
- * consulted by the machine path.
+ * is on. Never consulted by the machine path.
  */
-export type IdentityProvider = 'access' | 'run-session';
+export type IdentityProvider = 'run-session';
 
 export interface IdentityBody {
   /**
@@ -25,7 +24,7 @@ export interface IdentityBody {
    */
   readonly identity: { readonly provider: IdentityProvider; readonly subject: string; readonly display?: string; readonly canConnect?: boolean } | null;
   /** Why there is no identity, for the refusal text (absent when there is one). */
-  readonly reason?: 'not-signed-in' | 'not-available-here' | 'not-configured' | 'connect-not-allowed';
+  readonly reason?: 'not-signed-in' | 'not-available-here' | 'connect-not-allowed';
   /**
    * A1-07: true when this host offers sign-in with a Synthetos account (`/auth/login`). Who may sign in is decided
    * by accounts (D37), so true does not mean this visitor will be admitted.

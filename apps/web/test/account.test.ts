@@ -9,7 +9,7 @@ import { fetchAccount, postSignOut } from '../src/cloud/account.ts';
 import { accountState, CHECKING, refreshAccount, signInHref, signOut, SIGN_OUT_FAILED, SIGN_OUT_WHILE_LIVE, stateFrom } from '../src/live/account.ts';
 import { AccountPanel, NOT_OFFERED, SIGNED_OUT, SIGN_IN_WHILE_LIVE, UNAVAILABLE } from '../src/live/AccountPanel.ts';
 import { ACCOUNT_TEXT, BETA_SIGN_IN } from '../src/live/accountNotice.ts';
-import { accessProvider, AuthGate, providersFor, runSessionProvider, signInAvailable } from '../src/live/authGate.ts';
+import { AuthGate, providersFor, runSessionProvider, signInAvailable } from '../src/live/authGate.ts';
 import { LiveEntry } from '../src/live/liveEntry.ts';
 import { memoryDeviceSafety } from '../src/live/deviceSafety.ts';
 import { ConnectPanel } from '../src/live/ConnectPanel.ts';
@@ -29,7 +29,7 @@ describe('the run session provider (D1 gate)', () => {
       }),
     ]);
     expect(await gate.check('connect')).toEqual({ allowed: true, identity: { provider: 'run-session', subject: 'usr_1' } });
-    answer = { provider: 'access', subject: 'x' };
+    answer = { provider: 'bench', subject: 'x' };
     expect(await gate.check('connect')).toEqual({ allowed: false, reason: 'signed-out' });
     answer = null;
     expect(await gate.check('jog')).toEqual({ allowed: false, reason: 'signed-out' });
@@ -155,11 +155,10 @@ describe('production Connect for signed-out and non-allowlisted visitors', () =>
 
 describe('OD-29: production Connect for the users accounts admits, and nobody else', () => {
   const release = { kind: 'release' as const, benchIdentity: null };
-  const access = accessProvider(() => Promise.resolve({ provider: 'access', subject: 'never-in-production' }));
 
   function production(identity: { provider: string; subject: string } | null) {
     const calls: string[] = [];
-    const providers = providersFor(release, 'production', access, runSessionProvider(() => Promise.resolve(identity)));
+    const providers = providersFor(release, 'production', runSessionProvider(() => Promise.resolve(identity)));
     const entry = new LiveEntry({
       auth: new AuthGate(providers),
       checkAdvisory: () => {
@@ -184,8 +183,8 @@ describe('OD-29: production Connect for the users accounts admits, and nobody el
     expect(t.entry.state.step).toBe('c1');
   });
 
-  it('signed out, or not admitted by accounts (no run session), is refused with the accounts notice; an Access identity never counts there', async () => {
-    for (const identity of [null, { provider: 'access', subject: 'x' }]) {
+  it('signed out, or not admitted by accounts (no run session), is refused with the accounts notice; another identity kind never counts there', async () => {
+    for (const identity of [null, { provider: 'bench', subject: 'x' }]) {
       const t = production(identity);
       expect(t.providers.map((p) => p.kind)).toEqual(['run-session']);
       expect(signInAvailable(t.providers)).toBe(false);

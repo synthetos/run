@@ -90,11 +90,13 @@ describe('SERIAL_GRANTED_SECURITY_HEADERS (P1-00: staging and the bench build)',
 describe('grantsSerial and securityHeadersFor (P1-00, OD-29)', () => {
   const url = (u: string): URL => new URL(u);
 
-  it('grants serial only to each deployed Worker on its own host: staging (P1-00) and, since OD-29, production', () => {
+  it('grants serial only to each deployed Worker on its own host, and only with a validated run.connect session (OD-29; staging too since OD-40)', () => {
     expect(STAGING_HOST).toBe('staging.run.synthetos.com');
     expect(PRODUCTION_HOST).toBe('run.synthetos.com');
-    expect(grantsSerial('staging', url('https://staging.run.synthetos.com/'))).toBe(true);
-    expect(grantsSerial('staging', url('https://staging.run.synthetos.com/safety/?x=1'))).toBe(true);
+    expect(grantsSerial('staging', url('https://staging.run.synthetos.com/'))).toBe(false);
+    expect(grantsSerial('staging', url('https://staging.run.synthetos.com/safety/?x=1'))).toBe(false);
+    expect(grantsSerial('staging', url('https://staging.run.synthetos.com/'), true)).toBe(true);
+    expect(grantsSerial('staging', url('https://staging.run.synthetos.com/library'), true)).toBe(true);
     expect(grantsSerial('production', url('https://run.synthetos.com/'))).toBe(false);
     expect(grantsSerial('production', url('https://run.synthetos.com/'), true)).toBe(true);
     expect(grantsSerial('production', url('https://run.synthetos.com/library'), true)).toBe(true);
@@ -203,5 +205,7 @@ it('the anonymous update exception requires exact production host, path and HTML
     expect(grantsSerial('production', new URL(`https://run.synthetos.com${path}`), false, true)).toBe(false);
   }
   expect(grantsSerial('production', new URL('https://other.example/update/'), false, true)).toBe(false);
-  expect(grantsSerial('staging', new URL('https://staging.run.synthetos.com/update/'))).toBe(true);
+  expect(grantsSerial('staging', new URL('https://staging.run.synthetos.com/update/'), false, true)).toBe(true);
+  expect(grantsSerial('staging', new URL('https://staging.run.synthetos.com/update/'))).toBe(false);
+  expect(grantsSerial('staging', new URL('https://staging.run.synthetos.com/update/x'), false, true)).toBe(false);
 });

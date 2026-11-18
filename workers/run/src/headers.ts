@@ -4,8 +4,9 @@
  *
  * The Worker runs first for every path. It wraps all responses; the generated
  * static _headers file is a fail-closed fallback if an asset ever bypasses it.
- * Production HTML grants serial only with configured sign-in and a validated run
- * session with run.connect. Its HTML is no-store and varies by Cookie. Staging remains behind Access.
+ * Production and staging HTML grant serial only with configured sign-in and a
+ * validated run session with run.connect (OD-29; staging too since OD-40, when
+ * it stopped sitting behind Cloudflare Access). HTML is no-store and varies by Cookie.
  *
  * The committed `_headers` file is tested to be byte-identical to
  * `renderHeadersFile()`, the Playwright header test asserts the exact set on
@@ -48,10 +49,11 @@ export const CSP_DIRECTIVES: readonly string[] = [
  * bypassed it) denies serial: that path fails closed. Every host that is not
  * one of run's own deployed hosts gets it too.
  *
- * P1-00: staging behind Access and the localhost bench grant serial to self.
- * OD-29: production additionally requires configured sign-in and validation of
- * the run.connect capability on each HTML request (OD-38). The exact /update/ HTML
- * document stays open. Serial assets are immutable; the document policy gates the port.
+ * P1-00: the localhost bench grants serial to self. OD-29 (production) and
+ * OD-40 (staging): a deployed host grants it only with configured sign-in and
+ * validation of the run.connect capability on each HTML request (OD-38). The
+ * exact /update/ HTML document stays open. Serial assets are immutable; the
+ * document policy gates the port.
  */
 export const PERMISSIONS_POLICY_FEATURES: readonly string[] = [
   'serial=()',
@@ -66,9 +68,10 @@ export const PERMISSIONS_POLICY_FEATURES: readonly string[] = [
 ];
 
 /**
- * The staging and bench Permissions-Policy (P1-00): the production list with
- * `serial=(self)` in place of `serial=()`, and nothing else changed. Web
- * Serial for this origin only, never for a frame or another origin.
+ * The granted Permissions-Policy (the bench, and a deployed host with a
+ * validated session): the fail-closed list with `serial=(self)` in place of
+ * `serial=()`, and nothing else changed. Web Serial for this origin only,
+ * never for a frame or another origin.
  */
 export const SERIAL_GRANTED_PERMISSIONS_POLICY_FEATURES: readonly string[] = PERMISSIONS_POLICY_FEATURES.map((feature) =>
   feature === 'serial=()' ? 'serial=(self)' : feature,
@@ -95,29 +98,29 @@ function securityHeaders(permissionsPolicy: readonly string[]): Readonly<Record<
 export const SECURITY_HEADERS: Readonly<Record<string, string>> = securityHeaders(PERMISSIONS_POLICY_FEATURES);
 
 /**
- * The staging and bench headers (P1-00): SECURITY_HEADERS with
- * `serial=(self)`. Every other header is identical.
+ * The granted headers (the bench, and a deployed host with a validated
+ * session): SECURITY_HEADERS with `serial=(self)`. Every other header is identical.
  */
 export const SERIAL_GRANTED_SECURITY_HEADERS: Readonly<Record<string, string>> = securityHeaders(SERIAL_GRANTED_PERMISSIONS_POLICY_FEATURES);
 
-/** The staging host (D31: behind Cloudflare Access). */
+/** The staging host (public since OD-40; gated by the run sign-in dialog and the accounts allowlist). */
 export const STAGING_HOST = 'staging.run.synthetos.com';
 /** The production host (OD-29; the open update-page exception is SAFETY §4.8). */
 export const PRODUCTION_HOST = 'run.synthetos.com';
 
 /**
- * Host check plus the production session decision. True only for a request to a deployed Worker's OWN host: the Worker
- * deployed as staging (`RUN_ENV` exactly `staging`) on
- * `https://staging.run.synthetos.com`, or the Worker deployed as production
- * (`RUN_ENV` exactly `production`, OD-29) on `https://run.synthetos.com`.
- * Production needs connectAllowed=true, except the exact /update/ HTML document (SAFETY §4.8, owner 2026-11-14). Both halves must match: a production Worker on the staging host, a
- * staging Worker on the production host, any other host, port or scheme
- * (there should be none: workers_dev and preview_urls are off, H45), and a
- * missing or odd RUN_ENV all get the fail-closed set.
+ * Host check plus the session decision. The host half: a request to a deployed Worker's OWN host, the Worker deployed
+ * as staging (`RUN_ENV` exactly `staging`) on `https://staging.run.synthetos.com`, or the Worker deployed as
+ * production (`RUN_ENV` exactly `production`) on `https://run.synthetos.com`. The session half (OD-29, and OD-40 for
+ * staging): connectAllowed=true, except the exact /update/ HTML document (SAFETY §4.8, owner 2026-11-14). Both halves
+ * must hold: a production Worker on the staging host, a staging Worker on the production host, any other host, port or
+ * scheme (there should be none: workers_dev and preview_urls are off, H45), a missing or odd RUN_ENV, and an anonymous
+ * document anywhere all get the fail-closed set.
  */
 export function grantsSerial(runEnv: unknown, url: URL, connectAllowed = false, htmlDocument = false): boolean {
   if (url.protocol !== 'https:' || url.port !== '') return false;
-  return (runEnv === 'staging' && url.hostname === STAGING_HOST) || (runEnv === 'production' && url.hostname === PRODUCTION_HOST && (connectAllowed || (htmlDocument && url.pathname === '/update/')));
+  const ownHost = (runEnv === 'staging' && url.hostname === STAGING_HOST) || (runEnv === 'production' && url.hostname === PRODUCTION_HOST);
+  return ownHost && (connectAllowed || (htmlDocument && url.pathname === '/update/'));
 }
 
 /** The header set after the host and session decision, fail-closed by default. */

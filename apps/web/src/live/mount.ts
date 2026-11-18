@@ -27,7 +27,7 @@ import type { LiveMarkerView } from '../preview/PreviewPanel.ts';
 import { callMachineWorker } from '../machine-worker/client.ts';
 import { RPC_VERSION, type FlashCommand, type JobCommand, type MotionCommand, type SnapshotMessage } from '../machine-worker/rpc.ts';
 import { AdvisoryPoller, checkAdvisory, type AdvisoryCheck, type AdvisoryDeps } from './advisoryGate.ts';
-import { accessProvider, AuthGate, providersFor, runSessionProvider } from './authGate.ts';
+import { AuthGate, providersFor, runSessionProvider } from './authGate.ts';
 import { refreshAccount } from './account.ts';
 import { memoryDeviceSafety, openDeviceSafety, type DeviceSafetyStore } from './deviceSafety.ts';
 import { leaveFullscreen } from './fullscreen.ts';
@@ -75,7 +75,7 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
   options.previousSession.value = await previousSessionEnded(store, (document as Document & { readonly wasDiscarded?: boolean }).wasDiscarded === true);
 
   const environment = options.channel.kind === 'bench' ? 'staging' : environmentForOrigin(location.origin);
-  const auth = new AuthGate(providersFor(options.channel, environment, accessProvider(() => fetchIdentity()), runSessionProvider(() => fetchIdentity())));
+  const auth = new AuthGate(providersFor(options.channel, environment, runSessionProvider(() => fetchIdentity())));
   // The account panel's words (who is signed in, whether sign-in is offered). The gate asks again at every request.
   // The bench build signs in as "whoever sits at this computer" and its loopback server has no account routes.
   if (options.channel.kind !== 'bench') void refreshAccount().catch(() => undefined);

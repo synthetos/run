@@ -37,7 +37,7 @@ export async function fetchIdentity(fetchFn: FetchLike = (i, o) => fetch(i, o)):
     if (response.status !== 200) return null;
     const body = (await response.json()) as Partial<IdentityBody> | null;
     const id = body?.identity;
-    if (id === null || typeof id !== 'object' || (id.provider !== 'access' && id.provider !== 'run-session')) return null;
+    if (id === null || typeof id !== 'object' || id.provider !== 'run-session') return null;
     if (typeof id.subject !== 'string' || id.subject.length === 0) return null;
     return { provider: id.provider, subject: id.subject };
   } catch {

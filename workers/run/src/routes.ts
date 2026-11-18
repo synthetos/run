@@ -17,12 +17,11 @@ import { dataRoute } from './dataRoute.ts';
  * digest-checked images are available on staging and production.
  */
 import type { IdentityBody, SessionBody, RunDataBinding, RunFilesBinding } from '@synthetos/contracts';
-import { accessConfig, type CertsFetcher, fetchAccessCerts, verifyAccessJwt } from './accessIdentity.ts';
 import { firmwareAssetPath, firmwareHeaders, NO_CACHE, proxyFirmwareAsset, type FirmwareCache, type FirmwareProxyDeps } from './firmwareProxy.ts';
 import { authConfig, type AuthEnv } from './authConfig.ts';
 import { authRoute } from './authRoutes.ts';
 import { runSessionIdentity } from './authSession.ts';
-import { API_CACHE_CONTROL, grantsSerial, HASHED_ASSET_CACHE_CONTROL } from './headers.ts';
+import { API_CACHE_CONTROL, HASHED_ASSET_CACHE_CONTROL } from './headers.ts';
 
 export const VERSION = '0.0.0';
 
@@ -41,10 +40,6 @@ export interface Env extends AuthEnv {
   readonly RUN_DATA?: RunDataBinding & RunFilesBinding;
   readonly ASSETS: AssetsBinding;
   readonly RUN_ENV?: string;
-  /** Staging only: the Access team domain (`<team>.cloudflareaccess.com`). */
-  readonly ACCESS_TEAM_DOMAIN?: string;
-  /** Staging only: the Access application's AUD tag. */
-  readonly ACCESS_AUD?: string;
 }
 
 /** Body of `GET /api/health`. The post-deploy smoke test checks `service` and `env`. */
@@ -92,12 +87,11 @@ function health(env: Env): Response {
 }
 
 /**
- * `GET /api/identity`. First the run session, where sign-in is on (authConfig.ts: production and staging with the
- * accounts binding, database and secrets). Then, on the staging Worker on the staging host only, the verified
- * Access identity. Otherwise no identity, so Connect stays refused. `signIn` says whether this host offers
- * sign-in; accounts decides who is admitted (D37).
+ * `GET /api/identity`. The run session, where sign-in is on (authConfig.ts: production and staging with the accounts
+ * binding, database and secrets); otherwise no identity, so Connect stays refused. `signIn` says whether this host
+ * offers sign-in; accounts decides who is admitted (D37). Staging has had no identity of its own since OD-40.
  */
-async function identity(request: Request, env: Env, fetchCerts: CertsFetcher): Promise<Response> {
+async function identity(request: Request, env: Env): Promise<Response> {
   const auth = authConfig(env, new URL(request.url));
   const signIn = auth !== null;
   const none = (reason: NonNullable<IdentityBody['reason']>): Response => json(401, { identity: null, reason, signIn } satisfies IdentityBody);
@@ -107,14 +101,7 @@ async function identity(request: Request, env: Env, fetchCerts: CertsFetcher): P
       ? json(200, { identity: session, signIn } satisfies IdentityBody)
       : none('connect-not-allowed');
   }
-  // The Access identity counts on the staging Worker on the staging host only (production grants serial too since
-  // OD-29, but its only identity is the run session).
-  if (env.RUN_ENV !== 'staging' || !grantsSerial(env.RUN_ENV, new URL(request.url))) return none(signIn ? 'not-signed-in' : 'not-available-here');
-  const config = accessConfig(env.ACCESS_TEAM_DOMAIN, env.ACCESS_AUD);
-  if (config === null) return none(signIn ? 'not-signed-in' : 'not-configured');
-  const verified = await verifyAccessJwt(request.headers.get('cf-access-jwt-assertion'), config, Date.now(), fetchCerts);
-  if (verified === null) return none('not-signed-in');
-  return json(200, { identity: { provider: 'access', subject: verified.subject }, signIn } satisfies IdentityBody);
+  return none(signIn ? 'not-signed-in' : 'not-available-here');
 }
 
 /** `GET /api/session`: the account panel's read. Always 200; never the D1 gate (that is `/api/identity`). */
@@ -167,13 +154,7 @@ async function firmware(request: Request, env: Env, pathname: string, deps: Firm
 }
 
 /** Routes one request. Exported for the tests; production goes through `fetch` below. */
-export async function route(
-  request: Request,
-  env: Env,
-  fetchCerts: CertsFetcher = fetchAccessCerts,
-  firmwareDeps?: FirmwareProxyDeps,
-  now: () => number = () => Math.floor(Date.now() / 1000),
-): Promise<Response> {
+export async function route(request: Request, env: Env, firmwareDeps?: FirmwareProxyDeps, now: () => number = () => Math.floor(Date.now() / 1000)): Promise<Response> {
   const url = new URL(request.url);
   const { pathname } = url;
   if (pathname === '/firmware' || pathname === '/firmware/') return new Response(null, { status: 302, headers: { location: '/update/', 'cache-control': 'no-store' } });
@@ -181,7 +162,7 @@ export async function route(
     const data = dataRoute(request, { pathname, env, releases: firmwareDeps?.releases });
     if (data !== null) return data;
     if (pathname === '/api/identity') {
-      if (request.method === 'GET') return identity(request, env, fetchCerts);
+      if (request.method === 'GET') return identity(request, env);
       return json(405, { error: 'method_not_allowed' }, { allow: 'GET' });
     }
     if (pathname === '/api/session') {

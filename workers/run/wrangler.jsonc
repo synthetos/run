@@ -59,8 +59,9 @@
   "services": [{ "binding": "ACCOUNTS", "service": "accounts", "entrypoint": "RunEntrypoint" }, { "binding": "RUN_DATA", "service": "run-data", "entrypoint": "AppEntrypoint" }],
   "d1_databases": [{ "binding": "RUN_AUTH", "database_name": "run-auth", "database_id": "RUN_AUTH_DATABASE_ID_PLACEHOLDER", "migrations_dir": "migrations" }],
   "env": {
-    // staging.run.synthetos.com, behind Cloudflare Access (D31,
-    // docs/ops/access.md). Deployed as the Worker `run-staging`.
+    // staging.run.synthetos.com, public since OD-40 (docs/ops/access.md):
+    // the run sign-in dialog and the accounts allowlist gate it, as in
+    // production. Deployed as the Worker `run-staging`.
     "staging": {
       "workers_dev": false,
       "preview_urls": false,

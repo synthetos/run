@@ -20,7 +20,7 @@ function without<K extends keyof Env>(env: Env, key: K): Env {
   delete copy[key];
   return copy as Env;
 }
-const go = (request: Request, env: Parameters<typeof route>[1]): Promise<Response> => route(request, env, () => Promise.resolve([]), undefined, clock);
+const go = (request: Request, env: Parameters<typeof route>[1]): Promise<Response> => route(request, env, undefined, clock);
 
 /** Starts a sign-in and returns the redirect, the browser nonce cookie and the stored request. */
 async function start(h: ReturnType<typeof authEnv>, query = '', ip = '203.0.113.7') {

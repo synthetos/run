@@ -30,16 +30,6 @@ export interface WorkerUpstream {
 export const WORKER_UPSTREAMS: readonly WorkerUpstream[] = Object.freeze([
   { file: 'githubReleases.ts', text: 'https://api.github.com/repos/synthetos/TinyG/releases?per_page=100', why: 'Owner decision 2026-11-15: fixed TinyG release metadata and GitHub asset digests (OD-10).' },
   {
-    file: 'accessIdentity.ts',
-    text: 'https://${config.teamDomain}/cdn-cgi/access/certs',
-    why: 'The Cloudflare Access team domain’s signing certificates (P1-05, docs/ops/access.md).',
-  },
-  {
-    file: 'accessIdentity.ts',
-    text: 'https://${config.teamDomain}',
-    why: 'The Access JWT issuer, compared, never fetched (P1-05).',
-  },
-  {
     file: 'authConfig.ts',
     text: 'https://run.synthetos.com',
     why: 'run’s own production origin: the request must match it, and it is the redirect URI accounts registers (A1-06). Never fetched.',
@@ -57,7 +47,7 @@ export const WORKER_UPSTREAMS: readonly WorkerUpstream[] = Object.freeze([
   {
     file: 'authConfig.ts',
     text: 'https://staging.accounts.synthetos.com',
-    why: 'Staging accounts, behind Access (D31): the browser is redirected to its /authorize. Never fetched.',
+    why: 'Staging accounts (public since OD-40, as run staging): the browser is redirected to its /authorize. Never fetched.',
   },
   {
     file: 'firmwareProxy.ts',

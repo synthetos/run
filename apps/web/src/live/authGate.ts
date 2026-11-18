@@ -9,11 +9,10 @@
  * never-gated actions, which do not even reach this module (their type is
  * not accepted by `check`).
  *
- * It is pluggable, with exactly three identity providers:
+ * It is pluggable, with exactly two identity providers:
  * - `run-session`: the accounts.synthetos.com session the run Worker
- *   validated (A1-06, A1-07). Production accepts only this one.
- * - `access`: the Cloudflare Access identity the run Worker verified
- *   (`GET /api/identity`), on staging only, until A1-07.
+ *   validated (A1-06, A1-07). Every hosted page accepts only this one
+ *   (staging too since OD-40).
  * - `bench`: "whoever sits at this computer", supplied only by the bench
  *   build's channel module (channel/bench.ts), on loopback only.
  */
@@ -38,7 +37,7 @@ export type GatedAction = (typeof IDENTITY_GATED)[number];
 export const NEVER_GATED = ['pause', 'stopJob', 'spindleCoolantOffNow', 'resetController', 'disconnect', 'recoveryCard'] as const;
 export type NeverGatedAction = (typeof NEVER_GATED)[number];
 
-export type ProviderKind = 'run-session' | 'access' | 'bench';
+export type ProviderKind = 'run-session' | 'bench';
 
 export interface Identity {
   readonly provider: ProviderKind;
@@ -105,32 +104,19 @@ export const RUN_SESSION_PROVIDER: IdentityProvider = Object.freeze({
  * True when the refusal should ask the user to sign in rather than say accounts are coming soon. Production has the
  * run session only: sign-in there is open to the D37 allowlist alone (owner, 2026-11-09), so production keeps the
  * "accounts are coming soon" notice for signed-out and non-allowlisted visitors, with a small sign-in link for
- * beta testers (accountNotice.ts). The staging Access identity and the bench identity count.
+ * beta testers (accountNotice.ts). Only the bench identity counts.
  */
 export function signInAvailable(providers: readonly IdentityProvider[]): boolean {
   return providers.some((p) => p.kind !== 'run-session');
 }
 
-/** The Access provider over the cloud client's identity read. */
-export function accessProvider(fetchIdentity: () => Promise<{ provider: string; subject: string } | null>): IdentityProvider {
-  return {
-    kind: 'access',
-    async current() {
-      const id = await fetchIdentity().catch(() => null);
-      return id !== null && id.provider === 'access' ? { provider: 'access', subject: id.subject } : null;
-    },
-  };
-}
-
 /**
- * The providers a page uses. Production: the run session only. Staging:
- * the run session, then the Access identity. The bench channel: its own
- * bench identity only. Any other origin (localhost release builds,
- * previews): the run session only, which the Worker answers only on run's
- * own hosts.
+ * The providers a page uses. Every hosted page (production, staging since
+ * OD-40, and any other origin such as localhost release builds or previews):
+ * the run session only, which the Worker answers only on run's own hosts.
+ * The bench channel: its own bench identity only.
  */
-export function providersFor(channel: BuildChannel, environment: AdvisoryEnvironment | null, access: IdentityProvider, runSession: IdentityProvider = RUN_SESSION_PROVIDER): readonly IdentityProvider[] {
+export function providersFor(channel: BuildChannel, _environment: AdvisoryEnvironment | null, runSession: IdentityProvider = RUN_SESSION_PROVIDER): readonly IdentityProvider[] {
   if (channel.kind === 'bench') return channel.benchIdentity === null ? [] : [channel.benchIdentity];
-  if (environment === 'staging') return [runSession, access];
   return [runSession];
 }

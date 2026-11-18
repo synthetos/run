@@ -1396,9 +1396,6 @@
     "workers/run-data/src/store.ts": {
       "max-params $/ClassDeclaration:RecordStore#1/FunctionExpression:put#1": 5
     },
-    "workers/run/src/accessIdentity.ts": {
-      "complexity $/FunctionDeclaration:verifyAccessJwt#1": 23
-    },
     "workers/run/src/authCallback.ts": {
       "max-params $/FunctionDeclaration:acceptable#1": 5
     },
@@ -1406,8 +1403,7 @@
       "max-lines $file": 2870
     },
     "workers/run/src/routes.ts": {
-      "complexity $/FunctionDeclaration:route#1": 24,
-      "max-params $/FunctionDeclaration:route#1": 5
+      "complexity $/FunctionDeclaration:route#1": 23
     },
     "workers/run/test/auth.test.ts": {
       "max-lines-per-function $/ArrowFunctionExpression:describe('GET /auth/callback')[1]#1": 166
