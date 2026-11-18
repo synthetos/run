@@ -258,9 +258,11 @@ machine name about 300 px; the board picker about 200 px). Options are radio car
    The walkthrough must show a `needed` update running on bench 2 with the step refusing to advance until it is done.
 4. **Homing** **(owner, 2026-11-17: choice only; the wizard never writes TinyG settings)**. Needs a connected board (same line and skip rule as Firmware). Two radio cards: "Limit switches fitted" (homing seeks each switch, then backs off) and "No limit
    switches" (you set the home position by hand; Run remembers it for this machine). The choice writes the machine
-   record's homing setting that the Board page already understands. "Home now" runs the existing homing flow with Pause
-   and Stop visible; with no switches the button is "Set machine zero here" and calls the existing set-zero action.
-   Disabled, with a one-line reason, when no machine is connected. Skippable.
+   record's homing setting that the Board page already understands. **Amended (owner, 2026-11-18, OD-41): no "Home
+   now" in the wizard.** The wizard is a modal over the locked workspace, where Pause and Stop job live, so it never
+   starts motion; the first homing cycle runs from the Job page after setup. With no switches the step offers the
+   existing "Set machine zero here" (no motion). Disabled, with a one-line reason, when no machine is connected.
+   Skippable.
 5. **Tools and stock.** Two cards side by side. Tools: one line of explanation, the chosen tool if any, "Add from
    catalog" (opens the existing catalog picker) and "Create a tool" (opens the existing tool editor). Stock: width,
    depth, thickness in one row. There is no stock record and machines carry no stock (`Stock` lives in a job or
