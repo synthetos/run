@@ -20,3 +20,6 @@ dist-bench/
 .ignore
 
 workers/run-data/wrangler.deploy.json
+
+# Screenshots and logs the e2e suites write for a human to look at; never committed.
+/logs/
