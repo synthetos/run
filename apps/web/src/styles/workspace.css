@@ -141,7 +141,7 @@ input::placeholder { color: var(--muted); opacity: 1; }
 .brand .crosshair { width: 24px; height: 24px; color: var(--blue); }
 .brand strong { font-family: var(--cond); font-weight: 700; font-size: 20px; letter-spacing: -.2px; }
 /* The run wordmark: ink letters, blue arc move; its x-height sits on the cap height of the name (see BrandLockup.ts). */
-.brand-run { display: flex; color: var(--ink); margin-top: 3px; }
+.brand-run { display: flex; color: var(--ink); position: relative; top: -2px; }
 .brand-run svg { display: block; }
 .context { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; padding-left: 14px; border-left: 1px solid var(--rule); height: 26px; }
 .crumb { border: 0; background: none; min-height: 28px; padding: 0 6px; color: var(--muted); font-weight: 500; }
