@@ -22,7 +22,7 @@ export function WizardRail(p: { readonly marks: readonly RailMark[]; readonly cu
           'li',
           { key: s.id, 'data-mark': mark, 'aria-current': mark === 'current' ? 'step' : undefined },
           h('span', { class: 'wizard-step-mark', 'aria-hidden': 'true' }, mark === 'done' ? Icon('check', 12) : String(s.id)),
-          h('span', { class: 'label' }, s.label),
+          h('span', { class: 'wizard-step-label' }, s.label),
         );
       }),
     ),

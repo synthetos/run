@@ -1,0 +1,217 @@
+/**
+ * The setup wizard (docs/superpowers/specs/2026-11-16-first-run-design.md §6) in the built app against the fake
+ * serial board: it opens for a signed-in account with no machine once the records are read, walks the seven steps,
+ * writes the setup record as it goes, makes the demo project and ends on the Job page with it open. The firmware
+ * `needed` state is the simulated unapproved board (firmware-offer.fake-serial.ts). RUN_SCREENSHOTS=1 writes the
+ * walkthrough pictures to docs/design/screenshots/setup-wizard/.
+ */
+import type { Page, Worker } from '@playwright/test';
+import { expect, test } from './fixtures.ts';
+import { machineWorker, request } from './machineWorker.ts';
+import { fakeRecords, setupRecord, stubAccount, type FakeAccount } from './accountRecords.ts';
+
+const SCREENSHOTS = process.env['RUN_SCREENSHOTS'] === '1';
+const SHOT_DIR = new URL('../../../docs/design/screenshots/setup-wizard/', import.meta.url).pathname;
+const PORT = { usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0 } as const;
+const NEEDED = { fb: 450.07, fv: 0.97, hv: 8, layout: 10002 } as const;
+
+const wizard = (page: Page) => page.locator('.wizard[role="dialog"]');
+const step = (page: Page, n: number) => page.locator(`[data-wizard-step="${n}"]`);
+const next = (page: Page) => page.locator('[data-action="wizard-next"]');
+
+async function shot(page: Page, name: string): Promise<void> {
+  if (SCREENSHOTS) await page.screenshot({ path: `${SHOT_DIR}${name}.png`, fullPage: false });
+}
+
+/** Opens the page as a signed-in account and waits for the wizard at `at`. */
+async function open(page: Page, seed: Parameters<typeof fakeRecords>[1] = [], at = 1): Promise<{ account: FakeAccount; worker: Worker }> {
+  await stubAccount(page);
+  const account = await fakeRecords(page, seed);
+  const worker = await machineWorker(page);
+  // The shared handlers click inside the app (W29, the update offer); the app is inert under the wizard, so they
+  // would wait forever. Both modals stay behind the scrim and change nothing the wizard shows.
+  await page.removeLocatorHandler(page.locator('[data-action="dismiss-w29"]'));
+  await page.removeLocatorHandler(page.locator('[data-action="firmware-offer-later"]'));
+  await expect(step(page, at)).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.app')).toHaveAttribute('inert', '');
+  return { account, worker };
+}
+
+async function base(worker: Worker): Promise<string> {
+  return ((await request(worker, { v: 3, kind: 'status' })) as { readonly status: { readonly session: { readonly base: string } } }).status.session.base;
+}
+
+async function connect(page: Page, worker: Worker, build?: Record<string, unknown>): Promise<void> {
+  if (build !== undefined) {
+    await worker.evaluate((b) => {
+      const scope = globalThis as unknown as { __RUN_FAKE_SERIAL__?: { ports: unknown[]; next?: unknown } };
+      scope.__RUN_FAKE_SERIAL__ ??= { ports: [] };
+      scope.__RUN_FAKE_SERIAL__.next = { build: b };
+    }, build);
+  }
+  expect(await request(worker, { v: 3, kind: 'open', port: PORT })).toMatchObject({ ok: true });
+  // The board is identified once the session is at rest (the needed board stays CONNECTED_UNKNOWN, read-only).
+  await expect.poll(() => base(worker), { timeout: 15_000 }).toMatch(/^(IDLE_UNHOMED|CONNECTED_UNKNOWN)$/);
+}
+
+test('opens for a signed-in account with no machine once the records are read; not with a machine; not when dismissed', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await open(page);
+  await expect(wizard(page).getByRole('heading', { name: 'Welcome to Run' })).toBeVisible();
+  await page.unrouteAll({ behavior: 'ignoreErrors' });
+  const machine = { id: 'm-1', name: 'Bench', templateId: 'custom', drive: 'any', travel: { x: 300, y: 300, z: 80 }, spindle: '', createdAt: '2026-11-18T00:00:00.000Z' };
+  await stubAccount(page);
+  await fakeRecords(page, [{ id: 'm-1', kind: 'machine', rev: 1, archivedAt: null, content: machine, sha256: 'a'.repeat(64) }]);
+  await page.goto('/');
+  await expect(page.locator('[data-shell="workspace"][data-level]')).toBeVisible();
+  await page.waitForTimeout(1500);
+  await expect(page.locator('[data-wizard-step]')).toHaveCount(0);
+  await expect(page.locator('[inert]')).toHaveCount(0);
+  await page.unrouteAll({ behavior: 'ignoreErrors' });
+  await stubAccount(page);
+  await fakeRecords(page, [setupRecord({ dismissed: true, step: 4 })]);
+  await page.goto('/');
+  await page.waitForTimeout(1500);
+  await expect(page.locator('[data-wizard-step]')).toHaveCount(0);
+});
+
+test('walks all seven steps with the fake board, saves the setup record as it goes and opens the demo on the Job page', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const { account, worker } = await open(page);
+  // 1 Welcome: focus starts on the heading; nothing to skip.
+  await expect(page.locator('#wizard-title')).toBeFocused();
+  await expect(page.locator('[data-action="wizard-skip"]')).toHaveCount(0);
+  await shot(page, 'step-1-light-1280');
+  await next(page).click();
+  // 2 Your machine: a template, a name, the bed, then the board.
+  await expect(step(page, 2)).toBeVisible();
+  await page.locator('.wizard .f-pick select').selectOption('shapeoko');
+  await page.locator('.wizard .f-name input').fill('Shapeoko on the bench');
+  await connect(page, worker);
+  await expect(page.locator('[data-wizard="board"]')).toContainText('Connected · TinyG v8', { timeout: 15_000 });
+  await shot(page, 'step-2-light-1280');
+  await next(page).click();
+  await expect(step(page, 3)).toBeVisible();
+  await expect.poll(() => account.ofKind('machine').length, { timeout: 10_000 }).toBe(1);
+  const machine = account.ofKind('machine')[0]?.content as { name: string; boardId?: string; bed?: { width: number } };
+  expect(machine.name).toBe('Shapeoko on the bench');
+  expect(machine.bed?.width).toBe(425);
+  expect(typeof machine.boardId).toBe('string');
+  // 3 Firmware: the simulated board runs 450.02, the list names 450.06: available, skippable.
+  await expect(page.locator('[data-firmware-step="text"]')).toHaveText('This board runs 450.02. 450.06 is released.', { timeout: 15_000 });
+  await expect(page.locator('[data-action="wizard-skip"]')).toBeVisible();
+  await shot(page, 'step-3-light-1280');
+  await next(page).click();
+  // 4 Homing: a choice, written as made; the existing Home controls.
+  await expect(step(page, 4)).toBeVisible();
+  await expect(next(page)).toBeDisabled();
+  await page.locator('input[name="wizard-homing"][value="none"]').check();
+  const homeQuick = wizard(page).locator('[data-region="home-quick"]');
+  await expect(homeQuick).toBeVisible();
+  await expect(homeQuick.getByRole('button', { name: /Set machine zero/ })).toBeVisible();
+  await expect(homeQuick.getByRole('button', { name: /^Home all/ })).toBeHidden();
+  await shot(page, 'step-4-light-1280');
+  await next(page).click();
+  // 5 Tools and stock: the stock, then the tool editor opens on top and closes.
+  await expect(step(page, 5)).toBeVisible();
+  await page.locator('[data-action="wizard-add-stock"]').click();
+  await expect(page.locator('[data-action="wizard-add-stock"]')).toHaveText('Stock saved');
+  await page.locator('[data-action="wizard-create-tool"]').click();
+  await expect(page.locator('.tool-modal')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.tool-modal')).toHaveCount(0);
+  await shot(page, 'step-5-light-1280');
+  await next(page).click();
+  // 6 First project: the demo.
+  await expect(step(page, 6)).toBeVisible();
+  await expect(page.locator('input[name="wizard-project"][value="demo"]')).toBeChecked();
+  await shot(page, 'step-6-light-1280');
+  await next(page).click();
+  // 7 Done, then the Job page with the demo open and the wizard gone for good.
+  await expect(step(page, 7)).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('[data-wizard="headline"]')).toHaveText('Name plate is open on the Job page');
+  await expect(page.locator('.wizard details')).toHaveCount(6);
+  await shot(page, 'step-7-light-1280');
+  await next(page).click();
+  await expect(page.locator('[data-wizard-step]')).toHaveCount(0);
+  await expect(page.locator('[inert]')).toHaveCount(0);
+  await expect(page.locator('[data-screen="job"] [data-preview="file-name"]')).toHaveText('name-plate.nc');
+  // Opening the port from the worker leaves this tab an observer (W29); a user who connected from the wizard never sees it.
+  const w29 = page.locator('[data-action="dismiss-w29"]');
+  if (await w29.isVisible()) await w29.click();
+  await shot(page, 'job-demo-light-1280');
+  await expect.poll(() => (account.records.get('setup:setup')?.content as { dismissed: boolean } | undefined)?.dismissed, { timeout: 10_000 }).toBe(true);
+  const setup = account.records.get('setup:setup')?.content as { done: number[]; projectId: string | null; homing: string | null; stock: { width: number } | null };
+  expect(setup.done).toEqual([1, 2, 3, 4, 5, 6, 7]);
+  expect(setup.homing).toBe('none');
+  expect(setup.stock?.width).toBe(180);
+  expect(setup.projectId).not.toBeNull();
+  expect(account.ofKind('project').map((r) => (r.content as { name: string }).name)).toEqual(['Name plate']);
+  expect(account.ofKind('tool').map((r) => r.id)).toContain('demo.quarter-2f');
+});
+
+test('dark: the first and the last step', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await open(page);
+  await shot(page, 'step-1-dark-1280');
+  await page.unrouteAll({ behavior: 'ignoreErrors' });
+  await stubAccount(page);
+  await fakeRecords(page, [setupRecord({ step: 7, done: [1, 2, 3, 4, 5, 6] })]);
+  await page.goto('/');
+  await expect(step(page, 7)).toBeVisible({ timeout: 15_000 });
+  await shot(page, 'step-7-dark-1280');
+});
+
+test('below 1024 px the frame is full-screen with the dots strip', async ({ page }) => {
+  await page.setViewportSize({ width: 960, height: 700 });
+  await open(page, [setupRecord({ step: 2, done: [1] })], 2);
+  const box = await page.locator('.wizard-dialog').boundingBox();
+  expect(box?.width).toBe(960);
+  expect(box?.height).toBe(700);
+  await expect(page.locator('.wizard-dot-name')).toHaveText('Machine');
+  await shot(page, 'step-2-light-960');
+});
+
+test('firmware needed (simulated): no skip, Next held, Update firmware opens the flow in place', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const { worker } = await open(page, [setupRecord({ step: 3, done: [1, 2] })], 3);
+  await page.removeLocatorHandler(page.locator('[data-action="firmware-offer-later"]'));
+  await connect(page, worker, NEEDED);
+  await expect(page.locator('[data-firmware-step="text"]')).toHaveText("Run can't control firmware 450.07. Install 450.06, the newest release Run supports.", { timeout: 15_000 });
+  await expect(page.locator('[data-action="wizard-skip"]')).toHaveCount(0);
+  await expect(next(page)).toBeDisabled();
+  await shot(page, 'step-3-needed-light-1280');
+  await page.locator('[data-action="wizard-update"]').click();
+  const row = page.locator('.wizard [data-release="tinyg-450.06.hex"]');
+  await expect(row).toHaveAttribute('data-release-focus', '');
+  await expect(next(page)).toBeDisabled();
+  await shot(page, 'step-3-update-light-1280');
+});
+
+test('resumes on the record step; Close setup dismisses it and Preferences brings it back', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const { account } = await open(page, [setupRecord({ step: 5, done: [1, 2, 3, 4] })], 5);
+  await expect(page.locator('.wizard-steps li[data-mark="done"]')).toHaveCount(4);
+  await page.locator('[data-action="wizard-close"]').click();
+  await expect(page.locator('[data-wizard-step]')).toHaveCount(0);
+  await expect(page.locator('[inert]')).toHaveCount(0);
+  await expect.poll(() => (account.records.get('setup:setup')?.content as { dismissed: boolean; step: number } | undefined)?.dismissed, { timeout: 10_000 }).toBe(true);
+  expect((account.records.get('setup:setup')?.content as { step: number }).step).toBe(5);
+  await page.locator('[data-region="rail"] [data-view="settings"]').click();
+  await page.locator('[data-action="run-setup-again"]').click();
+  await expect(step(page, 1)).toBeVisible();
+});
+
+test('keyboard: focus starts on the heading, Tab reaches the primary and never the workspace', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await open(page);
+  await expect(page.locator('#wizard-title')).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(next(page)).toBeFocused();
+  for (let i = 0; i < 8; i += 1) {
+    await page.keyboard.press('Tab');
+    expect(await page.evaluate(() => document.activeElement?.closest('.app') ?? null)).toBeNull();
+  }
+});
