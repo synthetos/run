@@ -16,6 +16,7 @@ import { ProjectSetupChoice } from '../projects/ProjectSetupChoice.ts';
  * Prerendered into index.html (no model, no worker: Pause and Stop job are
  * disabled and say why) and hydrated by the workspace entry.
  */
+import { BrandLockup } from '../brand/BrandLockup.ts';
 import { SignInGate } from '../gate/SignInGate.ts';
 import { useShellLock } from '../gate/useShellLock.ts';
 import { LibrarySyncNotice } from './cloud/SyncNotice.ts';
@@ -193,7 +194,7 @@ function TopBar(p: { readonly model: WorkspaceModel | undefined; readonly label:
   return h(
     'header',
     { class: 'topbar' },
-    h('a', { class: 'brand', href: '/' }, h('svg', { viewBox: '0 0 28 28', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.7', 'aria-hidden': 'true' }, h('circle', { cx: 14, cy: 14, r: 9 }), h('path', { d: 'M14 0v9m0 10v9M0 14h9m10 0h9' })), h('strong', null, 'Synthetos'), h('span', { class: 'brand-run' }, 'Run')),
+    h(BrandLockup, null),
     h(
       'nav',
       { class: 'context', 'aria-label': 'Breadcrumb' },

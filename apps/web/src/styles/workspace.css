@@ -138,9 +138,11 @@ input::placeholder { color: var(--muted); opacity: 1; }
 
 .topbar { flex: none; height: 52px; display: flex; align-items: center; gap: 18px; padding: 0 14px 0 20px; background: var(--sheet); border-bottom: 1px solid var(--rule); }
 .brand { display: flex; align-items: center; gap: 8px; }
-.brand svg { width: 24px; height: 24px; color: var(--blue); }
+.brand .crosshair { width: 24px; height: 24px; color: var(--blue); }
 .brand strong { font-family: var(--cond); font-weight: 700; font-size: 20px; letter-spacing: -.2px; }
-.brand-run { font-family: var(--cond); font-weight: 500; font-size: 20px; color: var(--muted); }
+/* The run wordmark: ink letters, blue arc move; its x-height sits on the cap height of the name (see BrandLockup.ts). */
+.brand-run { display: flex; color: var(--ink); margin-top: 3px; }
+.brand-run svg { display: block; }
 .context { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; padding-left: 14px; border-left: 1px solid var(--rule); height: 26px; }
 .crumb { border: 0; background: none; min-height: 28px; padding: 0 6px; color: var(--muted); font-weight: 500; }
 .crumb:hover { color: var(--ink); background: var(--blue-wash) !important; }
@@ -765,7 +767,7 @@ a.menu-item:hover { background: var(--blue-wash); }
   .topbar { height: 48px; padding: 0 8px 0 12px; gap: 8px; }
   .brand strong { font-size: 18px; }
   .brand-run { display: none; }
-  .brand svg { width: 20px; height: 20px; }
+  .brand .crosshair { width: 20px; height: 20px; }
   .context { display: none; }
   .topbar .icon-button { width: 32px; }
   .top-actions { gap: 0; }

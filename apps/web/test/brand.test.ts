@@ -1,10 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { h } from 'preact';
-import { all, root } from './tree.ts';
+import { all, byAttr, one, root, text, type El } from './tree.ts';
 import { RunWordmark, WORDMARK_GEOMETRY } from '../src/brand/RunWordmark.ts';
 import { WORDMARK_GEOMETRY as GEOMETRY } from '../src/brand/wordmarkGeometry.ts';
 import { GitHubMark } from '../src/brand/GitHubMark.ts';
+import { BrandLockup } from '../src/brand/BrandLockup.ts';
 import { Icon } from '../src/workspace/icons.ts';
 
 describe('RunWordmark', () => {
@@ -42,5 +43,25 @@ describe('GitHubMark and the book icon', () => {
     const svg = root(Icon('book', 15));
     expect(svg.props['viewBox']).toBe('0 0 24 24');
     expect(all(svg, (e) => e.tag === 'path')).toHaveLength(1);
+  });
+});
+
+describe('BrandLockup', () => {
+  it('is one link named Synthetos Run: hidden crosshair, the name, the wordmark in place of the grey text', () => {
+    const a = root(h(BrandLockup, null));
+    expect(a.tag).toBe('a');
+    expect(a.props['href']).toBe('/');
+    expect(a.props['class']).toBe('brand');
+    const [crosshair, name, run] = a.children as [El, El, El];
+    expect(crosshair.tag).toBe('svg');
+    expect(crosshair.props).toMatchObject({ 'aria-hidden': 'true', class: 'crosshair' });
+    expect(name.tag).toBe('strong');
+    expect(text(name)).toBe('Synthetos');
+    expect(run.props['class']).toBe('brand-run');
+    const wordmark = one(run, byAttr('role', 'img'));
+    expect(wordmark.props['aria-label']).toBe('Run');
+    expect(wordmark.props['viewBox']).toBe(WORDMARK_GEOMETRY.viewBox);
+    expect(text(run)).toBe('');
+    expect(a.children).toHaveLength(3);
   });
 });
