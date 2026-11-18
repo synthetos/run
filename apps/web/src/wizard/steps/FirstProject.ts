@@ -4,6 +4,7 @@
  */
 import { signal } from '@preact/signals';
 import { h, type ComponentChild } from 'preact';
+import { PickCard } from '../PickCard.ts';
 
 export const PROJECT_TITLE = 'First project';
 export const PROJECT_LEAD = 'Start from the demo or from your own files.';
@@ -34,13 +35,10 @@ export function FirstProject(p: FirstProjectProps): ComponentChild {
     { class: 'wizard-project' },
     CARDS.map((c) =>
       h(
-        'label',
-        { key: c.value, class: 'pick-card' },
-        h('input', { type: 'radio', name: 'wizard-project', value: c.value, checked: p.choice === c.value, onChange: () => p.onChoice(c.value) }),
-        h('strong', null, c.title),
-        h('p', null, c.text),
+        PickCard,
+        { key: c.value, name: 'wizard-project', value: c.value, title: c.title, text: c.text, checked: p.choice === c.value, onChange: () => p.onChoice(c.value) },
         c.value === 'new' && p.choice === 'new'
-          ? h('p', { class: 'field f-name' }, h('span', null, 'Project name'), h('input', { value: p.name, maxLength: 80, 'data-wizard': 'project-name', onInput: (e: Event) => p.onName((e.currentTarget as HTMLInputElement).value) }))
+          ? h('span', { class: 'wizard-field wizard-name' }, h('span', null, 'Project name'), h('input', { value: p.name, maxLength: 80, 'data-wizard': 'project-name', onInput: (e: Event) => p.onName((e.currentTarget as HTMLInputElement).value) }))
           : null,
       ),
     ),

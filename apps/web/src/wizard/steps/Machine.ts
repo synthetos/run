@@ -38,7 +38,7 @@ export function liveBoardId(model: WorkspaceModel | null): string | null {
 }
 
 function numberField(label: string, key: 'width' | 'depth' | 'thickness', p: MachineProps): ComponentChild {
-  return h('label', { class: 'field f-num' }, h('span', null, label), h('span', { class: 'unit-input' }, h('input', { type: 'number', min: 1, step: 'any', value: p.draft[key], onInput: (e: Event) => p.onDraft({ ...p.draft, [key]: Number.parseFloat((e.currentTarget as HTMLInputElement).value) }) }), h('i', null, 'mm')));
+  return h('label', { class: 'wizard-field wizard-num' }, h('span', null, label), h('span', { class: 'wizard-unit' }, h('input', { type: 'number', min: 1, step: 'any', value: p.draft[key], onInput: (e: Event) => p.onDraft({ ...p.draft, [key]: Number.parseFloat((e.currentTarget as HTMLInputElement).value) }) }), h('i', null, 'mm')));
 }
 
 export function Machine(p: MachineProps): ComponentChild {
@@ -53,11 +53,11 @@ export function Machine(p: MachineProps): ComponentChild {
     { class: 'wizard-machine' },
     h(
       'div',
-      { class: 'field-row' },
-      h('label', { class: 'field f-pick' }, h('span', null, 'Machine'), h('select', { value: p.draft.templateId, onChange: pickTemplate }, CATALOGUE.map((t) => h('option', { key: t.id, value: t.id }, t.name)))),
-      h('label', { class: 'field f-name' }, h('span', null, 'Machine name'), h('input', { value: p.draft.name, maxLength: 60, onInput: (e: Event) => p.onDraft({ ...p.draft, name: (e.currentTarget as HTMLInputElement).value }) })),
+      { class: 'wizard-field-row' },
+      h('label', { class: 'wizard-field wizard-select' }, h('span', null, 'Machine'), h('select', { value: p.draft.templateId, onChange: pickTemplate }, CATALOGUE.map((t) => h('option', { key: t.id, value: t.id }, t.name)))),
+      h('label', { class: 'wizard-field wizard-name' }, h('span', null, 'Machine name'), h('input', { value: p.draft.name, maxLength: 60, onInput: (e: Event) => p.onDraft({ ...p.draft, name: (e.currentTarget as HTMLInputElement).value }) })),
     ),
-    h('div', { class: 'field-row' }, numberField('Bed width', 'width', p), numberField('Bed depth', 'depth', p), numberField('Bed thickness', 'thickness', p)),
+    h('div', { class: 'wizard-field-row' }, numberField('Bed width', 'width', p), numberField('Bed depth', 'depth', p), numberField('Bed thickness', 'thickness', p)),
     on && view !== null
       ? h('p', { class: 'wizard-line', 'data-wizard': 'board' }, `Connected · ${boardLabel(view)}`)
       : h(ConnectNotice, { model: p.model }),

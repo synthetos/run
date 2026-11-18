@@ -33,12 +33,14 @@ export function WizardFrame(p: FrameProps): ComponentChild {
       { class: 'wizard', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'wizard-title', 'data-wizard-step': String(p.step) },
       h(
         'div',
-        { class: 'dialog wizard-dialog' },
+        // Not the shared `.dialog`: its `p` and field rules would reach the step content, and a hosted dialog's own
+        // `.dialog` rules would be matched by the frame.
+        { class: 'wizard-dialog' },
         h(WizardRail, { marks: p.marks, current: p.step }),
         h(
           'section',
           { class: 'wizard-content' },
-          h('h2', { id: 'wizard-title', tabindex: -1 }, p.title),
+          h('h2', { id: 'wizard-title', class: 'wizard-title', tabindex: -1 }, p.title),
           p.lead === '' ? null : h('p', { class: 'wizard-lead' }, p.lead),
           h('div', { class: 'wizard-body' }, p.children),
           h(

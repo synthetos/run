@@ -28,8 +28,8 @@ function TopicRow({ topic, onView }: { readonly topic: Topic; readonly onView: (
     h(
       'details',
       null,
-      h('summary', null, topic.title),
-      h('div', null, topic.lines.map((line) => h('p', { key: line }, line)), h('button', { type: 'button', class: 'small', 'data-topic-go': topic.id, onClick: go }, topic.go.label)),
+      h('summary', { class: 'wizard-topic-title' }, topic.title),
+      h('div', { class: 'wizard-topic-body' }, topic.lines.map((line) => h('p', { key: line }, line)), h('button', { type: 'button', class: 'small', 'data-topic-go': topic.id, onClick: go }, topic.go.label)),
     ),
   );
 }

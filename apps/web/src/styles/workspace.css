@@ -864,13 +864,16 @@ a.menu-item:hover { background: var(--blue-wash); }
  * ====================================================================== */
 
 body { background-image: none; }
-.app input, .app select, .app textarea { padding: 0 10px; border: 1px solid var(--rule); border-radius: var(--r-sm); background: var(--sheet); color: var(--ink); }
-.app input[type="checkbox"], .app input[type="radio"] { width: auto; height: auto; padding: 0; accent-color: var(--blue); }
-.app input[type="range"] { padding: 0; border: 0; background: transparent; }
-.app textarea.text-area { width: 100%; padding: 8px 10px; min-height: 64px; resize: vertical; font: inherit; line-height: 1.45; }
-.app a { color: var(--blue); }
-.app .lede { max-width: none; }
-.app .label { all: unset; }
+/* The setup wizard mounts beside `.app`, not inside it, and hosts app parts (Connect and C1, the tool catalog and
+   editor, the Board tab's update flow): it takes the same base rules, or the global `input { width: 100% }` stretches
+   every checkbox and radio across its row (owner 145, 148). */
+.app input, .app select, .app textarea, .wizard input, .wizard select, .wizard textarea { padding: 0 10px; border: 1px solid var(--rule); border-radius: var(--r-sm); background: var(--sheet); color: var(--ink); }
+.app input[type="checkbox"], .app input[type="radio"], .wizard input[type="checkbox"], .wizard input[type="radio"] { width: auto; height: auto; padding: 0; accent-color: var(--blue); }
+.app input[type="range"], .wizard input[type="range"] { padding: 0; border: 0; background: transparent; }
+.app textarea.text-area, .wizard textarea.text-area { width: 100%; padding: 8px 10px; min-height: 64px; resize: vertical; font: inherit; line-height: 1.45; }
+.app a, .wizard a { color: var(--blue); }
+.app .lede, .wizard .lede { max-width: none; }
+.app .label, .wizard .label { all: unset; }
 
 /* W1: one line at the top, safety-bar tokens only, stripes as the left edge. */
 .app .safety-bar-workspace { position: relative; flex: none; display: flex; border-bottom: 1px solid var(--hazard-dark); z-index: var(--z-safety); }

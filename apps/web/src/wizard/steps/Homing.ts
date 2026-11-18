@@ -11,6 +11,7 @@ import type { HomingChoice } from '@synthetos/library';
 import { HomeQuick } from '../../workspace/homing.ts';
 import { connected, type WorkspaceModel } from '../../workspace/model.ts';
 import { ConnectNotice } from '../../workspace/views/run/connect.ts';
+import { PickCard } from '../PickCard.ts';
 
 export const HOMING_TITLE = 'Homing';
 export const HOMING_LEAD = 'How this machine finds its zero.';
@@ -43,9 +44,7 @@ export function Homing(p: HomingProps): ComponentChild {
   return h(
     'div',
     { class: 'wizard-homing', 'data-choice': p.choice ?? 'switches' },
-    CARDS.map((c) =>
-      h('label', { key: c.value, class: 'pick-card' }, h('input', { type: 'radio', name: 'wizard-homing', value: c.value, checked: p.choice === c.value, onChange: () => p.onChoice(c.value) }), h('strong', null, c.title), h('p', null, c.text)),
-    ),
+    CARDS.map((c) => h(PickCard, { key: c.value, name: 'wizard-homing', value: c.value, title: c.title, text: c.text, checked: p.choice === c.value, onChange: () => p.onChoice(c.value) })),
     on ? controls(p) : h('div', null, h('p', { class: 'wizard-line' }, CONNECT_FOR_HOMING), h(ConnectNotice, { model: p.model })),
   );
 }

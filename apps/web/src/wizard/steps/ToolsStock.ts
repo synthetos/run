@@ -37,7 +37,7 @@ export interface ToolsStockProps {
 }
 
 function field(label: string, key: keyof StockFields, p: ToolsStockProps): ComponentChild {
-  return h('label', { class: 'field f-num' }, h('span', null, label), h('span', { class: 'unit-input' }, h('input', { type: 'number', min: 0.1, step: 'any', value: p.fields[key], onInput: (e: Event) => p.onFields({ ...p.fields, [key]: (e.currentTarget as HTMLInputElement).value }) }), h('i', null, 'mm')));
+  return h('label', { class: 'wizard-field wizard-num' }, h('span', null, label), h('span', { class: 'wizard-unit' }, h('input', { type: 'number', min: 0.1, step: 'any', value: p.fields[key], onInput: (e: Event) => p.onFields({ ...p.fields, [key]: (e.currentTarget as HTMLInputElement).value }) }), h('i', null, 'mm')));
 }
 
 function toolCard(p: ToolsStockProps): ComponentChild {

@@ -43,7 +43,7 @@ describe('step 5 Tools and stock (render)', () => {
     expect(html.match(/class="wizard-card"/g)).toHaveLength(2);
     expect(html).toContain('data-action="wizard-catalog"');
     expect(html).toContain('data-action="wizard-create-tool"');
-    expect(html.match(/class="field f-num"/g)).toHaveLength(3);
+    expect(html.match(/class="wizard-field wizard-num"/g)).toHaveLength(3);
     expect(html).toMatch(/data-action="wizard-add-stock"[^>]*>Add stock</);
     expect(html).not.toContain('disabled');
     expect(html).not.toMatch(/E-stop|never need|Saved in this browser/);

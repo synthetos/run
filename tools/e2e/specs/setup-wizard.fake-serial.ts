@@ -5,54 +5,17 @@
  * `needed` state is the simulated unapproved board (firmware-offer.fake-serial.ts). RUN_SCREENSHOTS=1 writes the
  * walkthrough pictures to docs/design/screenshots/setup-wizard/.
  */
-import type { Page, Worker } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
-import { machineWorker, request } from './machineWorker.ts';
-import { fakeRecords, setupRecord, stubAccount, type FakeAccount } from './accountRecords.ts';
+import { request } from './machineWorker.ts';
+import { fakeRecords, setupRecord, stubAccount } from './accountRecords.ts';
+import { base, connect as connectBoard, next, open, shot as shotIn, step, wizard } from './wizardPage.ts';
 
-const SCREENSHOTS = process.env['RUN_SCREENSHOTS'] === '1';
 const SHOT_DIR = new URL('../../../docs/design/screenshots/setup-wizard/', import.meta.url).pathname;
-const PORT = { usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0 } as const;
 const NEEDED = { fb: 450.07, fv: 0.97, hv: 8, layout: 10002 } as const;
 
-const wizard = (page: Page) => page.locator('.wizard[role="dialog"]');
-const step = (page: Page, n: number) => page.locator(`[data-wizard-step="${n}"]`);
-const next = (page: Page) => page.locator('[data-action="wizard-next"]');
-
-async function shot(page: Page, name: string): Promise<void> {
-  if (SCREENSHOTS) await page.screenshot({ path: `${SHOT_DIR}${name}.png`, fullPage: false });
-}
-
-/** Opens the page as a signed-in account and waits for the wizard at `at`. */
-async function open(page: Page, seed: Parameters<typeof fakeRecords>[1] = [], at = 1): Promise<{ account: FakeAccount; worker: Worker }> {
-  await stubAccount(page);
-  const account = await fakeRecords(page, seed);
-  const worker = await machineWorker(page);
-  // The shared handlers click inside the app (W29, the update offer); the app is inert under the wizard, so they
-  // would wait forever. Both modals stay behind the scrim and change nothing the wizard shows.
-  await page.removeLocatorHandler(page.locator('[data-action="dismiss-w29"]'));
-  await page.removeLocatorHandler(page.locator('[data-action="firmware-offer-later"]'));
-  await expect(step(page, at)).toBeVisible({ timeout: 15_000 });
-  await expect(page.locator('.app')).toHaveAttribute('inert', '');
-  return { account, worker };
-}
-
-async function base(worker: Worker): Promise<string> {
-  return ((await request(worker, { v: 3, kind: 'status' })) as { readonly status: { readonly session: { readonly base: string } } }).status.session.base;
-}
-
-async function connect(page: Page, worker: Worker, build?: Record<string, unknown>): Promise<void> {
-  if (build !== undefined) {
-    await worker.evaluate((b) => {
-      const scope = globalThis as unknown as { __RUN_FAKE_SERIAL__?: { ports: unknown[]; next?: unknown } };
-      scope.__RUN_FAKE_SERIAL__ ??= { ports: [] };
-      scope.__RUN_FAKE_SERIAL__.next = { build: b };
-    }, build);
-  }
-  expect(await request(worker, { v: 3, kind: 'open', port: PORT })).toMatchObject({ ok: true });
-  // The board is identified once the session is at rest (the needed board stays CONNECTED_UNKNOWN, read-only).
-  await expect.poll(() => base(worker), { timeout: 15_000 }).toMatch(/^(IDLE_UNHOMED|CONNECTED_UNKNOWN)$/);
-}
+const shot = (page: Page, name: string): Promise<void> => shotIn(page, SHOT_DIR, name);
+const connect = (_page: Page, worker: Parameters<typeof connectBoard>[0], build?: Record<string, unknown>): Promise<void> => connectBoard(worker, build);
 
 const MACHINE = { id: 'm-1', name: 'Bench', templateId: 'custom', drive: 'any', travel: { x: 300, y: 300, z: 80 }, spindle: '', createdAt: '2026-11-18T00:00:00.000Z' };
 const machineRecord = () => ({ id: 'm-1', kind: 'machine' as const, rev: 1, archivedAt: null, content: MACHINE, sha256: 'a'.repeat(64) });
@@ -88,8 +51,8 @@ test('walks all seven steps with the fake board, saves the setup record as it go
   await next(page).click();
   // 2 Your machine: a template, a name, the bed, then the board.
   await expect(step(page, 2)).toBeVisible();
-  await page.locator('.wizard .f-pick select').selectOption('shapeoko');
-  await page.locator('.wizard .f-name input').fill('Shapeoko on the bench');
+  await page.locator('.wizard .wizard-select select').selectOption('shapeoko');
+  await page.locator('.wizard .wizard-name input').fill('Shapeoko on the bench');
   await connect(page, worker);
   await expect(page.locator('[data-wizard="board"]')).toContainText('Connected · TinyG v8', { timeout: 15_000 });
   await shot(page, 'step-2-light-1280');

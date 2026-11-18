@@ -4,6 +4,34 @@ import { all, byAttr, one, root, text } from './tree.ts';
 import { Done, DONE_LEAD, DONE_TITLE, doneHeadline } from '../src/wizard/steps/Done.ts';
 import { Welcome, WELCOME_LEAD, WELCOME_TITLE } from '../src/wizard/steps/Welcome.ts';
 import { MORE_TOPICS } from '../src/wizard/moreTopics.ts';
+import { FirstProject } from '../src/wizard/steps/FirstProject.ts';
+import { Homing } from '../src/wizard/steps/Homing.ts';
+import type { El } from './tree.ts';
+
+/** Owner 148: the radio sits at the left of the card, beside a left-aligned title and description. */
+function pickCards(el: El): El[] {
+  return all(el, (e) => e.tag === 'label' && String(e.props['class'] ?? '').split(' ').includes('wizard-pick'));
+}
+
+describe('radio cards (owner 148)', () => {
+  it('First project and Homing use the wizard pick card: radio first, then the title and the description', () => {
+    const project = root(h('div', null, h(FirstProject, { choice: 'demo', onChoice: () => undefined, name: '', onName: () => undefined, error: null })));
+    const homing = root(h('div', null, h(Homing, { model: null, choice: 'none', onChoice: () => undefined, mismatch: null })));
+    for (const el of [project, homing]) {
+      const cards = pickCards(el);
+      expect(cards).toHaveLength(2);
+      for (const card of cards) {
+        const kids = card.children.filter((c): c is El => typeof c !== 'string');
+        expect(kids[0]?.tag).toBe('input');
+        expect(kids[0]?.props['type']).toBe('radio');
+        expect(kids[0]?.props['class']).toBe('wizard-pick-radio');
+        expect(kids[1]?.props['class']).toBe('wizard-pick-title');
+        expect(kids[2]?.props['class']).toBe('wizard-pick-text');
+      }
+      expect(all(el, (e) => String(e.props['class'] ?? '').includes('pick-card'))).toHaveLength(0);
+    }
+  });
+});
 
 const FILLER = /E-stop|never need|Saved in this browser|within reach/;
 

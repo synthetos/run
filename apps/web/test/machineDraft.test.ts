@@ -85,9 +85,9 @@ describe('step 2 Your machine (render)', () => {
     expect(MACHINE_LEAD).toBe('Tell Run what is on the bench, then connect once.');
     const html = renderToString(h(Machine, { ...props, model: null }));
     expect(html.match(/<option/g)).toHaveLength(CATALOGUE.length);
-    expect(html).toContain('class="field f-pick"');
-    expect(html).toContain('class="field f-name"');
-    expect(html.match(/class="field f-num"/g)).toHaveLength(3);
+    expect(html).toContain('class="wizard-field wizard-select"');
+    expect(html).toContain('class="wizard-field wizard-name"');
+    expect(html.match(/class="wizard-field wizard-num"/g)).toHaveLength(3);
     expect(html).toContain('value="My Shapeoko"');
     expect(html.match(/<i>mm<\/i>/g)).toHaveLength(3);
     expect(html).toContain('data-region="connect"');
