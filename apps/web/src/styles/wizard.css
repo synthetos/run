@@ -64,3 +64,6 @@ li[data-mark="done"] .wizard-step-mark { border-color: var(--ok); color: var(--o
   .wizard-content { padding: 20px 16px 0; }
   .wizard .wizard-cards { grid-template-columns: 1fr; }
 }
+/* Step 4: the choice picks which of the existing Home controls the step shows (homing.ts HomeQuick, unchanged). */
+.wizard-homing[data-choice="switches"] .home-quick .motion-recovery > :nth-child(2) { display: none; }
+.wizard-homing[data-choice="none"] .home-quick .motion-recovery > :nth-child(1) { display: none; }

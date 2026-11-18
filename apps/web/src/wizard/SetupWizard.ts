@@ -20,6 +20,8 @@ import { firmwareGate, firmwareState } from './firmwareStep.ts';
 import { closeSetup, finishStep, skipStep } from './setupActions.ts';
 import { Done, DONE_LEAD, DONE_TITLE } from './steps/Done.ts';
 import { Firmware, FIRMWARE_LEAD, FIRMWARE_TITLE, firmwareUpdating, startUpdate } from './steps/Firmware.ts';
+import { boardMismatch } from './homingStep.ts';
+import { Homing, HOMING_LEAD, HOMING_TITLE } from './steps/Homing.ts';
 import { liveBoardId, Machine, MACHINE_LEAD, MACHINE_TITLE, machineDraft } from './steps/Machine.ts';
 import { Welcome, WELCOME_LEAD, WELCOME_TITLE } from './steps/Welcome.ts';
 import { WizardFrame } from './WizardFrame.ts';
@@ -73,12 +75,21 @@ function firmwareStepView(ctx: WizardContext): StepView {
   return { title: FIRMWARE_TITLE, lead: FIRMWARE_LEAD, body, nextDisabled: !gate.nextEnabled, skippable: gate.skippable };
 }
 
+/** Step 4: the choice is written as it is made (R3); the step refuses another board than the machine's. */
+function homingStepView(ctx: WizardContext): StepView {
+  const record = setupView.value.record;
+  const machine = machineStore.value.value.find((m) => m.id === record?.machineId) ?? null;
+  const body = h(Homing, { model: ctx.model, choice: record?.homing ?? null, onChoice: (c) => saveSetup({ homing: c }), mismatch: boardMismatch(liveBoardId(ctx.model), machine) });
+  return { title: HOMING_TITLE, lead: HOMING_LEAD, body, nextDisabled: (record?.homing ?? null) === null };
+}
+
 /** The step's content; each step module fills its own case. */
 function stepView(step: StepId, ctx: WizardContext): StepView {
   switch (step) {
     case 1: return { title: WELCOME_TITLE, lead: WELCOME_LEAD, body: h(Welcome, null) };
     case 2: return machineStep(ctx);
     case 3: return firmwareStepView(ctx);
+    case 4: return homingStepView(ctx);
     case 7: {
       const id = setupView.value.record?.projectId ?? null;
       const name = id === null ? null : projectsState.value.list.find((p) => p.id === id)?.name ?? null;
