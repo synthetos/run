@@ -188,8 +188,8 @@ test('the notice raised after Stop job sits above the panels and the 3D canvas: 
   const covered = (selector: string): Promise<{ readonly points: number; readonly overCard: number; readonly hidden: readonly string[] }> =>
     tabB.locator(selector).first().evaluate((el) => {
       const r = el.getBoundingClientRect();
-      // The panels the notice lies over: the job card, and since the machine pane became a rail (OD-13) that rail too.
-      const panels = ['.job-card', '.run-inspector'].map((s) => document.querySelector(s)?.getBoundingClientRect() ?? null).filter((p): p is DOMRect => p !== null);
+      // The panels the notice lies over: the step bar, and since the machine pane became a rail (OD-13) that rail too.
+      const panels = ['.job-step-bar', '.run-inspector'].map((s) => document.querySelector(s)?.getBoundingClientRect() ?? null).filter((p): p is DOMRect => p !== null);
       const hidden: string[] = [];
       let points = 0;
       let overCard = 0;

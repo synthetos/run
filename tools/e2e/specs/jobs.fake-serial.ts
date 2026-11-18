@@ -91,6 +91,7 @@ test('a file streams to completion from the stepper; Start is enabled only when 
   expect(w.filter((x) => x.startsWith('N'))).toHaveLength((await session(worker)).job?.total as number);
   expect(w).toContain('{"rxm":0}\n');
   await expect(page.locator('[data-job="message"]')).toContainText('Job finished');
+  await page.locator('[data-job-step="place"]').click(); // Close job sits with the file at step 3 (spec §7).
   await page.locator('[data-action="job-close"]').click();
   await expect(page.locator('[data-preview="file-name"]')).toHaveText('none');
   await expect(page.locator('.strip-disconnect[data-action="disconnect"]')).toBeEnabled();

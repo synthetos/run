@@ -1,6 +1,6 @@
 import { expect, test } from './fixtures.ts';
 
-test('create project, load demo, close it, open project G-code through Files, then reverse the order', async ({ page }, testInfo) => {
+test('create project, load demo, close it, open project G-code from Projects, then reverse the order', async ({ page }, testInfo) => {
   await page.goto('/');
   await expect(page.locator('html')).toHaveAttribute('data-ready', 'true');
   const job = page.locator('[data-screen="job"]');
@@ -16,20 +16,21 @@ test('create project, load demo, close it, open project G-code through Files, th
   await expect(job.locator('[data-preview="file-name"]')).toHaveText('test-square.nc');
   await job.locator('[data-action="job-close"]').click();
   await expect(job.locator('[data-preview="file-name"]')).toHaveText('none');
-  await job.locator('[data-action="job-files"]').click();
-  const drawer = job.locator('.job-files-drawer');
-  await expect(drawer.getByLabel('Project files')).toHaveValue(/.+/);
-  await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('project-files-drawer.png') });
-  await drawer.getByRole('button', { name: 'Open as the job', exact: true }).click();
-  await expect(drawer).toBeHidden();
+  // Project files open as the job from the Projects view (spec §7: the Job page carries no Files drawer).
+  const openInRun = projects.locator('[data-project-file="plate.nc"] [data-action="project-open-in-run"]');
+  await rail.locator('[data-view="projects"]').click();
+  await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('project-files.png') });
+  await openInRun.click();
+  await expect(job).toBeVisible();
   await expect(job.locator('[data-preview="file-name"]')).toHaveText('plate.nc');
-  await job.locator('[data-action="job-close"]').click();
   await job.locator('[data-job-step="place"]').click();
+  await job.locator('[data-action="job-close"]').click();
+  await job.locator('[data-job-step="place"]').click(); // Close job goes back to step 1; the samples are offered at step 3.
   await job.locator('[data-sample="test-square"]').click();
   await expect(job.locator('[data-preview="file-name"]')).toHaveText('test-square.nc');
   // Switching directly also works; closing first is optional.
-  await job.locator('[data-action="job-files"]').click();
-  await drawer.getByRole('button', { name: 'Open as the job', exact: true }).click();
+  await rail.locator('[data-view="projects"]').click();
+  await openInRun.click();
   await expect(job.locator('[data-preview="file-name"]')).toHaveText('plate.nc');
   await rail.locator('[data-view="projects"]').click();
   await expect(projects.locator('[data-project-file="plate.nc"]')).toBeVisible();
@@ -42,11 +43,11 @@ test('a project opens over the demo, closes without deleting files, and reopens 
   await expect(page.locator('html')).toHaveAttribute('data-ready', 'true');
   const job = page.locator('[data-screen="job"]');
   const projects = page.locator('[data-screen="projects"]');
-  const openProject = job.locator('.job-actions [data-action="job-projects"]');
+  // Projects live in the left-hand Projects section (spec §7); the Job page has no Open project button.
+  const openProject = page.locator('[data-region="rail"] [data-view="projects"]');
   await job.locator('[data-job-step="place"]').click();
   await job.locator('[data-sample="test-square"]').click();
   await expect(job.locator('[data-preview="file-name"]')).toHaveText('test-square.nc');
-  await expect(openProject).toHaveText('Open project');
   await openProject.click();
   await projects.locator('[data-action="project-new"]').click();
   await projects.locator('[data-project="file-input"]').setInputFiles({ name: 'bracket.cnc', mimeType: 'text/plain', buffer: Buffer.from('G21 G90\nG0 X12 Y8\nM2\n') });
@@ -58,6 +59,7 @@ test('a project opens over the demo, closes without deleting files, and reopens 
   await open.click();
   await expect(job.locator('[data-preview="file-name"]')).toHaveText('bracket.cnc');
   await expect(job.locator('[data-job="project"]')).toContainText('Project 1');
+  await job.locator('[data-job-step="place"]').click();
   await job.locator('[data-action="job-close"]').click();
   await expect(job.locator('[data-preview="file-name"]')).toHaveText('none');
   await page.reload();

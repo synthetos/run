@@ -83,8 +83,8 @@ for (const [level, width, height] of [['simple', 1280, 720], ['advanced', 1280, 
     const doc = await page.evaluate(() => ({ scroll: document.scrollingElement?.scrollHeight ?? 0, inner: innerHeight, top: document.scrollingElement?.scrollTop ?? 0 }));
     expect(doc.scroll, 'the page does not scroll').toBeLessThanOrEqual(doc.inner);
     const overlaid = ['.scene-key-line', '.viewer-overlay-bar'];
-    const [strip, card, canvas, top, ...over] = await rects(page, ['[data-region="machine-strip"]', '.job-view .job-card', '[data-preview="drawing"]', '.job-view .viewer-top', ...overlaid]);
-    expect(card?.y ?? 0, 'the job card starts below the strip').toBeGreaterThanOrEqual((strip?.y ?? 0) + (strip?.h ?? 0) - 0.5);
+    const [strip, bar, canvas, top, ...over] = await rects(page, ['[data-region="machine-strip"]', '.job-view .job-step-bar', '[data-preview="drawing"]', '.job-view .viewer-top', ...overlaid]);
+    expect(bar?.y ?? 0, 'the step bar starts below the strip').toBeGreaterThanOrEqual((strip?.y ?? 0) + (strip?.h ?? 0) - 0.5);
     expect(canvas?.h ?? 0, 'the 3D view keeps a usable height').toBeGreaterThanOrEqual(270);
     const pieces = overlaid.map((s, i) => [s, over[i] ?? null] as const).filter((p): p is readonly [string, Rect] => p[1] !== null);
     expect(pieces.length).toBeGreaterThanOrEqual(2);
@@ -131,7 +131,7 @@ test('Expand gives the 3D view the Job area; Shrink puts the panels back', async
   const before = (await rect(page, '[data-preview="drawing"]')) as Rect;
   await page.locator('[data-action="preview-expand"]').click();
   await expect(page.locator('.job-work-panel')).toBeHidden();
-  await expect(page.locator('.job-view .job-card')).toBeHidden();
+  await expect(page.locator('.job-view .job-step-bar')).toBeHidden();
   await expect.poll(async () => (await rect(page, '[data-preview="drawing"]'))?.h ?? 0).toBeGreaterThan(before.h + 150);
   await expect(page.locator('[data-region="machine-strip"] [data-action="stop-job"]')).toBeVisible();
   // Expanded, the drawing stays below the strip and its stop controls.
@@ -147,7 +147,7 @@ for (const level of ['simple', 'advanced'] as const) {
     await openSample(page, 390, 844);
     await page.locator(`[data-action="ui-level-${level}"]`).click();
     await overlaySettled(page);
-    const parts = ['.job-view .job-card', '.job-view .job-step-bar', '.job-view .canvas-column', '.job-view .job-work-panel', '.job-view > .run-inspector'];
+    const parts = ['.job-view .job-step-bar', '.job-view .canvas-column', '.job-view .job-work-panel', '.job-view > .run-inspector'];
     const boxes = await rects(page, parts);
     for (let i = 0; i < parts.length; i++) {
       expect(boxes[i], `${parts[i] as string} is shown`).not.toBeNull();

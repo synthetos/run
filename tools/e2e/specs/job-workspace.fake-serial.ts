@@ -39,20 +39,16 @@ test('one Job keeps its scene and setup across steps, Library and project reopen
   await rail.locator('[data-view="projects"]').click();
   await page.locator('[data-action="project-new"]').click();
   await rail.locator('[data-view="job"]').click();
+  // Save to project sits with the file at step 3 (spec §7); the saved file is then in the Projects view.
+  await page.locator('[data-job-step="place"]').click();
   await page.locator('[data-job="save-target"]').selectOption({ index: 1 });
   await page.locator('[data-action="job-save-to-project"]').click();
-  await expect(page.locator('[data-job="project"]')).not.toHaveText('local draft');
-  await page.locator('[data-action="job-files"]').click();
-  await expect(page.locator('.job-files-drawer')).toBeVisible();
-  await expect(page.locator('.job-files-drawer [data-project-file="test-square.nc"]')).toBeVisible();
+  await expect(page.locator('[data-job="project"]')).toHaveText('Project 1');
   await rail.locator('[data-view="projects"]').click();
+  await expect(page.locator('[data-project-file="test-square.nc"]')).toBeVisible();
   await page.locator('[data-action="project-new"]').click();
   await expect(page.locator('[data-project-row="Project 2"]')).toHaveAttribute('aria-current', 'true');
   await rail.locator('[data-view="job"]').click();
-  await page.locator('.job-files-drawer [data-action="job-projects"]').click();
-  await expect(page.locator('[data-project-row="Project 1"]')).toHaveAttribute('aria-current', 'true');
-  await rail.locator('[data-view="job"]').click();
-  await page.locator('[data-action="job-files-close"]').click();
   await expect(canvas).toHaveAttribute('data-retained', 'yes');
   expect(await page.locator('[data-region="stop-controls"]').boundingBox()).toEqual(stopBox);
   await page.locator('[data-job-step="stock"]').click();

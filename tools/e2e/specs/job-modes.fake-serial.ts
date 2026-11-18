@@ -48,6 +48,7 @@ test('a board a file left in G91: the card says Relative, mm, and the next file 
   await expect(page.locator('[data-note="modes"]')).toHaveCount(0); // the file sets its own modes
   await start(page);
   await expect.poll(() => phase(worker), { timeout: 30_000 }).toBe('done');
+  await page.locator('[data-job-step="place"]').click(); // Close job sits with the file at step 3 (spec §7).
   await page.locator('[data-action="job-close"]').click();
 
   await open(page, 'G1 X5 F600\nG1 X2\nM30\n', 'no-g90.nc');
