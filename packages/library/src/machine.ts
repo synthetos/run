@@ -94,6 +94,8 @@ export interface MachineProfile {
   /** The machine's bed; absent means the placeholder bed derived from its travel. */
   readonly bed?: MachineBed;
   readonly homeFrame?: HomeFrame;
+  /** The board this machine is bound to (the board's `identity.id`), set when it was connected during setup. */
+  readonly boardId?: string;
 }
 
 // ---------------------------------------------------------------- reading
@@ -168,10 +170,11 @@ function optionIssues(v: Record<string, unknown>): Issue[] {
   if (v['revision'] !== undefined && !isWhole(v['revision'], 1)) out.push(issue('/revision', 'must be a whole number from 1'));
   if (v['switchType'] !== undefined && v['switchType'] !== 0 && v['switchType'] !== 1) out.push(issue('/switchType', 'must be 0 or 1'));
   if (v['homeFrame'] !== undefined && !HOME_FRAMES.includes(v['homeFrame'] as HomeFrame)) out.push(issue('/homeFrame', 'must name a top corner'));
+  if (v['boardId'] !== undefined && !(typeof v['boardId'] === 'string' && v['boardId'] !== '' && v['boardId'].length <= 64)) out.push(issue('/boardId', 'must be short text'));
   return out;
 }
 
-const FIELDS = new Set(['axes', 'switchType', 'id', 'name', 'templateId', 'drive', 'travel', 'spindle', 'createdAt', 'revision', 'bed', 'homeFrame']);
+const FIELDS = new Set(['axes', 'switchType', 'id', 'name', 'templateId', 'drive', 'travel', 'spindle', 'createdAt', 'revision', 'bed', 'homeFrame', 'boardId']);
 
 /**
  * A machine profile as it may enter an account: every field checked. Unknown fields are refused at the root and in

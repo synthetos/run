@@ -42,6 +42,11 @@ describe('readMachine', () => {
     expect(paths(machine({ switchType: 1 }))).toEqual([]);
     expect(paths(machine({ homeFrame: 'middle' }))).toEqual(['/homeFrame']);
     expect(paths(machine({ homeFrame: undefined }))).toEqual([]);
+    // The board the machine is bound to (first-run design §6.3 step 2): optional, short text.
+    expect(paths(machine({ boardId: '2X3559-ABCD' }))).toEqual([]);
+    expect(paths(machine({ boardId: '' }))).toEqual(['/boardId']);
+    expect(paths(machine({ boardId: 'x'.repeat(65) }))).toEqual(['/boardId']);
+    expect(paths(machine({ boardId: 7 }))).toEqual(['/boardId']);
   });
 
   it('checks the axes', () => {
