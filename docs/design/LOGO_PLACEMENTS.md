@@ -29,8 +29,9 @@ synthetos.com follows in slice 5.
 
 The standalone files cannot read CSS, so there is one per theme with the literal `--ink` and `--blue` of that theme.
 The unsuffixed file is the light theme, the `-dark` file the dark theme. Changing either token in `tokens.css` fails
-`tools/gates/test/brand-svg.test.ts` until `pnpm gen:brand` is run again, and `manifest.test.ts` does the same for
-the PNGs and `pnpm gen:icons`.
+`tools/gates/test/brand-svg.test.ts`, which pins the four hex values and compares the files with a fresh render: run
+`pnpm gen:brand` and update the pinned values in that test. `manifest.test.ts` does the same for the PNGs, cured by
+`pnpm gen:icons` (its colours are checked against `tokens.css`, not pinned).
 
 ## Screenshots
 
