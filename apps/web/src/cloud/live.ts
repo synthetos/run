@@ -6,8 +6,8 @@
  *
  * - `/safety-advisory.json`, `no-store` (SAFETY H27): the signed advisory,
  *   verified by live/advisoryGate.ts.
- * - `/api/identity`, `no-store`: the identity the run Worker verified (the
- *   Cloudflare Access identity on staging, RUN_PLAN §2.2), for the D1 gate.
+ * - `/api/identity`, `no-store`: the run session the Worker validated with
+ *   accounts (RUN_PLAN §2.2, A1-07), for the D1 gate.
  *
  * Neither is ever on the machine path: a failure here can refuse a new
  * Connect or Start, never touch a running session.

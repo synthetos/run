@@ -648,11 +648,9 @@ function checkArtifactDigests(jobs: readonly Job[], add: (line: number, rule: Po
   }
 }
 
-/** The exact condition of the undo step. */
-export const ROLLBACK_IF = {
-  staging: "if: failure() && steps.deploy.outcome == 'success' && steps.site_smoke.outcome == 'failure'",
-  production: "if: failure() && steps.deploy.outcome == 'success' && steps.site_smoke.outcome == 'failure'",
-} as const;
+/** The exact condition of the undo step: the same in both environments since OD-40 (one string, so they cannot drift). */
+const UNDO_IF = "if: failure() && steps.deploy.outcome == 'success' && steps.site_smoke.outcome == 'failure'";
+export const ROLLBACK_IF = { staging: UNDO_IF, production: UNDO_IF } as const;
 
 /** ci.yml: a deploy whose later steps fail is undone (`deploy-rollback`). */
 function checkRollback(jobs: readonly Job[], add: (line: number, rule: PolicyRule, message: string) => void): void {

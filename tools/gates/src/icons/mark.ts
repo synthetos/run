@@ -47,8 +47,10 @@ function parse(re: RegExp, text: string, name: string): number[] {
   return m.slice(1).map(Number);
 }
 
-function stemDots(stem: Stem, dash: string): Point[] {
+function stemDots(stem: Stem, dash: string, stroke: number): Point[] {
   const [on, off] = parse(DASH, dash, 'dash') as [number, number];
+  // The icon draws each dash as a dot of the stroke's width; a dash longer than that would be a line in the SVG.
+  if (!(on > 0 && on < stroke && off > 0)) throw new Error(`dash: "${dash}" does not draw dots of the ${stroke} stroke`);
   const period = on + off;
   const length = Math.abs(stem.y1 - stem.y0);
   const sign = stem.y1 < stem.y0 ? -1 : 1;
@@ -61,7 +63,7 @@ function stemDots(stem: Stem, dash: string): Point[] {
 export function markPrimitives(g: WordmarkGeometry): MarkPrimitives {
   const [sx, sy0, sy1] = parse(STEM, g.nStem, 'nStem') as [number, number, number];
   const [ax, ay, rx, ry, dx, dy] = parse(ARCH, g.nArch, 'nArch') as [number, number, number, number, number, number];
-  if (rx !== ry || dx !== 2 * rx) throw new Error(`nArch: "${g.nArch}" is not a half circle`);
+  if (!(rx > 0) || rx !== ry || dx !== 2 * rx) throw new Error(`nArch: "${g.nArch}" is not a half circle`);
   const stem = { x: sx, y0: sy0, y1: sy1 };
   return {
     stem,
@@ -69,7 +71,7 @@ export function markPrimitives(g: WordmarkGeometry): MarkPrimitives {
     rightStem: { x: ax + dx, y0: ay, y1: ay + dy },
     tool: g.tool,
     stroke: g.stroke,
-    dots: stemDots(stem, g.dash),
+    dots: stemDots(stem, g.dash, g.stroke),
   };
 }
 
@@ -90,6 +92,8 @@ export function markShapes(p: MarkPrimitives, fit: MarkFit): { readonly ink: Sha
     ink: any(...p.dots.map((d) => disc(at(d), half))),
     blue: any(
       ring(archCentre, archR - half, archR + half, 'top'),
+      // The SVG stroke has round caps: the arch's open start gets the same half-disc the right stem's end gets.
+      disc(at({ x: p.arch.cx - p.arch.r, y: p.arch.cy }), half),
       roundSegment(at({ x: p.rightStem.x, y: p.rightStem.y0 }), at({ x: p.rightStem.x, y: p.rightStem.y1 }), p.stroke * fit.scale),
       disc(at({ x: p.tool.cx, y: p.tool.cy }), p.tool.r * fit.scale),
     ),

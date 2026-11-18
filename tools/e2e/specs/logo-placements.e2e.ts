@@ -14,17 +14,24 @@ for (const theme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme: theme });
     await page.route('**/api/session', (route) => route.fulfill({ json: SIGNED_IN }));
     await page.goto('/'); await ready(page);
-    const brand = page.getByRole('link', { name: 'Synthetos Run' });
+    // Located by class, not by name: the accessible name changes when the wordmark hides, and a name locator that
+    // matched nothing would let `toBeHidden` pass on an empty set.
+    const brand = page.locator('.topbar .brand');
     await expect(brand).toBeVisible();
     await expect(brand).toHaveAttribute('href', '/');
+    await expect(brand).toHaveAccessibleName('Synthetos Run');
     const wordmark = brand.locator('.brand-run svg');
     await expect(wordmark).toHaveAttribute('aria-label', 'Run');
     await expect(brand.locator('.crosshair')).toHaveAttribute('aria-hidden', 'true');
     await expect(page.locator('link[rel="icon"][sizes="32x32"]')).toHaveAttribute('href', '/icons/icon-32.png');
     for (const width of [1280, 320]) {
       await page.setViewportSize({ width, height: width === 320 ? 740 : 800 });
+      await expect(brand).toBeVisible();
       if (width === 1280) await expect(wordmark).toBeVisible();
-      else await expect(wordmark).toBeHidden();
+      else {
+        await expect(wordmark).toBeHidden();
+        await expect(brand).toHaveAccessibleName('Synthetos');
+      }
       if (SCREENSHOTS) await page.locator('.topbar').screenshot({ path: `${SHOT_DIR}topbar-${theme}-${width}.png` });
     }
   });

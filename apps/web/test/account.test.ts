@@ -146,7 +146,7 @@ describe('production Connect for signed-out and non-allowlisted visitors', () =>
     expect(all(beta, byAttr('data-action', 'sign-in')).map((n) => n.props['href'])).toEqual(['/auth/login']);
   });
 
-  it('where the gate can sign in (staging), the refusal offers Sign in when the host does', () => {
+  it('where the host offers sign-in, the refusal offers Sign in', () => {
     const state = { step: 'refused' as const, refusal: { kind: 'signed-out' as const, signIn: true } };
     expect(all(root(h(ConnectPanel, { ...props, state, signInHref: '/auth/login' })), byAttr('data-action', 'sign-in'))).toHaveLength(1);
     expect(all(root(h(ConnectPanel, { ...props, state })), byAttr('data-action', 'sign-in'))).toHaveLength(0);

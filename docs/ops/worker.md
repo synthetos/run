@@ -38,13 +38,12 @@ Phase 0 routes: `GET`/`HEAD /api/health` returns
 `{"status":"ok","service":"run","env":"<RUN_ENV>","version":"…"}` with
 `Cache-Control: no-store`; an unknown `RUN_ENV` returns 500 `misconfigured`.
 From P1-05, `GET /api/identity` returns the identity the D1 sign-in gate
-uses: on the staging Worker for staging.run.synthetos.com only, it verifies
-the `Cf-Access-Jwt-Assertion` JWT (RS256 under
-`https://<ACCESS_TEAM_DOMAIN>/cdn-cgi/access/certs`, `aud` = `ACCESS_AUD`,
-issuer, expiry) and answers 200 `{"identity":{"provider":"access","subject":…}}`;
-otherwise 401 `{"identity":null,"reason":…}` (`not-available-here` in
-production until A1-07, `not-configured` while the two vars are unset,
-`not-signed-in`). `no-store`, like every API response.
+uses: the run session accounts validated (A1-06, A1-07), 200
+`{"identity":{"provider":"run-session","subject":…,"display":…,"canConnect":…}}`;
+otherwise 401 `{"identity":null,"reason":…}` (`not-available-here` where
+sign-in is not configured, `not-signed-in`, `connect-not-allowed`). Since
+OD-40 there is no other identity: the staging Cloudflare Access JWT path is
+gone with Access itself. `no-store`, like every API response.
 From A1-06 (OD-26), `/auth/login`, `/auth/callback` and `/auth/logout` are
 the sign-in handoff with accounts (`workers/run/src/auth*.ts`; SAFETY H42 as
 built), and `/api/identity` names the run session first (`provider:

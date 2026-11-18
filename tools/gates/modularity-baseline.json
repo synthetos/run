@@ -1334,7 +1334,7 @@
       "complexity $/FunctionDeclaration:checkSafetyReviewShape#1": 28,
       "complexity $/FunctionDeclaration:checkWorkflow#1": 141,
       "max-depth $/FunctionDeclaration:checkWorkflow#1": 5,
-      "max-lines $file": 681,
+      "max-lines $file": 679,
       "max-lines-per-function $/FunctionDeclaration:checkWorkflow#1": 199
     },
     "tools/gates/test/acceptance.test.ts": {

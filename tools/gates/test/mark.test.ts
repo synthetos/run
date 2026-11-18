@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { WORDMARK_GEOMETRY } from '../../../apps/web/src/brand/wordmarkGeometry.ts';
-import { MARK_BOX, markPrimitives } from '../src/icons/mark.ts';
+import { MARK_BOX, markPrimitives, markShapes } from '../src/icons/mark.ts';
 import { ICON_COLOURS, drawIcon } from '../src/icons/draw.ts';
 
 describe('markPrimitives', () => {
@@ -32,6 +32,19 @@ describe('markPrimitives', () => {
     expect(() => markPrimitives({ ...WORDMARK_GEOMETRY, nStem: 'M1 1L2 2' })).toThrow(/nStem/);
     expect(() => markPrimitives({ ...WORDMARK_GEOMETRY, nArch: 'M44 24a8 8 0 0 0 16 0v16' })).toThrow(/nArch/);
     expect(() => markPrimitives({ ...WORDMARK_GEOMETRY, dash: '3' })).toThrow(/dash/);
+  });
+  it('refuses a negative arch radius and a dash pattern whose marks are not dots', () => {
+    expect(() => markPrimitives({ ...WORDMARK_GEOMETRY, nArch: 'M44 24a-8 -8 0 0 1 -16 0v16' })).toThrow(/nArch/);
+    expect(() => markPrimitives({ ...WORDMARK_GEOMETRY, dash: '3.4 4' })).toThrow(/dash/);
+    expect(() => markPrimitives({ ...WORDMARK_GEOMETRY, dash: '0.5 6.65' })).not.toThrow();
+  });
+  it('draws the round cap at the start of the arch, as the SVG stroke does', () => {
+    const p = markPrimitives(WORDMARK_GEOMETRY);
+    const { blue } = markShapes(p, { x: 0, y: 0, scale: 1 });
+    // The arch starts at (44, 24): with the box corner at the origin that is (4, 12). A point one unit below and to
+    // the left is inside the round cap (distance 1.41 < stroke/2 = 1.7) but below the ring's half plane.
+    expect(blue(3, 13)).toBe(true);
+    expect(blue(1.5, 14.5)).toBe(false);
   });
 });
 
