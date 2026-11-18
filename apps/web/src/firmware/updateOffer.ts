@@ -75,14 +75,40 @@ export function updateOffer(input: OfferInput): UpdateOffer | null {
   const overlays = s.overlays.filter(o => !(needed && o === 'READ_ONLY') && !(input.showing === true && !needed && o === 'STALE'));
   if (!AT_REST.has(s.base) || s.motion !== null || overlays.length > 0 || (needed && !neededOfferAtRest(s))) return null;
   if (!needed && classification.mode !== 'full') return null;
-  const candidates = (releasesForHardware(input.releases, hv)?.releases ?? []).filter(r => r.unavailable === undefined && (r.simulatorOnly || supportsFirmware(r.dialect, r.fb)) && (needed || hundredths(r.fb) > hundredths(fb)));
-  if (candidates.length === 0) return null;
-  const release = candidates.reduce((a, b) => (hundredths(b.fb) > hundredths(a.fb) ? b : a));
+  const release = newestRelease(input.releases, hv, fb, needed);
+  if (release === null) return null;
   return { kind: needed ? 'needed' : 'available', epoch: s.epoch, boardId: id, current: fb, release };
 }
 
+/** What an offer says, without the moment it may be shown: the setup wizard shows these facts even when it is not. */
+export type OfferFacts = Pick<UpdateOffer, 'kind' | 'current' | 'release'>;
+
+/** The newest listed, supported release for this hardware: any for an update-needed board, newer ones otherwise. */
+export function newestRelease(releases: FirmwareReleases, hv: number, fb: number, needed: boolean): FirmwareRelease | null {
+  const candidates = (releasesForHardware(releases, hv)?.releases ?? []).filter(r => r.unavailable === undefined && (r.simulatorOnly || supportsFirmware(r.dialect, r.fb)) && (needed || hundredths(r.fb) > hundredths(fb)));
+  return candidates.length === 0 ? null : candidates.reduce((a, b) => (hundredths(b.fb) > hundredths(a.fb) ? b : a));
+}
+
+/** Where the board stands against the list, whatever it is doing: null until its hardware and build are read. */
+export type FirmwareStanding = OfferFacts | { readonly kind: 'current'; readonly fb: number } | { readonly kind: 'unlisted'; readonly hv: number };
+
+/**
+ * The same rules as `updateOffer` (firmwareNeeded, newestRelease) without its "only at a quiet moment" checks: a
+ * board on a build the offer withholds right now is still behind, never current (owner, 2026-11-18, picture 146).
+ */
+export function firmwareStanding(s: Snapshot, releases: FirmwareReleases): FirmwareStanding | null {
+  const hv = numberOf(s.identity?.hv);
+  const fb = numberOf(s.identity?.fb);
+  if (hv === null || fb === null) return null;
+  if (releasesForHardware(releases, hv) === null) return { kind: 'unlisted', hv };
+  const needed = firmwareNeeded(s, releases, hv, fb);
+  const release = newestRelease(releases, hv, fb, needed);
+  if (release === null) return needed ? { kind: 'unlisted', hv } : { kind: 'current', fb };
+  return { kind: needed ? 'needed' : 'available', current: fb, release };
+}
+
 /** Plain display text; the update flow still performs its own checks. */
-export function offerText(offer: UpdateOffer): string {
+export function offerText(offer: OfferFacts): string {
   if (offer.kind === 'needed') return `Run can't control firmware ${fbText(offer.current)}. Install ${fbText(offer.release.fb)}, the newest release Run supports.`;
   return `This board runs ${fbText(offer.current)}. ${fbText(offer.release.fb)} is released.`;
 }

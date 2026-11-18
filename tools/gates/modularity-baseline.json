@@ -30,7 +30,7 @@
       "complexity $/FunctionDeclaration:valueWords#1": 16
     },
     "apps/web/src/firmware/updateOffer.ts": {
-      "complexity $/FunctionDeclaration:updateOffer#1": 35
+      "complexity $/FunctionDeclaration:updateOffer#1": 33
     },
     "apps/web/src/firmware/updater.ts": {
       "complexity $/ClassDeclaration:FirmwareUpdater#1/FunctionExpression:onSnapshot#1": 32,
