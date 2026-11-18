@@ -13,7 +13,7 @@ import type { WorkspaceModel } from '../workspace/model.ts';
 import type { MachineProfile } from '@synthetos/library';
 import { projectsState } from '../projects/store.ts';
 import { saveSetup } from '../workspace/cloud/setupSync.ts';
-import { machineStore, selectedMachineStore } from '../workspace/library.ts';
+import { machineStore, selectedMachineStore, toolStore } from '../workspace/library.ts';
 import { CATALOGUE, type MachineTemplate } from '../workspace/machineDrawings.ts';
 import { boardOwner, draftFromMachine, draftFromTemplate, draftValid, saveDraft, type MachineDraft } from './machineDraft.ts';
 import { firmwareGate, firmwareState } from './firmwareStep.ts';
@@ -22,6 +22,8 @@ import { Done, DONE_LEAD, DONE_TITLE } from './steps/Done.ts';
 import { Firmware, FIRMWARE_LEAD, FIRMWARE_TITLE, firmwareUpdating, startUpdate } from './steps/Firmware.ts';
 import { boardMismatch } from './homingStep.ts';
 import { Homing, HOMING_LEAD, HOMING_TITLE } from './steps/Homing.ts';
+import { fieldsFromStock, newToolSince, stockFromFields } from './stockFields.ts';
+import { catalogOpen, creatingTool, stockFields, ToolsStock, TOOLS_LEAD, TOOLS_TITLE, toolsBefore } from './steps/ToolsStock.ts';
 import { liveBoardId, Machine, MACHINE_LEAD, MACHINE_TITLE, machineDraft } from './steps/Machine.ts';
 import { Welcome, WELCOME_LEAD, WELCOME_TITLE } from './steps/Welcome.ts';
 import { WizardFrame } from './WizardFrame.ts';
@@ -83,6 +85,24 @@ function homingStepView(ctx: WizardContext): StepView {
   return { title: HOMING_TITLE, lead: HOMING_LEAD, body, nextDisabled: (record?.homing ?? null) === null };
 }
 
+/** Step 5: the tool added while the step is open and the stock saved to the record; both written as they happen. */
+function toolsStockStepView(): StepView {
+  const record = setupView.value.record;
+  const tools = toolStore.value.value;
+  const before = toolsBefore.value ?? tools;
+  const added = newToolSince(before, tools);
+  if (added !== null && record?.toolId !== added.tool.id) saveSetup({ toolId: added.tool.id });
+  const tool = tools.find((e) => e.tool.id === (added?.tool.id ?? record?.toolId)) ?? null;
+  const fields = stockFields.value ?? fieldsFromStock(record?.stock ?? null);
+  const body = h(ToolsStock, {
+    tool, stock: record?.stock ?? null, fields, onFields: (f) => { stockFields.value = f; },
+    onAddStock: () => { const stock = stockFromFields(fields); if (stock !== null) saveSetup({ stock }); },
+    onCatalog: () => { catalogOpen.value = true; }, onCreate: () => { creatingTool.value = true; },
+    catalogOpen: catalogOpen.value, creating: creatingTool.value, onCloseModal: () => { catalogOpen.value = false; creatingTool.value = false; },
+  });
+  return { title: TOOLS_TITLE, lead: TOOLS_LEAD, body };
+}
+
 /** The step's content; each step module fills its own case. */
 function stepView(step: StepId, ctx: WizardContext): StepView {
   switch (step) {
@@ -90,6 +110,7 @@ function stepView(step: StepId, ctx: WizardContext): StepView {
     case 2: return machineStep(ctx);
     case 3: return firmwareStepView(ctx);
     case 4: return homingStepView(ctx);
+    case 5: return toolsStockStepView();
     case 7: {
       const id = setupView.value.record?.projectId ?? null;
       const name = id === null ? null : projectsState.value.list.find((p) => p.id === id)?.name ?? null;
@@ -107,6 +128,8 @@ export function SetupWizard(p: WizardContext): ComponentChild {
   useEffect(() => {
     machineDraft.value = null;
     firmwareUpdating.value = false;
+    stockFields.value = null; catalogOpen.value = false; creatingTool.value = false;
+    toolsBefore.value = step === 5 ? toolStore.value.peek() : null;
     if (showing && typeof document !== 'undefined') document.getElementById('wizard-title')?.focus();
   }, [showing, step]);
   if (!showing) return null;
