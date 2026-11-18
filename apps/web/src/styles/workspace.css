@@ -761,6 +761,13 @@ a.menu-item:hover { background: var(--blue-wash); }
   .metrics { grid-template-columns: repeat(2, 1fr); }
 }
 
+/* Narrow phones: the crosshair alone stands for the brand (the link keeps its name), so the level switch, theme
+   toggle and account button fit without clipping. */
+@media (max-width: 400px) {
+  .topbar { padding: 0 6px 0 10px; gap: 6px; }
+  .brand strong { display: none; }
+}
+
 /* ---------- Phone: preparation and inspection layout ---------- */
 @media (max-width: 650px) {
   body { font-size: 13px; }
@@ -772,6 +779,8 @@ a.menu-item:hover { background: var(--blue-wash); }
   .topbar .icon-button { width: 32px; }
   .top-actions { gap: 0; }
   .account-button { width: 36px; }
+  .topbar .level-switch { margin-right: 0; }
+  .level-switch button { padding: 0 7px; font-size: 11px; }
   .avatar { width: 28px; height: 28px; font-size: 11px; }
   .statebar { height: auto; flex-wrap: wrap; padding: 8px 12px 10px; gap: 8px 10px; }
   .state-title { min-width: 0; flex: 1; }

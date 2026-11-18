@@ -1,7 +1,8 @@
 /**
  * The top bar lockup (docs/superpowers/specs/2026-11-16-first-run-design.md §4): the Synthetos crosshair, "Synthetos"
  * in the condensed face and the run wordmark at cap height, as one link home. The crosshair is decorative; the
- * wordmark carries "Run", so the link reads "Synthetos Run". The wordmark hides on phones (workspace.css, .brand-run).
+ * wordmark carries "Run", so the link reads "Synthetos Run". The wordmark hides on phones and the name on narrow
+ * phones (workspace.css), so the link also carries the name as a label.
  */
 import { h, type ComponentChild } from 'preact';
 import { RunWordmark } from './RunWordmark.ts';
@@ -12,7 +13,7 @@ export const LOCKUP_WORDMARK_HEIGHT = 27;
 export function BrandLockup(): ComponentChild {
   return h(
     'a',
-    { class: 'brand', href: '/' },
+    { class: 'brand', href: '/', 'aria-label': 'Synthetos Run' },
     h(
       'svg',
       { class: 'crosshair', viewBox: '0 0 28 28', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.7', 'aria-hidden': 'true', focusable: 'false' },

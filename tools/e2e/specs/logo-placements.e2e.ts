@@ -27,10 +27,15 @@ for (const theme of ['light', 'dark'] as const) {
     for (const width of [1280, 320]) {
       await page.setViewportSize({ width, height: width === 320 ? 740 : 800 });
       await expect(brand).toBeVisible();
+      await expect(brand).toHaveAccessibleName('Synthetos Run');
       if (width === 1280) await expect(wordmark).toBeVisible();
       else {
+        // A narrow phone shows the crosshair alone, and the account button must still fit on screen.
         await expect(wordmark).toBeHidden();
-        await expect(brand).toHaveAccessibleName('Synthetos');
+        await expect(brand.locator('strong')).toBeHidden();
+        const account = await page.locator('.account-button').boundingBox();
+        expect(account).not.toBeNull();
+        expect((account?.x ?? 0) + (account?.width ?? 0)).toBeLessThanOrEqual(320);
       }
       if (SCREENSHOTS) await page.locator('.topbar').screenshot({ path: `${SHOT_DIR}topbar-${theme}-${width}.png` });
     }

@@ -10,7 +10,9 @@ synthetos.com follows in slice 5.
 
 - **Top bar.** The crosshair, "Synthetos" and the wordmark, one link home. The wordmark's x-height sits on the cap
   height of "Synthetos". Its letters are ink and its arc is `--blue`, so it follows the theme. On a phone (narrower
-  than 650 px) the wordmark hides, as the grey "Run" text did before it.
+  than 650 px) the wordmark hides, as the grey "Run" text did before it; on a narrow phone (400 px and under) the
+  name hides too and the crosshair alone stands for the brand, so the level switch, theme toggle and account button
+  fit on screen. The link is named "Synthetos Run" at every width.
 - **Tab icon.** The `n` alone on paper. The 192 and 512 px app icons keep the drafting-paper composition and carry the
   `n` in the title block where "RUN" was. The maskable and monochrome icons follow suit.
 - **README.** The wordmark at the top, the dark file when GitHub is in its dark theme.
