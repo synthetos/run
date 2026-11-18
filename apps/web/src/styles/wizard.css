@@ -27,7 +27,7 @@ li[data-mark="done"] .wizard-step-mark { border-color: var(--ok); color: var(--o
 .wizard-close { position: absolute; top: 10px; right: 10px; }
 .wizard-line { font-size: 13px; line-height: 1.55; color: var(--muted); margin: 0 0 10px; }
 .wizard-headline { font-size: 14px; font-weight: 600; color: var(--ink); margin: 0 0 6px; }
-.wizard-covers { margin: 0 0 14px; padding-left: 18px; font-size: 13.5px; line-height: 1.7; }
+.wizard-covers { margin: 0 0 14px; padding-left: 18px; list-style: disc; font-size: 13.5px; line-height: 1.7; }
 /* Fields are sized to their content (spec §6.3). */
 .wizard-field-row { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end; margin: 0 0 14px; }
 .wizard-field { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--muted); }
@@ -91,3 +91,5 @@ table.wizard-facts tr + tr th, table.wizard-facts tr + tr td { border-top: 1px s
 /* Step 4: without switches the step shows the existing Set machine zero control (homing.ts HomeQuick, unchanged)
    and hides its Home button: homing moves the machine and Pause and Stop are under the wizard's lock. */
 .wizard-homing .home-quick .motion-recovery > :nth-child(1) { display: none; }
+/* HomeQuick's side padding fits the Job page's inspector; in the step it lines up with the cards above it. */
+.wizard-homing .home-quick { padding: 4px 0 0; }

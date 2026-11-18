@@ -7,10 +7,23 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 import { setupRecord } from './accountRecords.ts';
-import { open, shot as shotIn, wizard } from './wizardPage.ts';
+import { connect, next, open, shot as shotIn, step, wizard } from './wizardPage.ts';
 
 const SHOT_DIR = new URL('../../../docs/design/screenshots/wizard-fixes/', import.meta.url).pathname;
+const WALK_DIR = new URL('../../../docs/design/screenshots/setup-wizard/', import.meta.url).pathname;
 const shot = (page: Page, name: string): Promise<void> => shotIn(page, SHOT_DIR, name);
+
+/** Nothing in the step body runs off sideways, and no step text is centred (owner 145, 148). */
+async function expectTidy(page: Page): Promise<void> {
+  const g = await page.locator('.wizard-body').evaluate((body) => ({
+    overflow: body.scrollWidth - body.clientWidth,
+    centred: [...body.querySelectorAll('p, li, label, strong, h3, td, th, summary')].filter((el) => getComputedStyle(el).textAlign === 'center').map((el) => el.textContent?.slice(0, 40)),
+    wide: [...body.querySelectorAll('input[type="checkbox"], input[type="radio"]')].filter((el) => el.getBoundingClientRect().width > 20).length,
+  }));
+  expect(g.overflow).toBeLessThanOrEqual(1);
+  expect(g.centred).toEqual([]);
+  expect(g.wide).toBe(0);
+}
 
 const C1_LINES = [
   'A hardwired E-stop that removes motor and spindle power is installed and I tested it today.',
@@ -82,6 +95,20 @@ function expectC1Layout(g: C1Geometry): void {
 }
 
 for (const theme of ['light', 'dark'] as const) {
+  test(`146: a board on 449.01 with a list whose newest is 450.06 is never "current" (${theme})`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme: theme });
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const { worker } = await open(page, [setupRecord({ step: 3, done: [1, 2] })], 3);
+    await page.removeLocatorHandler(page.locator('[data-action="firmware-offer-later"]'));
+    await connect(worker, { fb: 449.01, fv: 0.97, hv: 8, layout: 10002 });
+    await expect(page.locator('[data-firmware-step="text"]')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('[data-firmware-step="current"]')).toHaveCount(0);
+    await expect(wizard(page).locator('table.wizard-facts')).toContainText('TinyG 449.01');
+    await expect(wizard(page).locator('table.wizard-facts')).toContainText('TinyG 450.06');
+    await expect(page.locator('[data-action="wizard-skip"]')).toHaveCount(0);
+    await shot(page, `step-3-449-${theme}-1280`);
+  });
+
   for (const width of [1280, 960] as const) {
     test(`145: C1 opened from the wizard has its checkbox at the left of each line and sits above the frame (${theme}, ${width})`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: theme });
@@ -137,6 +164,54 @@ for (const theme of ['light', 'dark'] as const) {
       await expect(catalog).toHaveCount(0);
       await expect(wizard(page).locator('[data-wizard="tool"]')).toContainText('6.35 mm');
       await expect(page.locator('[data-wizard-step="5"]')).toBeVisible();
+    });
+
+    test(`every step is tidy with the board connected (${theme}, ${width})`, async ({ page }) => {
+      test.setTimeout(90_000);
+      await page.emulateMedia({ colorScheme: theme });
+      await page.setViewportSize({ width, height: width === 1280 ? 800 : 700 });
+      const tag = `${theme}-${width}`;
+      const walk = (name: string): Promise<void> => (theme === 'light' && width === 1280 ? Promise.resolve() : shotIn(page, WALK_DIR, name));
+      const { worker } = await open(page);
+      await expectTidy(page);
+      await walk(`step-1-${tag}`);
+      await next(page).click();
+      // 2 Machine: before and after the board connects.
+      await expect(step(page, 2)).toBeVisible();
+      await expectTidy(page);
+      await connect(worker);
+      await expect(page.locator('[data-wizard="board"]')).toBeVisible({ timeout: 15_000 });
+      await expectTidy(page);
+      await walk(`step-2-${tag}`);
+      await next(page).click();
+      // 3 Firmware: the simulated 450.02 against a list naming 450.06.
+      await expect(page.locator('[data-firmware-step="text"]')).toBeVisible({ timeout: 15_000 });
+      await expectTidy(page);
+      await walk(`step-3-${tag}`);
+      await next(page).click();
+      // 4 Homing, with the no-switches card chosen (it shows Set machine zero).
+      await expect(step(page, 4)).toBeVisible();
+      await page.locator('input[name="wizard-homing"][value="none"]').check();
+      await expect(wizard(page).locator('[data-region="home-quick"]')).toBeVisible();
+      await expectTidy(page);
+      await walk(`step-4-${tag}`);
+      await next(page).click();
+      await expect(step(page, 5)).toBeVisible();
+      await expectTidy(page);
+      await next(page).click();
+      // 6 First project with "New project" chosen (its name field opens inside the card).
+      await expect(step(page, 6)).toBeVisible();
+      await page.locator('input[name="wizard-project"][value="new"]').check();
+      await expect(page.locator('[data-wizard="project-name"]')).toBeVisible();
+      await expectTidy(page);
+      await walk(`step-6-new-${tag}`);
+      await page.locator('input[name="wizard-project"][value="demo"]').check();
+      await next(page).click();
+      await expect(step(page, 7)).toBeVisible({ timeout: 30_000 });
+      await expectTidy(page);
+      await page.locator('.wizard details').first().locator('summary').click();
+      await expectTidy(page);
+      await walk(`step-7-${tag}`);
     });
 
     test(`147: Create a tool opens the editor above the frame, never cut to it (${theme}, ${width})`, async ({ page }) => {
