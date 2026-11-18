@@ -30,6 +30,7 @@
  *
  * Exit status: 0 pass, 1 findings, 2 could not run.
  */
+import { PROPAGATION_RETRY, untilClean } from './retry.ts';
 import { checkStorage } from './storage.ts';
 import { Resolver } from 'node:dns/promises';
 import { connect } from 'node:tls';
@@ -241,7 +242,8 @@ async function run(argv: readonly string[]): Promise<SmokeFinding[]> {
   }
   await settle(host);
   const findings: SmokeFinding[] = [];
-  findings.push(...(await guard('http', () => httpChecks(`https://${host}`, env))));
+  // The edge may still answer with the previous version for a few seconds after the deploy (retry.ts).
+  findings.push(...(await untilClean(() => guard('http', () => httpChecks(`https://${host}`, env)), PROPAGATION_RETRY)));
   if (env === 'staging') {
     findings.push(...(await guard('access', () => accessApi(host))));
     findings.push(...checkPublicGate(`https://${host}/`, await probe(`https://${host}/`), false));
