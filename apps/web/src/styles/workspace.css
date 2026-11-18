@@ -1147,24 +1147,14 @@ code.block { display: block; white-space: pre-wrap; word-break: break-word; padd
 .tone-info .check-label { color: var(--muted); }
 .check-value { font-weight: 600; font-variant-numeric: tabular-nums; }
 
-/* The job card: top of the Run view. */
-.job-card { position: relative; flex: none; display: grid; grid-template-columns: minmax(180px, 260px) minmax(0, 1fr) auto; align-items: center; gap: 10px 18px; margin: 12px 20px 10px; padding: 10px 14px 10px 12px; border: 1px solid var(--rule); border-left: 3px solid var(--tan); border-radius: var(--r); background: var(--sheet); z-index: var(--z-panel); }
-.job-card.empty { border-left-color: var(--rule); }
-.job-id { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.job-icon { width: 36px; height: 36px; border-radius: var(--r-sm); display: grid; place-items: center; flex: none; background: var(--tan-wash); color: var(--tan); }
-.job-card.empty .job-icon { background: var(--paper); color: var(--muted); }
-.job-name { min-width: 0; }
-.job-name h1 { font-size: 19px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.job-name p { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.job-name .mono { font-size: 11.5px; }
+/* The job's file block at step 3 (spec §7): name and lines, the picker, Close job, Save to project. */
+.job-file-block { padding: 12px 14px 10px; border-bottom: 1px solid var(--rule); }
+.job-file-line { margin: 4px 0 8px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.job-file-line .mono { font-size: 11.5px; color: var(--ink); }
+.job-file-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.job-file-actions .file-button { min-height: 32px; gap: 6px; padding: 0 12px; font-size: 12.5px; }
+.job-project { margin: 8px 0 0; }
 .job-checks { display: flex; flex-wrap: wrap; gap: 6px 16px; min-width: 0; }
-.job-actions { display: flex; align-items: center; gap: 10px; }
-.job-actions .flow { margin: 0; grid-template-columns: repeat(3, auto); gap: 0; }
-.job-actions .flow li { border-top: 0; padding: 0 10px 0 0; position: relative; white-space: nowrap; }
-.job-actions .flow li + li::before { content: ''; width: 12px; height: 1px; background: var(--field); margin-right: 8px; }
-.job-actions .flow li.done { color: var(--ok); }
-.job-actions .file-button { min-height: 36px; gap: 6px; padding: 0 12px; font-size: 12.5px; }
-.job-actions button.primary { min-height: 36px; }
 .job-more { position: absolute; right: 14px; bottom: -11px; }
 .job-more > summary { list-style: none; cursor: pointer; font-size: 11.5px; color: var(--blue); background: var(--sheet); border: 1px solid var(--rule); border-radius: 11px; padding: 1px 10px; }
 .job-more > summary::-webkit-details-marker { display: none; }
@@ -1206,22 +1196,7 @@ code.block { display: block; white-space: pre-wrap; word-break: break-word; padd
 .pin-name small { display: block; font-weight: 400; color: var(--muted); font-size: 11px; }
 .pin-set { color: var(--muted); text-align: right; }
 
-@media (max-height: 800px) and (min-width: 651px) {
-  .job-card { margin: 8px 20px 8px; padding: 6px 12px 6px 10px; }
-  .job-icon { width: 30px; height: 30px; }
-  .job-name h1 { font-size: 17px; }
-}
-@media (min-width: 1700px) { .job-card { margin: 14px 28px 12px; } }
-@media (max-width: 1500px) {
-  .job-actions { display: grid; grid-template-columns: auto auto; justify-items: end; gap: 6px 8px; }
-  .job-actions .flow { grid-column: 1 / -1; }
-}
-@media (max-width: 1300px) {
-  .job-card { grid-template-columns: minmax(150px, 200px) minmax(0, 1fr) auto; gap: 8px 14px; }
-}
 @media (max-width: 650px) {
-  .job-card { grid-template-columns: 1fr; margin: 10px 12px; }
-  .job-actions { flex-wrap: wrap; justify-content: flex-start; }
   .job-pop { width: calc(100vw - 40px); }
   .job-details { grid-template-columns: 1fr; }
 }
@@ -1388,7 +1363,6 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 .map-table td .unit-input, .map-table td .select-wrap { max-width: 190px; }
 /* The rail shows the current view at once: no fade that can leave the previous view looking selected. */
 .rail button { transition: none; }
-.job-card { grid-template-columns: minmax(180px, 250px) minmax(0, 1fr) auto; padding-top: 8px; padding-bottom: 8px; }
 .job-checks { column-gap: 12px; }
 .check-row[title] { cursor: help; }
 /* The Connect card heads the Run inspector: machine things on the right, the job on the left. */
@@ -1437,7 +1411,6 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
    document), so the 3D view keeps a usable height while a job is being set up. */
 @media (max-height: 800px) and (min-width: 651px) {
   .job-prep { max-height: 132px; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; }
-  .job-card { margin-top: 8px; margin-bottom: 6px; padding-top: 8px; padding-bottom: 8px; }
   .job-steps { padding-top: 7px; }
   .run-view { overflow-y: auto; }
   .run-view > .run-grid { min-height: 430px; }
@@ -1479,13 +1452,9 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 .spindle-help, .catalogue-help { display: flex; justify-content: flex-end; margin-top: 8px; }
 .connect-notice .notice-text > .context-help { margin-left: 8px; }
 
-/* ---------- Job model (FLOW_ANALYSIS §4 steps 1-4): identity, Use in Job, drawing import, the one scene ---------- */
-.job-identity { font-size: 11.5px; color: var(--muted); margin-top: 2px; white-space: normal; line-height: 1.35; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; }
-.job-identity [data-job="name"] { color: var(--ink); font-weight: 600; }
-.job-identity [data-bed="placeholder"] { color: var(--warn); }
-.job-save { display: inline-flex; align-items: center; gap: 6px; margin-left: 6px; }
-.job-save select { font-size: 11.5px; min-height: 24px; padding: 0 6px; max-width: 160px; }
-.job-name [data-job="note"] { white-space: normal; }
+/* ---------- Job model (FLOW_ANALYSIS §4 steps 1-4): Save to project, Use in Job, drawing import, the one scene ---------- */
+.job-save { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0 0; }
+.job-save select { font-size: 11.5px; min-height: 28px; padding: 0 6px; max-width: 160px; }
 .use-menu { position: relative; display: inline-flex; }
 .use-menu-list.account-menu { top: 30px; right: 0; left: auto; width: 240px; }
 .use-menu-list .menu-item { width: 100%; text-align: left; }
@@ -1518,11 +1487,6 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 
 /* One Job: preparation, shared scene, and the live machine. */
 .job-view { position: relative; }
-.job-view .job-card { display: flex; align-items: flex-start; gap: 12px; padding: 10px 14px; margin-bottom: 8px; }
-.job-view .job-card .job-id { flex: 1; min-width: 0; }
-.job-view .job-actions { flex: none; display: flex; flex-wrap: wrap; gap: 6px; }
-.job-view .job-identity { font-size: 12px; }
-.job-view .job-save { margin-left: 0; }
 .job-step-bar { flex: none; display: flex; gap: 4px; margin: 0 20px 10px; padding: 4px; border: 1px solid var(--rule); border-radius: var(--r); background: var(--sheet); overflow-x: auto; }
 .job-step-bar button { flex: 1; min-width: 0; justify-content: flex-start; gap: 9px; min-height: 52px; border: 0; background: transparent; text-align: left; padding: 8px 10px; color: var(--muted); }
 .job-step-bar button > span:last-child { min-width: 0; }
@@ -1576,9 +1540,6 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 .job-view .viewer-top { flex-wrap: wrap; align-items: flex-start; }
 .job-view .viewer-options { max-width: 100%; }
 .job-view .viewer-options select { max-width: 260px; }
-.job-files-drawer { position: absolute; top: 74px; right: 20px; bottom: 16px; width: min(620px, calc(100% - 40px)); overflow: auto; background: var(--sheet); border: 1px solid var(--field); border-radius: var(--r); box-shadow: var(--pop); z-index: var(--z-panel); padding: 16px; }
-.job-files-content .file-row { grid-template-columns: 24px minmax(0, 1fr); }
-.job-files-content .row-actions { grid-column: 2; flex-wrap: wrap; }
 .library-view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 /* Library's own sections are the first thing on the page: a clear row of tabs under the heading, not a corner control. */
 .library-view > .library-head { flex-direction: column; align-items: stretch; gap: 4px; padding-bottom: 0; }
@@ -1600,7 +1561,6 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
   .job-view > .run-inspector { margin: 0 20px 14px; max-height: 320px; }
   .job-grid .canvas-column, .job-work-panel { min-height: 420px; }
   .job-step-bar button { min-width: 130px; }
-  .job-view .job-card { flex-wrap: wrap; }
 }
 @media (max-width: 650px) {
   .job-grid { display: flex; flex-direction: column; overflow: auto; }
@@ -1610,7 +1570,6 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
   .job-grid .run-inspector { flex: none; max-height: 400px; }
   .job-step-bar small { display: none; }
   .job-step-bar button { min-width: 115px; min-height: 42px; padding: 5px; }
-  .job-view .job-card .job-name > p:not(.job-identity) { display: none; }
   /* Wraps rather than scrolling: a scrolling box here is unreachable by keyboard (axe scrollable-region-focusable). */
   .job-view .viewer-options select { max-width: 130px; }
   .library-view > .view-head { flex-wrap: wrap; }
@@ -1619,9 +1578,6 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 
 @media (max-width: 650px) {
   .job-step-bar button { flex: none; min-width: max-content; padding: 6px 10px; }
-  .job-view .job-card .job-id { flex-basis: 100%; }
-  .job-view .job-card .job-actions { width: 100%; justify-content: flex-end; }
-  .job-view .job-card .job-name { min-width: 0; }
 }
 
 /* Simple level (OD-13): one screen, no tabs; the pane fits 1280x720 without scrolling. */
@@ -1684,12 +1640,12 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 /* Owner, 2026-11-04: one gutter for the Job view, so the job card, the step bar and the two panels start and end on the same edges as each other; nothing scrolls sideways. */
 .run-view.job-view { padding-right: 20px; }
 .job-main { padding-left: 20px; }
-.job-main > .job-card, .job-main > .job-step-bar { margin-left: 0; margin-right: 0; }
+.job-main > .job-step-bar { margin-left: 0; margin-right: 0; }
 .job-main > .job-grid { padding-left: 0; padding-right: 0; }
 .job-view > .run-inspector { margin-top: 12px; }
 .job-work-panel, .job-panel-scroll { overflow-x: hidden; }
 .job-work-panel button { max-width: 100%; white-space: normal; text-align: left; height: auto; }
-.job-main > .job-card { margin-top: 12px; }
+.job-main > .job-step-bar { margin-top: 12px; }
 .job-main > .job-grid { padding-bottom: 14px; }
 .job-view > .run-inspector { margin-bottom: 14px; }
 

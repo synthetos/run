@@ -12,6 +12,7 @@ import { RunPanel } from '../../run/RunPanel.ts';
 import { fileFacts, type FileFacts } from '../../samples.ts';
 import { JobStatus, type StopHooks } from '../JobViews.ts';
 import { JobSetupPanel } from '../SetupView.ts';
+import { JobFileBlock } from './fileBlock.ts';
 import { jobChecks, JobDetails } from './fileDetails.ts';
 
 export function stepStatus(step: typeof JOB_STEPS[number]['id'], parts: PreviewParts, model: WorkspaceModel | null): string {
@@ -48,6 +49,8 @@ export function JobWorkPanel({ parts, model, stops, onView }: { readonly parts: 
   return h('aside', { class: 'job-work-panel', id: 'job-work-panel', 'aria-label': 'Job preparation' },
     // The Run step is a column (owner, 2026-11-09): its list on top, the one tick and Start fixed under it, never scrolled away.
     h('div', { class: `job-panel-scroll${step === 'run' && !ui.active ? ' run-mode' : ''}`, tabindex: 0 },
+      // Step 3 opens the file (spec §7): the block is in the tree on every step, hidden, so the viewer's prompt can click its picker.
+      h(JobFileBlock, { parts, model, step }),
       h(JobSetupPanel, { step, locked: ui.active, onView, travel: placeTravelText({ connected: ui.connected, homed: ui.snapshot?.live.home === 1, travel: ui.job?.report?.travel }) }),
       fileCheckPanel({ step, ui, result, facts, onView }),
       h('section', { hidden: step !== 'run', 'data-job-panel': 'run' }, h('h2', null, ui.active ? 'Run job' : 'Ready to start?'),

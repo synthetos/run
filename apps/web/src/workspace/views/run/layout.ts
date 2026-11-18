@@ -14,7 +14,6 @@ import { ViewButtons } from '../../../preview/SceneView.ts';
 import { ViewerOptions } from '../../../preview/ViewerOptions.ts';
 import type { ViewerOverlayProps } from '../../../preview/ViewerOverlay.ts';
 import { ViewerOverlay } from '../../../preview/ViewerOverlay.ts';
-import { JobFiles } from '../../../projects/ProjectsView.ts';
 import { ContextHelp } from '../../../shell/ContextHelp.ts';
 import { Dock } from '../../dock/Dock.ts';
 import { pendingOpen, reopening } from '../../fileBridge.ts';
@@ -28,7 +27,6 @@ import { type StopHooks } from '../JobViews.ts';
 import { openFrom } from '../openRunFile.ts';
 import { OverrideControls } from '../OverrideControls.ts';
 import { RunBridge } from './bridge.ts';
-import { JobCard } from './fileCard.ts';
 import { RunInspector } from './inspector.ts';
 import { JobWorkPanel, stepStatus } from './steps.ts';
 import { TraverseToggle } from './traverses.ts';
@@ -44,7 +42,6 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
   const { state, actions, slots, scene } = parts;
   const simple = uiLevel.value.value !== 'advanced';
   const [preset, setPreset] = useState<ViewPreset>('iso');
-  const [files, setFiles] = useState(false);
   const step = jobStep.value;
   const active = jobUi(model?.live.value ?? null).active;
   useEffect(() => { if (active) jobStep.value = 'run'; }, [active]);
@@ -62,9 +59,9 @@ function RunLayout({ parts, model, onView, stops }: { readonly parts: PreviewPar
     h(
       'div',
       { class: 'job-main' },
-      h('div', null, h(JobCard, { parts, model, onView, onFiles: () => setFiles(!files) }), h(OverrideControls, { model })),
+      // The top "No file open" bar is gone (spec §7): the file opens at step 3, projects live in the Projects view.
+      h(OverrideControls, { model }),
       h('nav', { class: 'job-step-bar', 'aria-label': 'Job steps' }, JOB_STEPS.map((item, i) => h('button', { type: 'button', key: item.id, 'data-action': `job-step-${item.id}`, 'data-job-step': item.id, 'aria-current': step === item.id ? 'step' : undefined, 'aria-controls': 'job-work-panel', onClick: () => { jobStep.value = item.id; } }, h('span', { class: 'step-number' }, String(i + 1)), h('span', null, h('strong', null, item.label), h('small', null, stepStatus(item.id, parts, model)))))),
-      h('div', { class: 'job-files-drawer', hidden: !files, 'aria-label': 'Job files' }, files ? h(JobFiles, { onView: (view) => { if (view === 'job') setFiles(false); onView(view); } }) : null, h('button', { type: 'button', class: 'small', 'data-action': 'job-files-close', onClick: () => setFiles(false) }, 'Close files')),
       h(
         'div',
         { class: 'workspace-grid run-grid job-grid' },

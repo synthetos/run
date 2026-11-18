@@ -175,7 +175,7 @@ describe('Phase 1 control allowlist', () => {
     // Probe Z (SAFETY §4.5c): opening the card moves nothing; each probe command is the session's, after the touch test and C39.
     /^action:probe-open$/,
     /^action:machine-(review-settings|backups)$/,
-    /^action:job-(step-(machine|stock|place|check|run|back|next)|files|files-close|projects|close|library-machines|use-machine)$/,
+    /^action:job-(step-(machine|stock|place|check|run|back|next)|close|library-machines|use-machine)$/,
     /^view:(job|library|board|projects|analyze|settings|safety)$/,
     /^tab:(machines|tools|materials|gcode|terminal|live|notes|spindle|jog|home|zero|overrides|details|buy|cutting|overview|links|basics|safety|stock|fixture|bed|board|pin|mine|tinyg|settings|catalogue|catalog)$/,
     /^board-tab:(overview|motors|axes|inputs|io|comms|settings|backups|firmware)$/,

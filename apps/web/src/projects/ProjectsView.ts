@@ -1,21 +1,18 @@
 import { librarySavedText, librarySyncView } from '../workspace/cloud/librarySync.ts';
 import { accountProjects, projectDownload } from '../workspace/cloud/projectSyncState.ts';
 import { AccountProject } from './AccountProject.ts';
-/** Project navigation, account download prompts, and the Job files drawer. */
+/** Project navigation and account download prompts. */
 import { signal } from '@preact/signals';
 import { h, type ComponentChild } from 'preact';
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useRef } from 'preact/hooks';
 import { Icon } from '../workspace/icons.ts';
-import { activeJob } from '../workspace/jobModel.ts';
 import { withProjects as act, projectStore } from './browserStore.ts';
 import { formatBytes } from './limits.ts';
 import { projectsState, projectUsage } from './store.ts';
 
 import { ProjectDetail } from './ProjectDetail.ts';
 import { ImportProject } from './ProjectZipActions.ts';
-import { DrawingImport } from './projectJobs.ts';
-import { dateText, Dropzone, FileRow, Thumb, type ImportRequest } from './projectMedia.ts';
-export type { ImportRequest } from './projectMedia.ts';
+import { dateText, Thumb } from './projectMedia.ts';
 export { projectStore };
 const selectedProjectId = signal<string | null>(null);
 
@@ -73,24 +70,3 @@ export function ProjectsView({ onView }: { readonly onView: (v: string) => void 
   );
 }
 
-/** Browse project files even when the current job is a demo or an empty draft. */
-export function JobFiles({ onView }: { readonly onView: (view: string) => void }): ComponentChild {
-  const [importing, setImporting] = useState<ImportRequest | null>(null);
-  const [note, setNote] = useState<string | null>(null);
-  const [browseId, setBrowseId] = useState<string | null>(null);
-  const job = activeJob.value;
-  const projects = projectsState.value.list;
-  const project = projects.find((p) => p.id === browseId) ?? projects.find((p) => p.id === job?.projectId) ?? projects.find((p) => p.id === selectedProjectId.value) ?? projects[0] ?? null;
-  useEffect(() => { void projectStore(); }, []);
-  useEffect(() => { setBrowseId(null); }, [job?.id]);
-  useEffect(() => { setImporting(null); setNote(null); }, [job?.id, project?.id]);
-  return h('section', { class: 'job-files-content' }, h('h2', null, 'Project files'),
-    project === null ? h('p', null, 'Create a project to add G-code, drawings and reference files.') : [
-      h('label', { class: 'field' }, h('span', null, 'Project'), h('select', { 'aria-label': 'Project files', value: project.id, onChange: (e: Event) => setBrowseId((e.currentTarget as HTMLSelectElement).value) }, projects.map((p) => h('option', { key: p.id, value: p.id }, p.name)))),
-      h(Dropzone, { project, onResult: (added, refused) => setNote([...added.map((n) => `Added ${n}`), ...refused].join('; ')) }),
-      h('ul', { class: 'file-list' }, project.files.map((file) => h(FileRow, { key: file.id, project, file, onView, onImport: setImporting, openLabel: 'Open as the job' }))),
-    ],
-    importing === null ? null : h(DrawingImport, { key: `${importing.file.id}:${importing.role}`, request: importing, onDone: (text) => { setImporting(null); setNote(text); } }),
-    note === null ? null : h('p', { role: 'status' }, note),
-    h('button', { type: 'button', class: 'small', 'data-action': 'job-projects', onClick: () => { if (project !== null) selectedProjectId.value = project.id; onView('projects'); } }, project === null ? 'Create or open a project' : 'Open project details'));
-}

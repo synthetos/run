@@ -10,7 +10,7 @@ import { root, text } from './tree.ts';
 
 describe('job page text sweep (spec §7)', () => {
   it('the account notice has no "never need an account" line', () => {
-    expect(text(root(h(AccountNotice, {})))).not.toContain('never need an account');
+    expect(text(root(h(AccountNotice, { signInHref: null })))).not.toContain('never need an account');
   });
 
   it('step 4 hints what Check does when no file is open', () => {
