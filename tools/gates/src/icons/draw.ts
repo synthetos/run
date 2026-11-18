@@ -3,17 +3,20 @@
  * maskable and a monochrome icon"), drawn from geometry so they are
  * reproducible and reviewable: drafting paper with the fine grid, the
  * synthetos.com crosshair mark in pencil-blue, an ink frame and a title block
- * reading RUN. Safety colours are never used (RUN_PLAN §7.1: nothing
- * decorative may resemble the safety bar).
+ * holding the run n mark (first-run design §4), drawn from the wordmark's own
+ * numbers by mark.ts. The 32 px tab icon is the n alone on paper. Safety
+ * colours are never used (RUN_PLAN §7.1: nothing decorative may resemble the
+ * safety bar).
  *
- * Shapes are defined on a 512-unit canvas and sampled 4×4 per pixel. Only
- * +, −, ×, ÷ and Math.sqrt are used (all correctly rounded in IEEE 754), so
- * every platform draws identical pixels and the committed PNGs can be
- * checked against a fresh render.
+ * Shapes are defined on a 512-unit canvas and sampled 4×4 per pixel (see
+ * shapes.ts for the arithmetic rule that keeps every platform's pixels equal).
  */
+import { WORDMARK_GEOMETRY } from '../../../../apps/web/src/brand/wordmarkGeometry.ts';
+import { MARK_BOX, markPrimitives, markShapes } from './mark.ts';
 import type { Image } from './png.ts';
+import { any, rect, ring, type Shape } from './shapes.ts';
 
-export type Variant = 'any' | 'maskable' | 'monochrome';
+export type Variant = 'any' | 'maskable' | 'monochrome' | 'mark';
 
 type RGBA = readonly [number, number, number, number];
 
@@ -30,88 +33,38 @@ function rgba(hex: string, alpha = 255): RGBA {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255, alpha];
 }
 
-/** A shape: does the canvas point (x, y) lie inside it? */
-type Shape = (x: number, y: number) => boolean;
-
-const rect = (x0: number, y0: number, x1: number, y1: number): Shape => (x, y) => x >= x0 && x < x1 && y >= y0 && y < y1;
-
-/** A ring between radii r0 and r1 around (cx, cy), optionally limited to one side of y = cy. */
-const ring = (cx: number, cy: number, r0: number, r1: number, half: 'all' | 'top' | 'bottom' = 'all'): Shape => (x, y) => {
-  if (half === 'top' && y > cy) return false;
-  if (half === 'bottom' && y < cy) return false;
-  const d = Math.sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
-  return d >= r0 && d <= r1;
-};
-
-/** A stroke of width w from (x0, y0) to (x1, y1), with square ends. */
-const segment = (x0: number, y0: number, x1: number, y1: number, w: number): Shape => {
-  const dx = x1 - x0;
-  const dy = y1 - y0;
-  const len = Math.sqrt(dx * dx + dy * dy);
-  const ux = dx / len;
-  const uy = dy / len;
-  return (x, y) => {
-    const px = x - x0;
-    const py = y - y0;
-    const along = px * ux + py * uy;
-    const across = -px * uy + py * ux;
-    return along >= -w / 2 && along <= len + w / 2 && across >= -w / 2 && across <= w / 2;
-  };
-};
-
-const any = (...shapes: Shape[]): Shape => (x, y) => shapes.some((s) => s(x, y));
-const both = (a: Shape, b: Shape): Shape => (x, y) => a(x, y) && b(x, y);
-
 /** The crosshair mark of the synthetos.com wordmark, centred on (cx, cy). */
-function mark(cx: number, cy: number, r: number, stroke: number): Shape {
+function crosshair(cx: number, cy: number, r: number, stroke: number): Shape {
   const reach = r + stroke * 2.2;
   return any(
-    ring(cx, cy, r - stroke / 2, r + stroke / 2),
+    ring({ x: cx, y: cy }, r - stroke / 2, r + stroke / 2),
     rect(cx - reach, cy - stroke / 2, cx + reach, cy + stroke / 2),
     rect(cx - stroke / 2, cy - reach, cx + stroke / 2, cy + reach),
   );
 }
 
-/** "RUN" in drafting block letters, cap height h, top-left at (x, y). */
-function run(x: number, y: number, h: number): Shape {
-  const s = h * 0.2; // stroke
-  const w = h * 0.62; // letter width
-  const gap = h * 0.26;
-  // The R's bowl spans from the top to the bottom of its middle bar.
-  const bowl = (h * 0.5 + s / 2) / 2;
-  const box = (lx: number): Shape => rect(lx, y, lx + w, y + h);
-  const r = (lx: number): Shape =>
-    any(
-      rect(lx, y, lx + s, y + h),
-      rect(lx, y, lx + w - bowl, y + s),
-      rect(lx, y + h * 0.5 - s / 2, lx + w - bowl, y + h * 0.5 + s / 2),
-      (px, py) => px >= lx + w - bowl && ring(lx + w - bowl, y + bowl, bowl - s, bowl)(px, py),
-      both(box(lx), segment(lx + w * 0.4, y + h * 0.5, lx + w, y + h, s * 1.1)),
-    );
-  const u = (lx: number): Shape =>
-    any(
-      rect(lx, y, lx + s, y + h - w / 2),
-      rect(lx + w - s, y, lx + w, y + h - w / 2),
-      ring(lx + w / 2, y + h - w / 2, w / 2 - s, w / 2, 'bottom'),
-    );
-  const n = (lx: number): Shape =>
-    any(rect(lx, y, lx + s, y + h), rect(lx + w - s, y, lx + w, y + h), both(box(lx), segment(lx, y, lx + w, y + h, s * 1.1)));
-  return any(r(x), u(x + w + gap), n(x + 2 * (w + gap)));
-}
-
-/** Width of the RUN lettering for cap height h. */
-const runWidth = (h: number): number => 3 * h * 0.62 + 2 * h * 0.26;
+const N_MARK = markPrimitives(WORDMARK_GEOMETRY);
 
 interface Layer {
   readonly shape: Shape;
   readonly colour: RGBA;
 }
 
-function layers(variant: Variant): Layer[] {
+/** The tab icon: the n alone on paper, MARK_BOX fitted inside a 48-unit margin. */
+function markLayers(): Layer[] {
+  const scale = (512 - 2 * 48) / MARK_BOX.h;
+  const n = markShapes(N_MARK, { x: 256 - (MARK_BOX.w * scale) / 2, y: 48, scale });
+  return [
+    { shape: () => true, colour: rgba(ICON_COLOURS.paper) },
+    { shape: n.ink, colour: rgba(ICON_COLOURS.ink) },
+    { shape: n.blue, colour: rgba(ICON_COLOURS.blue) },
+  ];
+}
+
+/** The drafting-paper composition of the app icons. */
+function paperLayers(variant: 'any' | 'maskable' | 'monochrome'): Layer[] {
   const ink = rgba(ICON_COLOURS.ink);
   const blue = rgba(ICON_COLOURS.blue);
-  const paper = rgba(ICON_COLOURS.paper);
-  const gridColour = rgba(ICON_COLOURS.grid);
   const white = rgba('#ffffff');
   // Maskable icons keep everything, frame corners included, inside the
   // safe zone (a centred circle of 40% radius): 228 × 0.6 × √2 < 204.8.
@@ -120,26 +73,25 @@ function layers(variant: Variant): Layer[] {
   const grid: Shape = (x, y) => (x % 32 < 3 || y % 32 < 3) && x > 0 && y > 0;
   const frame = any(rect(at(28), at(28), at(484), at(40)), rect(at(28), at(472), at(484), at(484)), rect(at(28), at(28), at(40), at(484)), rect(at(472), at(28), at(484), at(484)));
   const titleRule = rect(at(28), at(368), at(484), at(380));
-  const capH = 64 * k;
-  const lettering = run(256 - runWidth(capH) / 2, at(392), capH);
-  const crosshair = mark(256, at(200), 92 * k, 22 * k);
+  // The title block (380..472) holds the n with a 56-unit stem: 24 geometry units → 56 canvas units.
+  const scale = (56 / 24) * k;
+  const n = markShapes(N_MARK, { x: 256 - (MARK_BOX.w * scale) / 2, y: at(389), scale });
+  const mark = crosshair(256, at(200), 92 * k, 22 * k);
   if (variant === 'monochrome') {
-    return [
-      { shape: frame, colour: white },
-      { shape: titleRule, colour: white },
-      { shape: crosshair, colour: white },
-      { shape: lettering, colour: white },
-    ];
+    return [frame, titleRule, mark, n.ink, n.blue].map((shape) => ({ shape, colour: white }));
   }
   return [
-    { shape: () => true, colour: paper },
-    { shape: grid, colour: gridColour },
+    { shape: () => true, colour: rgba(ICON_COLOURS.paper) },
+    { shape: grid, colour: rgba(ICON_COLOURS.grid) },
     { shape: frame, colour: ink },
     { shape: titleRule, colour: ink },
-    { shape: crosshair, colour: blue },
-    { shape: lettering, colour: ink },
+    { shape: mark, colour: blue },
+    { shape: n.ink, colour: ink },
+    { shape: n.blue, colour: blue },
   ];
 }
+
+const layers = (variant: Variant): Layer[] => (variant === 'mark' ? markLayers() : paperLayers(variant));
 
 /** Renders one icon at `size` × `size` pixels. */
 export function drawIcon(size: number, variant: Variant): Image {
@@ -178,7 +130,7 @@ export function drawIcon(size: number, variant: Variant): Image {
 
 /** Every icon file the build ships, under apps/web/public/icons/. */
 export const ICONS: readonly { readonly file: string; readonly size: number; readonly variant: Variant }[] = Object.freeze([
-  { file: 'icon-32.png', size: 32, variant: 'any' },
+  { file: 'icon-32.png', size: 32, variant: 'mark' },
   { file: 'icon-192.png', size: 192, variant: 'any' },
   { file: 'icon-512.png', size: 512, variant: 'any' },
   { file: 'icon-maskable-512.png', size: 512, variant: 'maskable' },

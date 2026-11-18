@@ -1312,9 +1312,7 @@
       "max-lines-per-function $/ObjectExpression:noCapabilityLookup#1/FunctionExpression:create#1": 100
     },
     "tools/gates/src/icons/draw.ts": {
-      "max-depth $/FunctionDeclaration:drawIcon#1": 6,
-      "max-params $/ArrowFunctionExpression:ring#1": 5,
-      "max-params $/ArrowFunctionExpression:segment#1": 5
+      "max-depth $/FunctionDeclaration:drawIcon#1": 6
     },
     "tools/gates/src/repro/cli.ts": {
       "complexity $/FunctionDeclaration:main#1": 23
