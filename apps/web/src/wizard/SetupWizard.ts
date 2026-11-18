@@ -10,7 +10,10 @@ import { useEffect } from 'preact/hooks';
 import { pageGate } from '../gate/SignInGate.ts';
 import { setupView } from '../workspace/cloud/setupSync.ts';
 import type { WorkspaceModel } from '../workspace/model.ts';
+import { projectsState } from '../projects/store.ts';
 import { closeSetup, finishStep, skipStep } from './setupActions.ts';
+import { Done, DONE_LEAD, DONE_TITLE } from './steps/Done.ts';
+import { Welcome, WELCOME_LEAD, WELCOME_TITLE } from './steps/Welcome.ts';
 import { WizardFrame } from './WizardFrame.ts';
 import { currentStep, NEXT_LABEL, railMarks, STEPS, wizardOpen, type StepId } from './wizardState.ts';
 
@@ -23,10 +26,23 @@ export interface WizardContext {
 
 interface StepView { readonly title: string; readonly lead: string; readonly body: ComponentChild; readonly nextDisabled?: boolean; readonly next?: () => void }
 
+/** Step 7's primary: the wizard is over; it never opens again on its own (Preferences brings it back). */
+function finishWizard(ctx: WizardContext): void {
+  finishStep(7, { dismissed: true });
+  ctx.onView('job');
+}
+
 /** The step's content; each step module fills its own case. */
 function stepView(step: StepId, ctx: WizardContext): StepView {
-  void ctx;
-  return { title: STEPS[step - 1]?.label ?? '', lead: '', body: null };
+  switch (step) {
+    case 1: return { title: WELCOME_TITLE, lead: WELCOME_LEAD, body: h(Welcome, null) };
+    case 7: {
+      const id = setupView.value.record?.projectId ?? null;
+      const name = id === null ? null : projectsState.value.list.find((p) => p.id === id)?.name ?? null;
+      return { title: DONE_TITLE, lead: DONE_LEAD, body: h(Done, { projectName: name, onView: ctx.onView }), next: () => finishWizard(ctx) };
+    }
+    default: return { title: STEPS[step - 1]?.label ?? '', lead: '', body: null };
+  }
 }
 
 export function SetupWizard(p: WizardContext): ComponentChild {
