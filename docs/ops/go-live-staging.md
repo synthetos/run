@@ -125,7 +125,7 @@ run's staging Worker binds `accounts-staging`, so accounts must exist first.
    - apply the migrations to `identity-staging`;
    - register run's client (`clients/staging.sql`);
    - deploy;
-   - the public check again (anonymous `/` and `/login` must reach the Worker, not an Access login); if it fails, the job deletes the staging Worker.
+   - the public check again (anonymous `/` and `/login` must reach the Worker, not an Access login; the Worker's own 503 before its secrets counts as reached); if it fails after a successful deploy, the job rolls staging back to the previous version.
 4. The `deploy-production` job then waits for your approval. **Do not approve it.** Reject it (its preflight would refuse the production placeholders anyway).
 
 **Check.** The `deploy-staging` job is green, and `staging.accounts.synthetos.com` shows in Workers & Pages → `accounts-staging` → Domains. Until step 4.2 the Worker answers every request with a 503: without its secrets it fails closed.
