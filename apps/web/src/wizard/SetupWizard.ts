@@ -13,7 +13,9 @@ import type { WorkspaceModel } from '../workspace/model.ts';
 import type { MachineProfile } from '@synthetos/library';
 import { projectsState } from '../projects/store.ts';
 import { saveSetup } from '../workspace/cloud/setupSync.ts';
-import { machineStore, selectedMachineStore, toolStore } from '../workspace/library.ts';
+import { machineStore, selectedMachineStore, toolStore, type ToolEntry } from '../workspace/library.ts';
+import { connected } from '../workspace/model.ts';
+import { boardLabel } from '../workspace/status.ts';
 import { CATALOGUE, type MachineTemplate } from '../workspace/machineDrawings.ts';
 import { boardOwner, draftFromMachine, draftFromTemplate, draftValid, saveDraft, type MachineDraft } from './machineDraft.ts';
 import { firmwareGate, firmwareState } from './firmwareStep.ts';
@@ -22,8 +24,8 @@ import { Done, DONE_LEAD, DONE_TITLE } from './steps/Done.ts';
 import { Firmware, FIRMWARE_LEAD, FIRMWARE_TITLE, firmwareUpdating, startUpdate } from './steps/Firmware.ts';
 import { boardMismatch } from './homingStep.ts';
 import { Homing, HOMING_LEAD, HOMING_TITLE } from './steps/Homing.ts';
-import { createDemo, createNamed } from './createDemo.ts';
-import { CREATE_LABEL, FirstProject, PROJECT_LEAD, PROJECT_TITLE, projectBusy, projectChoice, projectError, projectName } from './steps/FirstProject.ts';
+import { createDemo, createNamed, openExisting, type CreateResult } from './createDemo.ts';
+import { CREATE_LABEL, FirstProject, PROJECT_LEAD, PROJECT_TITLE, projectBusy, projectChoice, projectError, projectName, type ProjectChoice } from './steps/FirstProject.ts';
 import { fieldsFromStock, newToolSince, stockFromFields } from './stockFields.ts';
 import { catalogOpen, creatingTool, stockFields, ToolsStock, TOOLS_LEAD, TOOLS_TITLE, toolsBefore } from './steps/ToolsStock.ts';
 import { liveBoardId, Machine, MACHINE_LEAD, MACHINE_TITLE, machineDraft } from './steps/Machine.ts';
@@ -71,12 +73,15 @@ function draftFor(machineId: string | null, machines: readonly MachineProfile[])
   return mine === undefined ? draftFromTemplate(CATALOGUE[0] as MachineTemplate) : draftFromMachine(mine);
 }
 
-/** Step 3: the offer decides; `needed` hides Skip and holds Next (the frame reads `skippable` from here). */
+/** Step 3: the offer decides; `needed` and `updating` hide Skip and hold Next; another board than the machine's refuses. */
 function firmwareStepView(ctx: WizardContext): StepView {
-  const state = firmwareState(ctx.model?.live.value ?? null);
+  const view = ctx.model?.live.value ?? null;
+  const state = firmwareState(view, firmwareUpdating.value);
   const gate = firmwareGate(state);
-  const body = h(Firmware, { model: ctx.model, state, updating: firmwareUpdating.value, onUpdate: () => startUpdate(state) });
-  return { title: FIRMWARE_TITLE, lead: FIRMWARE_LEAD, body, nextDisabled: !gate.nextEnabled, skippable: gate.skippable };
+  const machine = machineStore.value.value.find((m) => m.id === setupView.value.record?.machineId) ?? null;
+  const mismatch = boardMismatch(liveBoardId(ctx.model), machine);
+  const body = h(Firmware, { model: ctx.model, state, updating: firmwareUpdating.value, onUpdate: () => startUpdate(state), board: view !== null && connected(view) ? boardLabel(view) : null, mismatch });
+  return { title: FIRMWARE_TITLE, lead: FIRMWARE_LEAD, body, nextDisabled: !gate.nextEnabled || mismatch !== null, skippable: gate.skippable };
 }
 
 /** Step 4: the choice is written as it is made (R3); the step refuses another board than the machine's. */
@@ -87,13 +92,17 @@ function homingStepView(ctx: WizardContext): StepView {
   return { title: HOMING_TITLE, lead: HOMING_LEAD, body, nextDisabled: (record?.homing ?? null) === null };
 }
 
-/** Step 5: the tool added while the step is open and the stock saved to the record; both written as they happen. */
+/** The tool added since step 5 opened, or null (the mount writes it to the record from an effect, never in render). */
+export function addedTool(): ToolEntry | null {
+  const tools = toolStore.value.value;
+  return newToolSince(toolsBefore.value ?? tools, tools);
+}
+
+/** Step 5: the tool added while the step is open and the stock saved to the record. */
 function toolsStockStepView(): StepView {
   const record = setupView.value.record;
   const tools = toolStore.value.value;
-  const before = toolsBefore.value ?? tools;
-  const added = newToolSince(before, tools);
-  if (added !== null && record?.toolId !== added.tool.id) saveSetup({ toolId: added.tool.id });
+  const added = addedTool();
   const tool = tools.find((e) => e.tool.id === (added?.tool.id ?? record?.toolId)) ?? null;
   const fields = stockFields.value ?? fieldsFromStock(record?.stock ?? null);
   const body = h(ToolsStock, {
@@ -105,6 +114,13 @@ function toolsStockStepView(): StepView {
   return { title: TOOLS_TITLE, lead: TOOLS_LEAD, body };
 }
 
+/** The demo, or the project a refused earlier press already made (never a second one). */
+function makeProject(choice: ProjectChoice): Promise<CreateResult> {
+  const record = setupView.peek().record;
+  if (choice === 'new') return createNamed(projectName.peek());
+  return record?.projectId == null ? createDemo(undefined, record?.stock ?? null) : openExisting(record.projectId);
+}
+
 /** Step 6: "Open project" makes the demo (with the stock from step 5) or an empty named project, then moves on. */
 function projectStepView(): StepView {
   const choice = projectChoice.value;
@@ -112,9 +128,13 @@ function projectStepView(): StepView {
     if (projectBusy.peek()) return;
     projectBusy.value = true; projectError.value = null;
     try {
-      const made = choice === 'demo' ? await createDemo(undefined, setupView.peek().record?.stock ?? null) : await createNamed(projectName.peek());
+      const made = await makeProject(choice);
       if (made.ok) finishStep(6, { projectId: made.projectId });
-      else projectError.value = made.reason;
+      else {
+        // The project exists even when its file could not open: remember it so a retry opens it instead.
+        if (made.projectId !== null) saveSetup({ projectId: made.projectId });
+        projectError.value = made.reason;
+      }
     } catch (error) {
       projectError.value = error instanceof Error ? error.message : 'The project could not be created.';
     } finally { projectBusy.value = false; }
@@ -144,19 +164,33 @@ function doneStepView(ctx: WizardContext): StepView {
   return { title: DONE_TITLE, lead: DONE_LEAD, body, next: () => finishWizard(ctx) };
 }
 
+/**
+ * A step's own state starts fresh when the step is left (Next, Skip, Close), synchronously in the handler: an
+ * effect on the step change ran after paint and could reset a draft the person had already started editing.
+ * `entering` captures the tool list for step 5's "added since" check; leaving the wizard clears it.
+ */
+function resetStepState(entering: boolean): void {
+  machineDraft.value = null;
+  firmwareUpdating.value = false;
+  stockFields.value = null; catalogOpen.value = false; creatingTool.value = false;
+  projectError.value = null; projectBusy.value = false;
+  toolsBefore.value = entering ? toolStore.value.peek() : null;
+}
+
 export function SetupWizard(p: WizardContext): ComponentChild {
   const showing = wizardShowing.value;
   const record = setupView.value.record;
   const step = currentStep(record);
-  // Keyboard first: every step starts on its heading. A step's own draft starts fresh each time it opens.
+  // Keyboard first: every step starts on its heading.
   useEffect(() => {
-    machineDraft.value = null;
-    firmwareUpdating.value = false;
-    stockFields.value = null; catalogOpen.value = false; creatingTool.value = false;
-    projectError.value = null; projectBusy.value = false;
-    toolsBefore.value = step === 5 ? toolStore.value.peek() : null;
     if (showing && typeof document !== 'undefined') document.getElementById('wizard-title')?.focus();
   }, [showing, step]);
+  // Step 5: the tool added while the step is open becomes the choice, written outside render.
+  const tools = toolStore.value.value;
+  useEffect(() => {
+    const added = step === 5 && showing ? addedTool() : null;
+    if (added !== null && setupView.peek().record?.toolId !== added.tool.id) saveSetup({ toolId: added.tool.id });
+  }, [tools, step, showing]);
   if (!showing) return null;
   const view = stepView(step, p);
   const skippable = view.skippable ?? STEPS[step - 1]?.skippable === true;
@@ -167,9 +201,9 @@ export function SetupWizard(p: WizardContext): ComponentChild {
       marks: railMarks(record),
       title: view.title,
       lead: view.lead,
-      primary: { label: view.nextLabel ?? NEXT_LABEL[step], onClick: view.next ?? (() => finishStep(step)), disabled: view.nextDisabled === true },
-      onSkip: skippable ? () => skipStep(step) : null,
-      onClose: closeSetup,
+      primary: { label: view.nextLabel ?? NEXT_LABEL[step], onClick: () => { const go = view.next ?? (() => finishStep(step)); resetStepState(true); go(); }, disabled: view.nextDisabled === true },
+      onSkip: skippable ? () => { resetStepState(true); skipStep(step); } : null,
+      onClose: () => { resetStepState(false); closeSetup(); },
     },
     view.body,
   );

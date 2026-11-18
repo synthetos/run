@@ -4,7 +4,7 @@ import type { ProjectStore } from '../src/projects/store.ts';
 import { SEED_TOOLS } from '../src/workspace/librarySeed.ts';
 import { toolStore } from '../src/workspace/library.ts';
 import { memoryRecordStore } from '../src/workspace/storage.ts';
-import { createDemo, createNamed } from '../src/wizard/createDemo.ts';
+import { createDemo, createNamed, openExisting } from '../src/wizard/createDemo.ts';
 import { DEMO_NAME, DEMO_TOOL } from '../src/wizard/demoProject.ts';
 
 function deps(lock: string | null = null) {
@@ -44,6 +44,22 @@ describe('createDemo (spec §6.3 step 6, §6.4)', () => {
     const d = deps();
     d.open.mockResolvedValueOnce({ ok: false, reason: 'No file.' } as never);
     expect(await createDemo(d.deps)).toMatchObject({ ok: false, reason: 'No file.' });
+  });
+});
+
+describe('openExisting (a retry after a refused open never makes a second project)', () => {
+  it('opens the project the record names; an unknown id or a lock is a reason, not a new project', async () => {
+    const d = deps();
+    const made = await createDemo(d.deps);
+    d.open.mockClear();
+    const again = await openExisting(made.projectId as string, d.deps);
+    expect(again).toMatchObject({ ok: true, projectId: made.projectId, name: DEMO_NAME, reason: null });
+    expect(d.open).toHaveBeenCalledWith(made.projectId, d.store.find(made.projectId as string)?.files[0]?.id);
+    expect(d.store.list).toHaveLength(1);
+    expect(await openExisting('no-such', d.deps)).toMatchObject({ ok: false, projectId: null, reason: 'That project no longer exists.' });
+    const locked = deps('A job is running.');
+    const first = await createDemo(locked.deps);
+    expect(await openExisting(first.projectId as string, locked.deps)).toMatchObject({ ok: false, projectId: first.projectId, reason: 'A job is running.' });
   });
 });
 

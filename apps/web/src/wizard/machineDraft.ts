@@ -3,7 +3,7 @@
  * record the account accepts, bound to the connected board's id when there is one. Pure except `saveDraft`, which
  * writes through the library adapter (the same store the Machines view uses, synced to the account by the bindings).
  */
-import type { MachineProfile } from '@synthetos/library';
+import type { MachineBed, MachineProfile } from '@synthetos/library';
 import { machineStore, placeholderBed, selectedMachineStore } from '../workspace/library.ts';
 import { CATALOGUE, type MachineTemplate } from '../workspace/machineDrawings.ts';
 
@@ -37,11 +37,18 @@ function templateOf(id: string): MachineTemplate {
   return CATALOGUE.find((t) => t.id === id) ?? (CATALOGUE[CATALOGUE.length - 1] as MachineTemplate);
 }
 
+/** The draft's bed over the machine's: a bed someone measured keeps its provenance while its sizes stand. */
+function bedFor(d: MachineDraft, previous: MachineBed | undefined, travel: MachineProfile['travel'], at: string): MachineBed {
+  const kept = previous !== undefined && previous.width === d.width && previous.depth === d.depth && previous.thickness === d.thickness;
+  const source = kept && previous !== undefined ? previous.source : { kind: 'placeholder' as const, note: BED_NOTE };
+  return { ...placeholderBed({ travel }), ...(previous ?? {}), width: d.width, depth: d.depth, thickness: d.thickness, revision: (previous?.revision ?? 0) + 1, source, savedAt: at };
+}
+
 /** The record for a draft: a new one, or `base` revised; `boardId` binds it to the connected board (R4). */
 export function machineFromDraft(d: MachineDraft, base: MachineProfile | null, boardId: string | null, at: string): MachineProfile {
   const t = templateOf(d.templateId);
   const travel = base?.travel ?? t.travel;
-  const bed = { ...placeholderBed({ travel }), ...(base?.bed ?? {}), width: d.width, depth: d.depth, thickness: d.thickness, revision: (base?.bed?.revision ?? 0) + 1, source: { kind: 'placeholder' as const, note: BED_NOTE }, savedAt: at };
+  const bed = bedFor(d, base?.bed, travel, at);
   const head: MachineProfile = base ?? { id: `m-${t.id}-${Date.parse(at).toString(36)}`, name: d.name, templateId: t.id, drive: t.drive, travel, spindle: 'Trim router', createdAt: at, revision: 0, homeFrame: 'front-left-top' };
   const { boardId: oldBoard, ...rest } = head;
   const bound = boardId ?? oldBoard;

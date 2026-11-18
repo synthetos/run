@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
 import { boardMismatch } from '../src/wizard/homingStep.ts';
-import { CONNECT_FOR_HOMING, Homing, HOMING_LEAD, HOMING_TITLE } from '../src/wizard/steps/Homing.ts';
+import { CONNECT_FOR_HOMING, HOME_LATER, Homing, HOMING_LEAD, HOMING_TITLE } from '../src/wizard/steps/Homing.ts';
 import { createWorkspaceModel, type LiveActions, type LiveView } from '../src/workspace/model.ts';
 import type { MachineProfile } from '../src/workspace/library.ts';
 import { snap, view } from './runMotionHarness.ts';
@@ -43,6 +43,14 @@ describe('step 4 Homing (render)', () => {
     expect(html).toContain('data-region="home-quick"');
     expect(html).toContain('class="wizard-homing" data-choice="none"');
     expect(html).not.toMatch(/E-stop|never need|Saved in this browser/);
+  });
+  it('with switches, homing waits for the Job page where Pause and Stop are in reach: no Home button in the frame', () => {
+    const html = renderToString(h(Homing, { ...base, model: connectedModel(), choice: 'switches' }));
+    expect(html).not.toContain('data-region="home-quick"');
+    expect(html).toContain(HOME_LATER);
+    const undecided = renderToString(h(Homing, { ...base, model: connectedModel(), choice: null }));
+    expect(undecided).not.toContain('data-region="home-quick"');
+    expect(undecided).not.toContain(HOME_LATER);
   });
   it('disconnected: the connect line and the Connect flow, no Home controls', () => {
     const html = renderToString(h(Homing, { ...base, model: null }));

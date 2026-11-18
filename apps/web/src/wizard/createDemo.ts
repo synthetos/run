@@ -50,6 +50,19 @@ export async function createDemo(deps: CreateDeps = LIVE, stock: Stock | null = 
   return opened.ok ? { ...result, ok: true, reason: null } : { ...result, ok: false, reason: opened.reason };
 }
 
+/** A retry after a refused open (a running job, a missing file): the project the record names, never a second one. */
+export async function openExisting(projectId: string, deps: CreateDeps = LIVE): Promise<CreateResult> {
+  const project = await deps.projects(async (s) => s.find(projectId));
+  if (project === null) return { ok: false, projectId: null, name: '', reason: 'That project no longer exists.' };
+  const result = { projectId: project.id, name: project.name };
+  const lock = deps.lock();
+  if (lock !== null) return { ...result, ok: false, reason: lock };
+  const file = project.files.find((f) => f.role === 'gcode');
+  if (file === undefined) return { ...result, ok: false, reason: 'This project has no G-code file yet.' };
+  const opened = await deps.open(project.id, file.id);
+  return opened.ok ? { ...result, ok: true, reason: null } : { ...result, ok: false, reason: opened.reason };
+}
+
 export async function createNamed(name: string, deps: CreateDeps = LIVE): Promise<CreateResult> {
   const project = await deps.projects((s) => s.create(name));
   return { ok: true, projectId: project.id, name: project.name, reason: null };

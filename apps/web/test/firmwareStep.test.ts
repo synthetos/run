@@ -31,36 +31,59 @@ describe('firmwareState follows updateOffer with no second rule', () => {
   it('the gate: needed is not skippable and holds Next; everything else is skippable with Next on', () => {
     const offer = (firmwareState(board(450.02)) as Extract<FirmwareState, { kind: 'available' }>).offer;
     expect(firmwareGate({ kind: 'needed', offer: { ...offer, kind: 'needed' } })).toEqual({ skippable: false, nextEnabled: false });
+    expect(firmwareGate({ kind: 'updating' })).toEqual({ skippable: false, nextEnabled: false });
     expect(firmwareGate({ kind: 'available', offer })).toEqual({ skippable: true, nextEnabled: true });
     expect(firmwareGate({ kind: 'current', fb: 450.06 })).toEqual({ skippable: true, nextEnabled: true });
     expect(firmwareGate({ kind: 'disconnected' })).toEqual({ skippable: true, nextEnabled: true });
+  });
+  it('updating: while the flash runs, or while the update was started and the session is closed (the flash closes it)', () => {
+    const flashing = board(450.02);
+    const withFlash = { ...flashing, message: { ...flashing.message, flash: { phase: 'write', wrote: true } } } as unknown as LiveView;
+    expect(firmwareState(withFlash)).toEqual({ kind: 'updating' });
+    expect(firmwareState(view(null), true)).toEqual({ kind: 'updating' });
+    expect(firmwareState(view(null), false)).toEqual({ kind: 'disconnected' });
+    // The flash is over and the board is back: the offer decides again.
+    const done = { ...flashing, message: { ...flashing.message, flash: { phase: 'done', wrote: true } } } as unknown as LiveView;
+    expect(firmwareState(done, true).kind).toBe('available');
   });
 });
 
 describe('step 3 Firmware (render)', () => {
   const model = createWorkspaceModel();
-  it('needed: the two-row table, the exact offer text and Update firmware', () => {
+  const base = { updating: false, onUpdate: () => undefined, board: null, mismatch: null };
+  const needed = () => firmwareState(board(450.07, { classification: { mode: 'readOnly', dialectId: 'tinyg-en', reason: 'en-not-approved' }, base: 'CONNECTED_UNKNOWN', overlays: ['READ_ONLY'] })) as Extract<FirmwareState, { kind: 'needed' }>;
+  it('needed: the board line, the two-row table, the exact offer text and Update firmware', () => {
     expect(FIRMWARE_TITLE).toBe('Firmware');
     expect(FIRMWARE_LEAD).toBe('Run controls the firmware it was tested against.');
-    const state = firmwareState(board(450.07, { classification: { mode: 'readOnly', dialectId: 'tinyg-en', reason: 'en-not-approved' }, base: 'CONNECTED_UNKNOWN', overlays: ['READ_ONLY'] })) as Extract<FirmwareState, { kind: 'needed' }>;
-    const html = renderToString(h(Firmware, { model, state, updating: false, onUpdate: () => undefined }));
+    const state = needed();
+    const html = renderToString(h(Firmware, { ...base, model, state, board: 'TinyG v8 · firmware 450.07 · B-1' }));
+    expect(html).toContain('data-wizard="board">Connected · TinyG v8 · firmware 450.07 · B-1<');
     expect(html).toContain('450.07');
     expect(html).toContain('450.06');
     expect(html).toContain(`data-firmware-step="text">${offerText(state.offer)}<`);
     expect(html).toContain('data-action="wizard-update"');
     expect(html).not.toContain('data-region="firmware-releases"');
   });
-  it('updating: the Board tab’s update flow is embedded in the frame', () => {
+  it('another board than the machine’s: the reason as an alert and no Update firmware', () => {
+    const html = renderToString(h(Firmware, { ...base, model, state: needed(), board: 'TinyG v8 · B-2', mismatch: 'This is board B-2, not the board.' }));
+    expect(html).toContain('role="alert"');
+    expect(html).toContain('This is board B-2');
+    expect(html).not.toContain('data-action="wizard-update"');
+  });
+  it('updating: the Board tab’s update flow is embedded in the frame, with no connect line even when the session is closed', () => {
     const live = board(450.02);
     model.live.value = live;
-    const state = firmwareState(live);
-    const html = renderToString(h(Firmware, { model, state, updating: true, onUpdate: () => undefined }));
+    const html = renderToString(h(Firmware, { ...base, model, state: firmwareState(live), updating: true }));
     expect(html).toContain('data-region="firmware-releases"');
     expect(html).toContain('class="wizard-embed"');
+    const closed = renderToString(h(Firmware, { ...base, model, state: { kind: 'updating' }, updating: true }));
+    expect(closed).toContain('data-region="firmware-releases"');
+    expect(closed).not.toContain('data-region="connect"');
+    expect(closed).not.toContain('data-action="wizard-update"');
   });
   it('current: one line; disconnected: the connect line and the Connect flow', () => {
-    expect(renderToString(h(Firmware, { model, state: { kind: 'current', fb: 450.06 }, updating: false, onUpdate: () => undefined }))).toContain('Firmware 450.06 is current.');
-    const html = renderToString(h(Firmware, { model: null, state: { kind: 'disconnected' }, updating: false, onUpdate: () => undefined }));
+    expect(renderToString(h(Firmware, { ...base, model, state: { kind: 'current', fb: 450.06 } }))).toContain('Firmware 450.06 is current.');
+    const html = renderToString(h(Firmware, { ...base, model: null, state: { kind: 'disconnected' } }));
     expect(html).toContain(CONNECT_FOR_FIRMWARE);
     expect(html).toContain('data-region="connect"');
     expect(html).not.toMatch(/E-stop|never need|Saved in this browser/);

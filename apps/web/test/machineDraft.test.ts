@@ -50,6 +50,15 @@ describe('machine draft', () => {
     const { bed: _bed, ...bare } = m;
     expect(draftFromMachine(bare)).toMatchObject({ width: 425, depth: 425, thickness: 19 });
   });
+  it('keeps a measured bed’s source when the sizes are unchanged, and marks it a placeholder when they change', () => {
+    const base = machineFromDraft(draftFromTemplate(shapeoko), null, null, AT);
+    const measured = { ...base, bed: { ...(base.bed as NonNullable<typeof base.bed>), source: { kind: 'measured' as const, note: 'Tape measure', at: AT } } };
+    const same = machineFromDraft(draftFromMachine(measured), measured, 'B-1', '2026-11-19T00:00:00.000Z');
+    expect(same.bed?.source).toEqual({ kind: 'measured', note: 'Tape measure', at: AT });
+    const changed = machineFromDraft({ ...draftFromMachine(measured), width: 300 }, measured, null, '2026-11-19T00:00:00.000Z');
+    expect(changed.bed?.source.kind).toBe('placeholder');
+    expect(readMachine(same).ok && readMachine(changed).ok).toBe(true);
+  });
   it('boardOwner finds the machine bound to a board', () => {
     const a = machineFromDraft(draftFromTemplate(shapeoko), null, 'B-1', AT);
     expect(boardOwner('B-1', [a])?.id).toBe(a.id);
