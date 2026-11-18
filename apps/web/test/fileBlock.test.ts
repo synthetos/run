@@ -45,6 +45,15 @@ describe('the job file block', () => {
     expect(html).toContain('Open another');
     expect(html).toContain('data-action="job-close"');
   });
+
+  it('with a file open on another step, the file and Close job stay in view; the picker and heading wait for step 3', () => {
+    const html = block('plate.nc', 'machine');
+    expect(html).not.toMatch(/<section[^>]*\shidden/);
+    expect(html).toMatch(/data-preview="file-name"[^>]*>plate\.nc</);
+    expect(html).toContain('data-action="job-close"');
+    expect(html).toMatch(/<label[^>]*\shidden/);
+    expect(html).not.toContain('<h2');
+  });
 });
 
 describe('the project line', () => {

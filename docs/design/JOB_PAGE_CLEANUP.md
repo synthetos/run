@@ -11,7 +11,8 @@ owner asked for on 2026-11-18: the GitHub picture of the signed-in account in th
 - **The file lives at step 3.** "Open & place job" starts with a small File block: the picker, and once a file is
   open its name and line count, Open another, Close job, and Save to project for a draft. At steps 1 and 2 the drawing
   says "Step 3 opens your file"; at step 3 the drawing offers Open a file and the two samples, as before. Projects and
-  their files are opened from the Projects view in the left rail.
+  their files are opened from the Projects view in the left rail. Once a file is open, its name and Close job follow
+  you to every step, so a job finished at step 5 is closed right there; the picker and Save to project stay at step 3.
 - **Step 4 says what Check does.** Its hint is "Review the safety verdict" until a file is checked, then the verdict
   (File checked, Review findings, Blocked).
 - **The footer is the version.** "Review settings before applying" and "Libraries saved in this browser" are gone.
@@ -69,8 +70,8 @@ The open account menu:
 
 ## Tests
 
-- `apps/web/test/fileBlock.test.ts`: the File block at step 3 and hidden elsewhere, the picker always in the tree,
-  Close job and Save to project.
+- `apps/web/test/fileBlock.test.ts`: the File block at step 3, hidden elsewhere until a file is open and then showing
+  the name and Close job on every step, the picker always in the tree, Save to project.
 - `apps/web/test/jobPageText.test.ts`, `apps/web/test/accountMenu.test.ts`: the removed lines, the step 4 hint, the
   picture in the button and the menu head, the fallback to the icon.
 - `workers/run/test/avatar.test.ts`: 401 without a session, 404 without a GitHub identity, the PNG proxied, html, a

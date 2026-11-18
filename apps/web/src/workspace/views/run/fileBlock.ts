@@ -2,7 +2,9 @@
  * The job's file, at step 3 "Open & place job" (spec 2026-11-16 §7). The top "No file open" bar that used to carry
  * these controls is gone; this block keeps what worked: the file's name and lines, the picker (which the viewer's
  * "Open a file" prompt clicks by its `data-preview="file"`), Close job, and Save to project for a draft. It stays in
- * the tree on every step, hidden, so the picker is always there to click.
+ * the tree on every step, hidden while no file is open, so the picker is always there to click. Once a file is open
+ * the file's name and Close job stay in view on every step (a job finished at step 5 is closed there, as it was from
+ * the old bar); the heading, the picker and the project line wait for step 3.
  */
 import { h, type ComponentChild } from 'preact';
 import { useState, type Dispatch, type StateUpdater } from 'preact/hooks';
@@ -29,19 +31,21 @@ export function JobFileBlock({ parts, model, step }: { readonly parts: PreviewPa
   const disabled = !state.ready || loading || locked;
   const result = state.status === 'ready' ? state.result : null;
   const [note, setNote] = useState<string | null>(null);
+  const here = step === 'place';
+  const open = state.fileName !== null;
   return h(
     'section',
-    { class: 'job-file-block', hidden: step !== 'place', 'data-job-panel': 'file', 'data-region': 'job' },
-    h('h2', null, 'File'),
+    { class: 'job-file-block', hidden: !here && !open, 'data-job-panel': 'file', 'data-region': 'job' },
+    here ? h('h2', null, 'File') : null,
     fileLine({ state, loading, result }),
     h(
       'div',
       { class: 'job-file-actions' },
-      picker({ actions, disabled, result, setNote }),
-      state.fileName === null ? null : closeButton({ actions, locked, setNote }),
+      picker({ actions, disabled, result, setNote, hidden: !here }),
+      open ? closeButton({ actions, locked, setNote }) : null,
       executionLock.value === null ? null : h(ContextHelp, { id: 'job-file-lock-help', label: 'Why closing or replacing the job is unavailable' }, `${executionLock.value} Stop the current job before closing it or opening another file.`),
     ),
-    h(JobProjectLine, { job: activeJob.value, fileOpen: result !== null, onNote: setNote }),
+    here ? h(JobProjectLine, { job: activeJob.value, fileOpen: result !== null, onNote: setNote }) : null,
     note === null ? null : h('p', { class: 'fine tone-warn', role: 'status', 'data-job': 'note' }, note),
   );
 }
@@ -58,10 +62,19 @@ function fileLine({ state, loading, result }: { readonly state: PreviewViewState
   );
 }
 
-function picker({ actions, disabled, result, setNote }: { readonly actions: PreviewViewActions; readonly disabled: boolean; readonly result: PreviewResult | null; readonly setNote: Note }): ComponentChild {
+interface PickerProps {
+  readonly actions: PreviewViewActions;
+  readonly disabled: boolean;
+  readonly result: PreviewResult | null;
+  readonly setNote: Note;
+  /** Off step 3 the picker is hidden but kept, so the viewer's prompt can still click its input. */
+  readonly hidden: boolean;
+}
+
+function picker({ actions, disabled, result, setNote, hidden }: PickerProps): ComponentChild {
   return h(
     'label',
-    { class: `file-button${disabled ? ' is-disabled' : ''}` },
+    { class: `file-button${disabled ? ' is-disabled' : ''}`, hidden },
     h('input', {
       type: 'file',
       accept: '.nc,.gcode,.ngc,.tap,.txt,.cnc,text/plain',

@@ -47,6 +47,14 @@ test('the Job page opens on the steps; the file lives at step 3; Check hints its
   await expect(file.locator('[data-action="job-close"]')).toBeEnabled();
   await expect(file.locator('[data-job="save-target"]')).toBeVisible();
   if (SCREENSHOTS) await page.locator('#job-work-panel').screenshot({ path: `${SHOT_DIR}file-block-open-light.png` });
+  // With a file open the name and Close job follow the user to every step (a finished run is closed from step 5).
+  await page.locator('[data-job-step="run"]').click();
+  await expect(file).toBeVisible();
+  await expect(file.locator('[data-preview="file-name"]')).toHaveText('test-square.nc');
+  await expect(file.locator('[data-action="job-close"]')).toBeVisible();
+  await expect(file.locator('.file-button')).toBeHidden();
+  await expect(file.locator('h2')).toHaveCount(0);
+  await page.locator('[data-job-step="place"]').click();
   await file.locator('[data-action="job-close"]').click();
   await expect(file.locator('[data-preview="file-name"]')).toHaveText('none');
   await expect(page.locator('[data-job-step="machine"]')).toHaveAttribute('aria-current', 'step');
