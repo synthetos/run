@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Board settings: All settings</title>
+<link rel="stylesheet" href="2026-11-18-board-config.css">
+<style>
+  .all td:nth-child(1) { width: 300px; }
+  .all td:nth-child(2) { width: 260px; }
+  .all td:nth-child(4) { width: 70px; }
+  .all tr.group th { text-align: left; font-weight: 600; }
+  .all tr.group th .fine { font-weight: 400; margin-left: 10px; }
+  .i { display: inline-block; width: 15px; height: 15px; border-radius: 50%; border: 1px solid var(--field); font-size: 10px; line-height: 13px; text-align: center; color: var(--muted); margin-left: 6px; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="head">
+    <h1>Board</h1>
+    <div class="tabs"><span>Overview</span><span>Motors</span><span>Axes</span><span>Inputs</span><span>Spindle and coolant</span><span>Communications</span><span class="on">All settings <span class="badge">1</span></span><span>Firmware</span><span>Backups</span></div>
+  </div>
+
+  <div class="toolbar">
+    <span class="search">Search by name, value or token</span>
+    <span class="chips">
+      <span class="chip on">All 189</span><span class="chip">System</span><span class="chip">Board identity</span><span class="chip">Communications</span><span class="chip">Motors</span><span class="chip">Axes</span><span class="chip">Inputs</span><span class="chip">Spindle and coolant</span><span class="chip">Offsets</span>
+    </span>
+    <span class="grow"></span>
+    <label class="fine"><input type="checkbox"> Only pending</label>
+  </div>
+
+  <div class="card" style="padding:4px 8px">
+    <table class="rows all">
+      <thead><tr><th>Setting</th><th>On the board</th><th>Change</th><th>Token</th></tr></thead>
+      <tbody>
+        <tr class="group"><th colspan="4">System<span class="fine">Units and modes at power-up, cornering, soft limits, motor idle time.</span></th></tr>
+        <tr class="pending"><td>Units at power-up <span class="i">i</span></td><td>Inches (G20) <span class="was">→ <b>Millimetres (G21)</b></span></td><td><span class="seg"><span>Inches (G20)</span><span class="on">Millimetres (G21)</span></span></td><td class="raw">gun</td></tr>
+        <tr><td>Distance mode at power-up <span class="i">i</span></td><td>Absolute (G90)</td><td><span class="seg"><span class="on">Absolute (G90)</span><span>Incremental (G91)</span></span></td><td class="raw">gdi</td></tr>
+        <tr><td>Soft limits <span class="i">i</span></td><td>On</td><td><span class="seg"><span>Off</span><span class="on">On</span></span></td><td class="raw">sl</td></tr>
+        <tr><td>Motor idle time <span class="i">i</span></td><td>2 s</td><td><span class="input">2 <i>s</i></span></td><td class="raw">mt</td></tr>
+        <tr><td>Junction acceleration <span class="i">i</span></td><td>100 000 mm/min²</td><td><span class="tag lock">Not changed by Run</span></td><td class="raw">ja</td></tr>
+        <tr><td>Chordal tolerance <span class="i">i</span></td><td>0.01 mm</td><td><span class="tag lock">Not changed by Run</span></td><td class="raw">ct</td></tr>
+        <tr class="group"><th colspan="4">Communications<span class="fine">Read only. Changing these can stop Run and other programs talking to the board.</span></th></tr>
+        <tr><td>Flow control</td><td>XON/XOFF</td><td></td><td class="raw">ex</td></tr>
+        <tr><td>Echo</td><td>Off</td><td></td><td class="raw">ee</td></tr>
+        <tr><td>JSON verbosity</td><td>Messages (3)</td><td></td><td class="raw">jv</td></tr>
+        <tr><td>Status report interval</td><td>250 ms</td><td></td><td class="raw">si</td></tr>
+        <tr class="group"><th colspan="4">Motor 1<span class="fine">Drives X</span></th></tr>
+        <tr><td>Drives</td><td>X axis</td><td><span class="select">X axis</span></td><td class="raw">1ma</td></tr>
+        <tr><td>Microsteps</td><td>Eighth step (8)</td><td><span class="select">Eighth step (8)</span></td><td class="raw">1mi</td></tr>
+        <tr><td>Direction</td><td>Normal</td><td><span class="seg"><span class="on">Normal</span><span>Reversed</span></span></td><td class="raw">1po</td></tr>
+        <tr><td>Power</td><td>On during a job, off after the idle time</td><td><span class="select">On during a job…</span></td><td class="raw">1pm</td></tr>
+        <tr class="group"><th colspan="4">Inputs<span class="fine">What each switch does. Test them on the Inputs tab.</span></th></tr>
+        <tr><td>Switch contact</td><td>Normally open</td><td><span class="seg"><span class="on">Normally open</span><span>Normally closed</span></span></td><td class="raw">st</td></tr>
+        <tr><td>X min switch, J7.3</td><td>Homing and limit</td><td><span class="select">Homing and limit</span></td><td class="raw">xsn</td></tr>
+        <tr class="group"><th colspan="4">No definition yet<span class="fine">Reported by the board. Run has no description for these, so they are shown as read and never changed.</span></th></tr>
+        <tr><td class="mono">p1pof</td><td class="mono">0</td><td></td><td class="raw">p1pof</td></tr>
+        <tr><td class="mono">gpa</td><td class="mono">2</td><td></td><td class="raw">gpa</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="annot">Mockup notes: Advanced level (tokens shown). Simple shows the same list without the Token column. Every setting the board reported is here at both levels; live readouts (input states, homed axes, positions) are on Inputs, Axes and the Job view. The i opens the description on its own line under the row. Rows are 38 px, one line each.</p>
+</div>
+<div class="applybar">
+  <strong>1 change pending</strong>
+  <span class="fine">Units at power-up: Inches (G20) → Millimetres (G21).</span>
+  <span class="grow"></span>
+  <span class="btn quiet">Discard</span><span class="btn primary">Review and apply…</span>
+</div>
+</body>
+</html>

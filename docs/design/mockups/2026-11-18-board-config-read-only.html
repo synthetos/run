@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Board settings: read-only board</title>
+<link rel="stylesheet" href="2026-11-18-board-config.css">
+<style>
+  .inputs td:first-child { width: 210px; }
+  .motor td:first-child { width: 170px; color: var(--muted); }
+  .contact { display: grid; grid-template-columns: 220px auto 1fr; gap: 10px 16px; align-items: center; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="head">
+    <h1>Board</h1>
+    <div class="tabs"><span>Overview</span><span>Motors</span><span>Axes</span><span class="on">Inputs</span><span>Spindle and coolant</span><span>Communications</span><span>All settings</span><span>Firmware</span><span>Backups</span></div>
+  </div>
+
+  <div class="notice">
+    <span class="tag lock">Read only</span>
+    <p><strong>Run can't change settings on firmware 449.01.</strong> You can see every setting and back them up. Update to 450.06 to change them here.</p>
+    <span class="grow"></span>
+    <span class="btn small">Back up settings</span>
+    <span class="btn small primary">Update firmware</span>
+  </div>
+
+  <div class="card">
+    <div class="sec-head"><span class="tan-label">Switch contact</span><span class="fine">One setting for every limit and homing switch.</span></div>
+    <div class="contact">
+      <span>Limit and homing switches</span>
+      <span class="seg locked"><span class="on">Normally open</span><span>Normally closed</span></span>
+      <span class="fine">The switch closes when pressed.</span>
+      <span>Probe input</span>
+      <span>Normally open</span>
+      <span class="fine">Fixed on this firmware: 449.01 always reads the probe as normally open.</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="sec-head"><span class="tan-label">Switch inputs</span><span class="grow"></span><span class="fine">Test switches works on this firmware too: it only reads.</span><span class="btn small">Test switches</span></div>
+    <table class="rows inputs">
+      <thead><tr><th>Input</th><th>What it does</th><th></th></tr></thead>
+      <tbody>
+        <tr><td><strong>X min switch</strong> <span class="fine">J7.3</span></td><td><span class="seg locked"><span>Off</span><span class="on">Homing</span><span>Limit</span><span>Homing and limit</span><span>Probe</span></span></td><td class="fine">X homes towards min</td></tr>
+        <tr><td><strong>X max switch</strong> <span class="fine">J7.4</span></td><td><span class="seg locked"><span class="on">Off</span><span>Homing</span><span>Limit</span><span>Homing and limit</span><span>Probe</span></span></td><td></td></tr>
+        <tr><td><strong>Y min switch</strong> <span class="fine">J7.5</span></td><td><span class="seg locked"><span>Off</span><span class="on">Homing</span><span>Limit</span><span>Homing and limit</span><span>Probe</span></span></td><td class="fine">Y homes towards min</td></tr>
+        <tr><td><strong>Y max switch</strong> <span class="fine">J7.6</span></td><td><span class="seg locked"><span class="on">Off</span><span>Homing</span><span>Limit</span><span>Homing and limit</span><span>Probe</span></span></td><td></td></tr>
+        <tr><td><strong>Z min switch</strong> <span class="fine">J8.3</span></td><td><span class="seg locked"><span>Off</span><span>Homing</span><span>Limit</span><span>Homing and limit</span><span class="on">Probe</span></span></td><td class="fine">Probe input</td></tr>
+        <tr><td><strong>Z max switch</strong> <span class="fine">J8.4</span></td><td><span class="seg locked"><span>Off</span><span class="on">Homing</span><span>Limit</span><span>Homing and limit</span><span>Probe</span></span></td><td class="fine">Z homes towards max</td></tr>
+        <tr><td><strong>A min switch</strong> <span class="fine">J8.5</span></td><td><span class="seg locked"><span>Off</span><span class="on">Homing</span><span>Limit</span><span>Homing and limit</span><span>Probe</span></span></td><td class="fine">A homes towards min</td></tr>
+        <tr><td><strong>A max switch</strong> <span class="fine">J8.6</span></td><td><span class="seg locked"><span class="on">Off</span><span>Homing</span><span>Limit</span><span>Homing and limit</span><span>Probe</span></span></td><td></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card" style="width:600px">
+    <div class="sec-head"><h2>Motor 1</h2><span class="tag">drives X</span><span class="grow"></span><span class="fine">Motors tab, same board</span></div>
+    <table class="rows motor"><tbody>
+      <tr><td>Drives</td><td>X axis</td></tr>
+      <tr><td>Step angle</td><td>1.8° per step <span class="fine">200 steps per turn</span></td></tr>
+      <tr><td>Travel per turn</td><td>1.25 mm</td></tr>
+      <tr><td>Microsteps</td><td>Half step (2) <span class="fine">of 1, 2, 4 or 8</span></td></tr>
+      <tr><td>Direction</td><td>Reversed</td></tr>
+      <tr><td>Power</td><td>On during a job, off after the idle time</td></tr>
+      <tr><td>Steps per mm</td><td class="num">320</td></tr>
+    </tbody></table>
+  </div>
+  <p class="annot">Mockup notes: the owner's board (stock 449.01, values from screenshots 153 and 154). The words come from tinyg-449.json, which describes this firmware without making anything writable. Choices show every option with the current one marked, but cannot be pressed. One notice, above the tabs, says why and offers the update; no Edit button, no pending bar, no Restore.</p>
+</div>
+</body>
+</html>

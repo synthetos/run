@@ -1,0 +1,106 @@
+/*
+ * Board settings mockups (2026-11-18). Static: not product code.
+ * Tokens are copied from apps/web/src/styles/tokens.css and zebra.css so the mockups
+ * render in the app's real colours in both themes. The theme is chosen with data-theme on <html>.
+ */
+@font-face { font-family: "IBM Plex Sans"; font-weight: 400; src: url('../../../apps/web/src/fonts/ibm-plex/IBMPlexSans-Regular-Latin1.woff2') format('woff2'); }
+@font-face { font-family: "IBM Plex Sans"; font-weight: 500; src: url('../../../apps/web/src/fonts/ibm-plex/IBMPlexSans-Medium-Latin1.woff2') format('woff2'); }
+@font-face { font-family: "IBM Plex Sans"; font-weight: 600; src: url('../../../apps/web/src/fonts/ibm-plex/IBMPlexSans-SemiBold-Latin1.woff2') format('woff2'); }
+@font-face { font-family: "IBM Plex Sans Condensed"; font-weight: 500; src: url('../../../apps/web/src/fonts/ibm-plex/IBMPlexSansCondensed-Medium-Latin1.woff2') format('woff2'); }
+
+:root {
+  --paper: #f6f8f9; --sheet: #ffffff; --ink: #15222c; --muted: #4f5f6a; --rule: #c7d2d9; --grid: #e3e9ed;
+  --field: #8d9ca6; --blue: #1d5aa6; --blue-dk: #154680; --blue-wash: #e8f0f9; --on-blue: #ffffff; --ok: #1e7a45;
+  --danger: #b3261e; --warn: #8a5300; --live: #8e1f8e; --tan: #836428; --tan-wash: #f5eedf; --on-tan: #ffffff;
+  --sans: "IBM Plex Sans", system-ui, sans-serif; --cond: "IBM Plex Sans Condensed", system-ui, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --row-stripe: color-mix(in srgb, var(--ink) 5%, transparent);
+  --pending: color-mix(in srgb, var(--blue) 12%, transparent);
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --paper: #0d161d; --sheet: #131f28; --ink: #e4ebf0; --muted: #a1b0bb; --rule: #2c3d4a; --grid: #1b2a35;
+  --field: #4f6474; --blue: #7db0f5; --blue-dk: #a6c9f8; --blue-wash: #1a2d42; --on-blue: #0d161d; --ok: #5fcf8e;
+  --danger: #ff8a80; --warn: #ffc857; --live: #f08cf0; --tan: #d6b97f; --tan-wash: #2b2416; --on-tan: #1a140a;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--paper); color: var(--ink); font: 14px/1.4 var(--sans); width: 1280px; }
+.frame { padding: 20px 24px 12px; }
+.head { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; }
+.head h1 { font: 600 24px var(--sans); margin: 0; }
+.tabs { margin-left: auto; display: flex; border: 1px solid var(--rule); border-radius: 8px; padding: 3px; background: var(--sheet); }
+.tabs span { padding: 6px 13px; color: var(--muted); border-radius: 6px; font-size: 13.5px; white-space: nowrap; }
+.tabs span.on { background: var(--paper); color: var(--ink); border: 1px solid var(--rule); }
+.tabs .badge { font-size: 11px; margin-left: 4px; padding: 0 5px; border-radius: 8px; background: var(--blue); color: var(--on-blue); }
+
+.card { background: var(--sheet); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; margin-bottom: 14px; }
+.sec-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+.sec-head h2 { font: 600 15px var(--sans); margin: 0; }
+.tan-label { font: 500 12px var(--cond); letter-spacing: .06em; text-transform: uppercase; color: var(--tan); }
+.fine { font-size: 12.5px; color: var(--muted); }
+.grow { flex: 1; }
+.raw { font: 11px var(--mono); color: var(--muted); margin-left: 6px; }
+.mono { font-family: var(--mono); }
+
+table.rows { width: 100%; border-collapse: collapse; }
+table.rows th, table.rows td { text-align: left; padding: 6px 8px; vertical-align: middle; height: 38px; }
+table.rows thead th { font-weight: 500; font-size: 12px; color: var(--muted); height: 30px; border-bottom: 1px solid var(--rule); }
+table.rows tbody tr:nth-child(even) { background: var(--row-stripe); }
+table.rows tbody tr.pending { background: var(--pending); box-shadow: inset 3px 0 0 var(--blue); }
+table.rows tbody tr.group th { background: var(--paper); height: 34px; border-top: 1px solid var(--rule); }
+table.rows td.num { font-variant-numeric: tabular-nums; }
+
+.seg { display: inline-flex; border: 1px solid var(--field); border-radius: 6px; overflow: hidden; }
+.seg span { padding: 4px 10px; font-size: 12.5px; border-left: 1px solid var(--rule); color: var(--ink); white-space: nowrap; }
+.seg span:first-child { border-left: 0; }
+.seg span.on { background: var(--blue); color: var(--on-blue); font-weight: 500; }
+.seg.locked { border-color: var(--rule); }
+.seg.locked span { color: var(--muted); }
+.seg.locked span.on { background: var(--grid); color: var(--ink); box-shadow: inset 0 -2px 0 var(--muted); }
+
+.select { display: inline-flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--field); border-radius: 6px; padding: 4px 8px; min-width: 0; background: var(--sheet); font-size: 13px; white-space: nowrap; }
+.select::after { content: "▾"; color: var(--muted); font-size: 11px; }
+.input { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--field); border-radius: 6px; padding: 4px 8px; background: var(--sheet); font-size: 13px; font-variant-numeric: tabular-nums; }
+.input i { font-style: normal; color: var(--muted); font-size: 12px; }
+.input.changed, .select.changed { border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue); }
+
+.was { font-size: 12px; color: var(--muted); }
+.was b { font-weight: 500; color: var(--blue); }
+.tag { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; padding: 1px 7px; border: 1px solid var(--rule); border-radius: 10px; color: var(--muted); white-space: nowrap; }
+.tag.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--rule)); }
+.tag.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, var(--rule)); }
+.tag.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, var(--rule)); }
+.tag.lock::before { content: "🔒"; font-size: 10px; filter: grayscale(1); }
+
+.live { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; }
+.live::before { content: ""; width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--muted); }
+.live.on::before { background: var(--live); border-color: var(--live); }
+.live.off { color: var(--muted); }
+
+button, .btn { font: 500 13px var(--sans); padding: 6px 12px; border-radius: 6px; border: 1px solid var(--rule); background: var(--sheet); color: var(--ink); white-space: nowrap; }
+.btn.primary { background: var(--blue); color: var(--on-blue); border-color: var(--blue); }
+.btn.quiet { background: transparent; border-color: transparent; color: var(--blue); }
+.btn.small { padding: 3px 9px; font-size: 12.5px; }
+.btn[aria-disabled="true"] { opacity: .5; }
+
+.note { border-left: 3px solid var(--warn); padding: 6px 10px; background: color-mix(in srgb, var(--warn) 8%, transparent); font-size: 13px; border-radius: 0 6px 6px 0; }
+.note.info { border-left-color: var(--blue); background: var(--blue-wash); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { font-size: 12.5px; padding: 4px 10px; border-radius: 14px; border: 1px solid var(--rule); background: var(--sheet); }
+.chip.on { background: var(--blue-wash); border-color: var(--blue); color: var(--blue-dk); }
+.chip b { font-weight: 600; }
+
+/* Sticky at the bottom of the Board view in the product; static here so full-page captures show everything. */
+.applybar { position: static; width: 1280px; background: var(--sheet); border-top: 2px solid var(--blue); padding: 12px 24px; display: flex; align-items: center; gap: 14px; }
+.applybar strong { font-size: 14px; }
+
+.notice { display: flex; align-items: center; gap: 14px; background: var(--tan-wash); border: 1px solid color-mix(in srgb, var(--tan) 40%, var(--rule)); border-radius: 8px; padding: 12px 16px; margin-bottom: 14px; }
+.notice p { margin: 0; }
+.annot { font: 12px var(--sans); color: var(--tan); border: 1px dashed var(--tan); border-radius: 6px; padding: 6px 10px; margin: 6px 0 14px; background: transparent; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.search { border: 1px solid var(--field); border-radius: 6px; padding: 6px 10px; width: 320px; color: var(--muted); background: var(--sheet); font-size: 13px; }
+details.desc { font-size: 12px; color: var(--muted); }

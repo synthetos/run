@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Board settings: Motors</title>
+<link rel="stylesheet" href="2026-11-18-board-config.css">
+<style>
+  .motor td:first-child { width: 170px; color: var(--muted); }
+  .motor td.pend { width: 150px; text-align: right; }
+  .motor tr.derived td { border-top: 1px solid var(--rule); }
+  .card h3 { margin: 0; font: 600 15px var(--sans); }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="head">
+    <h1>Board</h1>
+    <div class="tabs"><span>Overview</span><span class="on">Motors <span class="badge">1</span></span><span>Axes</span><span>Inputs</span><span>Spindle and coolant</span><span>Communications</span><span>All settings</span><span>Firmware</span><span>Backups</span></div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <div class="sec-head"><h3>Motor 1</h3><span class="tag">drives X</span><span class="grow"></span><span class="fine">M1 terminals</span></div>
+      <table class="rows motor"><tbody>
+        <tr><td>Drives</td><td><span class="select">X axis</span></td><td class="pend"></td></tr>
+        <tr><td>Step angle</td><td><span class="input">1.8 <i>° per step</i></span> <span class="fine">200 steps per turn</span></td><td class="pend"></td></tr>
+        <tr><td>Travel per turn</td><td><span class="input">1.25 <i>mm</i></span> <span class="fine">screw lead</span></td><td class="pend"></td></tr>
+        <tr><td>Microsteps</td><td><span class="select">Eighth step (8)</span></td><td class="pend"></td></tr>
+        <tr><td>Direction</td><td><span class="seg"><span class="on">Normal</span><span>Reversed</span></span></td><td class="pend"></td></tr>
+        <tr><td>Power</td><td><span class="select">On during a job, off after the idle time</span></td><td class="pend"></td></tr>
+        <tr class="derived"><td>Steps per mm</td><td class="num">1 280</td><td class="pend"></td></tr>
+      </tbody></table>
+    </div>
+
+    <div class="card">
+      <div class="sec-head"><h3>Motor 2</h3><span class="tag">drives Y</span><span class="grow"></span><span class="fine">M2 terminals</span></div>
+      <table class="rows motor"><tbody>
+        <tr><td>Drives</td><td><span class="select">Y axis</span></td><td class="pend"></td></tr>
+        <tr><td>Step angle</td><td><span class="input">1.8 <i>° per step</i></span> <span class="fine">200 steps per turn</span></td><td class="pend"></td></tr>
+        <tr><td>Travel per turn</td><td><span class="input">1.25 <i>mm</i></span></td><td class="pend"></td></tr>
+        <tr class="pending"><td>Microsteps</td><td><span class="select changed">Eighth step (8)</span></td><td class="pend"><span class="was">was <b>Half step (2)</b></span></td></tr>
+        <tr><td>Direction</td><td><span class="seg"><span class="on">Normal</span><span>Reversed</span></span></td><td class="pend"></td></tr>
+        <tr><td>Power</td><td><span class="select">On during a job, off after the idle time</span></td><td class="pend"></td></tr>
+        <tr class="derived"><td>Steps per mm</td><td class="num">320 → <b>1 280</b></td><td class="pend"><span class="tag warn">Check after</span></td></tr>
+      </tbody></table>
+    </div>
+
+    <div class="card">
+      <div class="sec-head"><h3>Motor 3</h3><span class="tag">drives Z</span><span class="grow"></span><span class="fine">M3 terminals</span></div>
+      <table class="rows motor"><tbody>
+        <tr><td>Drives</td><td><span class="select">Z axis</span></td><td class="pend"></td></tr>
+        <tr><td>Step angle</td><td><span class="input">1.8 <i>° per step</i></span></td><td class="pend"></td></tr>
+        <tr><td>Travel per turn</td><td><span class="input">1.25 <i>mm</i></span></td><td class="pend"></td></tr>
+        <tr><td>Microsteps</td><td><span class="select">Eighth step (8)</span></td><td class="pend"></td></tr>
+        <tr><td>Direction</td><td><span class="seg"><span>Normal</span><span class="on">Reversed</span></span></td><td class="pend"></td></tr>
+        <tr><td>Power</td><td><span class="select">Always on</span></td><td class="pend"></td></tr>
+        <tr class="derived"><td>Steps per mm</td><td class="num">1 280</td><td class="pend"></td></tr>
+      </tbody></table>
+    </div>
+
+    <div class="card">
+      <div class="sec-head"><h3>Motor 4</h3><span class="tag">drives A</span><span class="grow"></span><span class="fine">M4 terminals</span></div>
+      <table class="rows motor"><tbody>
+        <tr><td>Drives</td><td><span class="select">A axis (rotary)</span></td><td class="pend"></td></tr>
+        <tr><td>Step angle</td><td><span class="input">1.8 <i>° per step</i></span></td><td class="pend"></td></tr>
+        <tr><td>Travel per turn</td><td><span class="input">360 <i>°</i></span></td><td class="pend"></td></tr>
+        <tr><td>Microsteps</td><td><span class="select">Eighth step (8)</span></td><td class="pend"></td></tr>
+        <tr><td>Direction</td><td><span class="seg"><span class="on">Normal</span><span>Reversed</span></span></td><td class="pend"></td></tr>
+        <tr><td>Power</td><td><span class="select">Off: never powered</span></td><td class="pend"></td></tr>
+        <tr class="derived"><td>Steps per degree</td><td class="num">4.444</td><td class="pend"></td></tr>
+      </tbody></table>
+    </div>
+  </div>
+
+  <div class="card" style="width:560px">
+    <div class="sec-head"><span class="tan-label">Microsteps: the options, from tinyg-450.json</span></div>
+    <table class="rows"><tbody>
+      <tr><td>Full step (1)</td><td class="fine">200 steps per turn on a 1.8° motor. Loudest, most torque at low speed.</td></tr>
+      <tr><td>Half step (2)</td><td class="fine">400 steps per turn.</td></tr>
+      <tr><td>Quarter step (4)</td><td class="fine">800 steps per turn.</td></tr>
+      <tr><td>Eighth step (8)</td><td class="fine">1600 steps per turn. Smoothest. The TinyG driver's finest setting.</td></tr>
+    </tbody></table>
+  </div>
+  <p class="annot">Mockup notes: Motor 2 has one pending change; its steps per mm shows board → new. The options list is what the Microsteps select opens to. Advanced adds tokens (2mi) and the formula 360 ÷ step angle × microsteps ÷ travel. On a read-only board the same cards show values only, with the lock notice above the tabs.</p>
+</div>
+<div class="applybar">
+  <strong>1 change pending</strong><span class="tag danger">1 high risk</span>
+  <span class="fine">Motor 2 microsteps: moves keep their length; the motor gets 4 times the steps, which can limit its top speed. Check Y after.</span>
+  <span class="grow"></span>
+  <span class="btn quiet">Discard</span><span class="btn primary">Review and apply…</span>
+</div>
+</body>
+</html>

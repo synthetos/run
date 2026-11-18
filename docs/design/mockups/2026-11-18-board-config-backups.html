@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Board settings: Backups</title>
+<link rel="stylesheet" href="2026-11-18-board-config.css">
+<style>
+  .bk td:last-child { text-align: right; white-space: nowrap; }
+  .bk td .btn + .btn { margin-left: 4px; }
+  .diff { margin: 4px 0 4px 8px; width: calc(100% - 16px); }
+  .diff td, .diff th { height: 30px; font-size: 13px; }
+  .empty { display: grid; grid-template-columns: 1fr auto; gap: 8px 24px; align-items: center; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="head">
+    <h1>Board</h1>
+    <div class="tabs"><span>Overview</span><span>Motors</span><span>Axes</span><span>Inputs</span><span>Spindle and coolant</span><span>Communications</span><span>All settings</span><span>Firmware</span><span class="on">Backups</span></div>
+  </div>
+
+  <div class="card">
+    <div class="sec-head" style="align-items:center">
+      <h2>Settings backups</h2>
+      <span class="btn primary small">Back up settings</span>
+      <span class="grow"></span>
+      <span class="btn small">Add a backup file…</span>
+    </div>
+    <p class="fine" style="margin:0 0 10px">Every setting on this board, saved on this computer. Run also backs up before every apply and every firmware update.</p>
+    <table class="rows bk">
+      <thead><tr><th>Taken</th><th>Why</th><th>Firmware</th><th>Board</th><th>Settings</th><th></th></tr></thead>
+      <tbody>
+        <tr><td><strong>18 Nov 2026, 14:02</strong></td><td>Manual</td><td>450.06</td><td>TG-8F21 <span class="fine">this board</span></td><td class="num">189</td>
+          <td><span class="btn small">Compare</span><span class="btn small">Restore…</span><span class="btn small">Download</span><span class="btn small quiet">Delete</span></td></tr>
+        <tr><td><strong>18 Nov 2026, 13:47</strong></td><td>Before an apply</td><td>450.06</td><td>TG-8F21 <span class="fine">this board</span></td><td class="num">189</td>
+          <td><span class="btn small primary">Compare</span><span class="btn small">Restore…</span><span class="btn small">Download</span><span class="btn small quiet">Delete</span></td></tr>
+        <tr><td colspan="6">
+          <table class="rows diff">
+            <thead><tr><th>3 settings differ from the board</th><th>In the backup</th><th>On the board now</th></tr></thead>
+            <tbody>
+              <tr><td>X min switch, J7.3</td><td>Off</td><td>Homing and limit</td></tr>
+              <tr><td>Motor 2 microsteps</td><td>Half step (2)</td><td>Eighth step (8)</td></tr>
+              <tr><td>Units at power-up</td><td>Inches (G20)</td><td>Millimetres (G21)</td></tr>
+            </tbody>
+          </table>
+        </td></tr>
+        <tr><td><strong>17 Nov 2026, 19:20</strong></td><td>Before a firmware update</td><td>449.01</td><td>TG-8F21 <span class="fine">this board</span></td><td class="num">182</td>
+          <td><span class="btn small">Compare</span><span class="btn small">Restore…</span><span class="btn small">Download</span><span class="btn small quiet">Delete</span></td></tr>
+        <tr><td><strong>2 Oct 2026, 09:12</strong></td><td>Added from a file</td><td>450.02</td><td>TG-11C4 <span class="tag warn">another board</span></td><td class="num">189</td>
+          <td><span class="btn small">Compare</span><span class="btn small">Restore…</span><span class="btn small">Download</span><span class="btn small quiet">Delete</span></td></tr>
+      </tbody>
+    </table>
+    <p class="fine" style="margin:10px 0 0">Restore puts the backup's values in Pending changes. Review them there and apply, as with any change. Board identity and communication settings are never restored.</p>
+  </div>
+
+  <div class="card" style="width:760px">
+    <div class="sec-head"><span class="tan-label">Empty state, before the first backup</span></div>
+    <div class="empty">
+      <div>
+        <h2 style="margin:0 0 4px;font-size:15px">No backups of this board yet</h2>
+        <p class="fine" style="margin:0">A backup saves every setting on the board in one file. Make one before you change anything, so you can put it back.</p>
+      </div>
+      <span class="btn primary">Back up settings</span>
+      <span class="fine">Have a backup file from before? <span class="btn quiet small">Add a backup file…</span></span>
+    </div>
+  </div>
+  <p class="annot">Mockup notes: one section, one primary action at its top, one way to bring a file in. "Restore from a file…" is gone: a file is added to the list first, then restored from its row, so the date, firmware and board are visible before anything is staged. Owner question: also keep these in the account (SAFETY §4.6 step 2).</p>
+</div>
+</body>
+</html>

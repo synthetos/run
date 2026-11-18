@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Board settings: Inputs</title>
+<link rel="stylesheet" href="2026-11-18-board-config.css">
+<style>
+  .inputs td:first-child { width: 210px; }
+  .inputs td.live-col { width: 120px; }
+  .inputs td.pend { width: 190px; }
+  .contact { display: grid; grid-template-columns: 220px auto 1fr; gap: 10px 16px; align-items: center; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="head">
+    <h1>Board</h1>
+    <div class="tabs"><span>Overview</span><span>Motors</span><span>Axes</span><span class="on">Inputs <span class="badge">1</span></span><span>Spindle and coolant</span><span>Communications</span><span>All settings</span><span>Firmware</span><span>Backups</span></div>
+  </div>
+
+  <div class="card">
+    <div class="sec-head"><span class="tan-label">Switch contact</span><span class="fine">One setting on TinyG for every switch input.</span></div>
+    <div class="contact">
+      <span>Limit and homing switches</span>
+      <span class="seg"><span class="on">Normally open</span><span>Normally closed</span></span>
+      <span class="fine">Normally open: the switch closes when pressed. Most microswitches wired to C and NO.</span>
+      <span>Probe input</span>
+      <span class="seg"><span class="on">Normally open</span><span>Normally closed</span></span>
+      <span class="fine">A touch plate is normally open.</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="sec-head">
+      <span class="tan-label">Switch inputs</span>
+      <span class="grow"></span>
+      <span class="fine">Reads each input 4 times a second while on. A switch set to Limit stops the board when pressed.</span>
+      <span class="btn small primary">Test switches: on</span>
+    </div>
+    <table class="rows inputs">
+      <thead><tr><th>Input</th><th>Now</th><th>What it does</th><th>Pending</th></tr></thead>
+      <tbody>
+        <tr class="pending">
+          <td><strong>X min switch</strong> <span class="fine">J7.3</span></td>
+          <td class="live-col"><span class="live">Released</span></td>
+          <td><span class="seg"><span>Off</span><span>Homing</span><span>Limit</span><span class="on">Homing and limit</span><span>Probe</span></span></td>
+          <td class="pend"><span class="was">was <b>Off</b></span> <span class="tag danger">High risk</span></td>
+        </tr>
+        <tr>
+          <td><strong>X max switch</strong> <span class="fine">J7.4</span></td>
+          <td class="live-col"><span class="live off">Off</span></td>
+          <td><span class="seg"><span class="on">Off</span><span>Homing</span><span>Limit</span><span>Homing and limit</span><span>Probe</span></span></td>
+          <td class="pend"></td>
+        </tr>
+        <tr>
+          <td><strong>Y min switch</strong> <span class="fine">J7.5</span></td>
+          <td class="live-col"><span class="live">Released</span></td>
+          <td><span class="seg"><span>Off</span><span>Homing</span><span>Limit</span><span class="on">Homing and limit</span><span>Probe</span></span></td>
+          <td class="pend"></td>
+        </tr>
+        <tr>
+          <td><strong>Y max switch</strong> <span class="fine">J7.6</span></td>
+          <td class="live-col"><span class="live">Released</span></td>
+          <td><span class="seg"><span>Off</span><span>Homing</span><span class="on">Limit</span><span>Homing and limit</span><span>Probe</span></span></td>
+          <td class="pend"></td>
+        </tr>
+        <tr>
+          <td><strong>Z min switch</strong> <span class="fine">J8.3</span></td>
+          <td class="live-col"><span class="live">Released</span></td>
+          <td><span class="seg"><span>Off</span><span>Homing</span><span>Limit</span><span>Homing and limit</span><span class="on">Probe</span></span></td>
+          <td class="pend"></td>
+        </tr>
+        <tr>
+          <td><strong>Z max switch</strong> <span class="fine">J8.4</span></td>
+          <td class="live-col"><span class="live on">Pressed</span></td>
+          <td><span class="seg"><span>Off</span><span class="on">Homing</span><span>Limit</span><span>Homing and limit</span><span>Probe</span></span></td>
+          <td class="pend"></td>
+        </tr>
+        <tr>
+          <td><strong>A min switch</strong> <span class="fine">J8.5</span></td>
+          <td class="live-col"><span class="live off">Off</span></td>
+          <td><span class="seg"><span class="on">Off</span><span>Homing</span><span>Limit</span><span>Homing and limit</span><span>Probe</span></span></td>
+          <td class="pend"></td>
+        </tr>
+        <tr>
+          <td><strong>A max switch</strong> <span class="fine">J8.6</span></td>
+          <td class="live-col"><span class="live off">Off</span></td>
+          <td><span class="seg"><span class="on">Off</span><span>Homing</span><span>Limit</span><span>Homing and limit</span><span>Probe</span></span></td>
+          <td class="pend"></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="sec-head"><span class="tan-label">Homing, with the pending change</span></div>
+    <div class="chips" style="margin-bottom:10px">
+      <span class="chip on"><b>X</b> homes towards min · J7.3</span>
+      <span class="chip"><b>Y</b> homes towards min · J7.5</span>
+      <span class="chip"><b>Z</b> homes towards max · J8.4</span>
+      <span class="chip"><b>A</b> no homing switch</span>
+    </div>
+    <p class="note" style="margin:0">X max has no limit. Only soft limits stop X at the far end.</p>
+  </div>
+  <p class="annot">Mockup notes: every label, option and sentence about a value comes from the dialect's settings file (tinyg-450.json here). The Now column appears only while Test switches is on. Advanced adds the token after each name (xsn, st, prbp). A row with a pending change is tinted and shows the board's value.</p>
+</div>
+<div class="applybar">
+  <strong>1 change pending</strong><span class="tag danger">1 high risk</span>
+  <span class="fine">Apply backs up every setting first, then writes one at a time and reads each back.</span>
+  <span class="grow"></span>
+  <span class="btn quiet">Discard</span><span class="btn primary">Review and apply…</span>
+</div>
+</body>
+</html>
