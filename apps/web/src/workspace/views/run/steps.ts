@@ -32,7 +32,7 @@ function executionStatus({ ui }: { readonly ui: JobUi }): string {
 }
 
 function checkStatus({ result }: { readonly result: PreviewResult | null }): string {
-  return result === null ? 'Open a file' : result.summary.blocked ? 'Blocked' : result.summary.counts.warn > 0 ? 'Review findings' : 'File checked';
+  return result === null ? 'Review the safety verdict' : result.summary.blocked ? 'Blocked' : result.summary.counts.warn > 0 ? 'Review findings' : 'File checked';
 }
 
 function placementStatus({ job }: { readonly job: Job | null }): string {

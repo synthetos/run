@@ -14,7 +14,6 @@ import { h, type ComponentChild } from 'preact';
 
 export const ACCOUNT_TITLE = 'Connecting needs a Synthetos account';
 export const ACCOUNT_TEXT = 'Synthetos accounts are coming soon. Until then this site cannot connect to a machine.';
-export const ACCOUNT_STOPS = 'Pause and Stop job never need an account.';
 export const BETA_SIGN_IN = 'Beta testers can ';
 export const BETA_SIGN_IN_LINK = 'sign in';
 
@@ -29,6 +28,5 @@ export function AccountNotice({ signInHref = null }: { readonly signInHref?: str
     h('p', { role: 'alert' }, ACCOUNT_TEXT),
     signInHref === null ? null : h('p', { class: 'fine', 'data-account': 'beta-sign-in' }, BETA_SIGN_IN, h('a', { href: signInHref, 'data-action': 'sign-in' }, BETA_SIGN_IN_LINK), '.'),
     h('p', null, 'Read the ', h('a', { href: '/wiring/', target: '_blank', rel: 'noopener', 'data-account': 'wiring' }, 'wiring guide'), ' for your board (opens in a new tab).'),
-    h('p', { class: 'fine' }, ACCOUNT_STOPS),
   );
 }

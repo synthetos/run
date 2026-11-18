@@ -845,7 +845,6 @@ a.menu-item:hover { background: var(--blue-wash); }
   .update-facts div { padding: 6px 8px; }
   .update-facts strong { font-size: 12px; }
   .footer { height: 22px; font-size: 10px; padding: 0 12px; }
-  .footer-secondary { display: none; }
   .account-menu { right: 6px; left: 6px; width: auto; }
   .dialog-wrap { padding: 8px; }
   .dialog { padding: 16px; }

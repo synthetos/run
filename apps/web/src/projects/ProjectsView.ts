@@ -67,7 +67,7 @@ export function ProjectsView({ onView }: { readonly onView: (v: string) => void 
             ),
       ),
       open === null
-        ? h('div', { class: 'panel empty-panel project-detail-empty' }, h('h2', null, 'No project open'), h('p', null, 'Create a project and add files or photos. Saved in this browser.'))
+        ? h('div', { class: 'panel empty-panel project-detail-empty' }, h('h2', null, 'No project open'), h('p', null, 'Create a project and add files or photos.'))
         : remote.includes(open.id) ? h(AccountProject, { key: open.id, project: open }) : h(ProjectDetail, { key: open.id, project: open, onView, onDeleted: () => setOpenId(null) }),
     ),
   );

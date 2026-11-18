@@ -22,7 +22,6 @@ export const accountMenuProps = (model?: WorkspaceModel): AccountMenuProps => ({
 
 export const SIGN_IN_WHILE_LIVE = 'Disconnect the machine before signing in.';
 export const NOT_OFFERED = 'Signing in is not available on this site yet.';
-export const MENU_FOOT = 'Pause, Stop job and the other stop controls never need you to be signed in.';
 
 export interface AccountSummary { readonly head: string; readonly note: string; readonly sync: 'account' | 'local' }
 
@@ -78,7 +77,6 @@ export function AccountMenuView(p: AccountMenuViewProps): ComponentChild {
           entry(p),
           h('button', { type: 'button', class: 'menu-item', role: 'menuitem', 'data-action': 'report-problem', onClick: p.onReport }, Icon('flag', 15), 'Report a problem'),
           p.state.message === null ? null : h('p', { class: 'menu-foot', role: 'alert' }, p.state.message),
-          h('p', { class: 'menu-foot' }, MENU_FOOT),
         )
       : null,
   );

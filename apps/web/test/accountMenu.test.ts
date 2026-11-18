@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import { h } from 'preact';
 import { CHECKING, SIGN_OUT_WHILE_LIVE, type AccountState } from '../src/live/account.ts';
-import { AccountMenuView, accountSummary, MENU_FOOT, NOT_OFFERED, SIGN_IN_WHILE_LIVE } from '../src/workspace/AccountMenu.ts';
+import { AccountMenuView, accountSummary, NOT_OFFERED, SIGN_IN_WHILE_LIVE } from '../src/workspace/AccountMenu.ts';
 import { all, byAttr, root, text } from './tree.ts';
 
 const signedOut: AccountState = { status: 'signed-out', display: null, signIn: true, message: null };
@@ -33,7 +33,8 @@ describe('the account menu', () => {
     expect(link?.tag).toBe('a');
     expect(link?.props['href']).toBe('/auth/login');
     expect(all(open, byAttr('data-action', 'report-problem'))).toHaveLength(1);
-    expect(text(open)).toContain(MENU_FOOT);
+    // The sync row is state; the stop-controls reassurance line went with the text sweep (spec §7).
+    expect(text(open)).not.toContain('never need');
   });
 
   it('T-S58: while a machine is connected, Sign in is disabled with the reason', () => {

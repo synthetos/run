@@ -129,7 +129,7 @@ export function JobSetupPanel({ step, locked, onView, travel = null }: { readonl
                 } }, advanced ? `Save as bed revision ${bedOf(machine).revision + 1}` : 'Save bed to machine')
               : null,
             bedNote === null ? null : h('p', { class: 'fine', role: 'status', 'data-bed': 'note' }, bedNote),
-            h('p', { class: 'fine' }, jobSaved.value ? 'Saved in this browser.' : 'Not saved: this browser blocks storage. Changes last for this page only.'),
+            jobSaved.value ? null : h('p', { class: 'fine tone-warn' }, 'Not saved: this browser blocks storage. Changes last for this page only.'),
           )),
       h('div', { hidden: step !== 'stock', 'data-job-panel': 'stock' },
         h('h2', null, 'Stock & workholding'),

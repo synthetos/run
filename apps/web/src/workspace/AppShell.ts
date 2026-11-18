@@ -284,8 +284,6 @@ export function AppShell(props: AppShellProps): ComponentChild {
     h(
       'footer',
       { class: 'footer' },
-      h('span', null, 'Review settings before applying'),
-      h('span', { class: 'footer-secondary' }, 'Libraries saved in this browser'),
       h('span', { class: 'mono', 'data-version': '', title: `Version ${props.build.version}, commit ${props.build.sha}` }, versionLabel(props.build)),
     ),
     ),
