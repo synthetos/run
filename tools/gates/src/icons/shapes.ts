@@ -14,10 +14,9 @@ export interface Point {
 
 export const rect = (x0: number, y0: number, x1: number, y1: number): Shape => (x, y) => x >= x0 && x < x1 && y >= y0 && y < y1;
 
-/** A ring between radii r0 and r1 around c, optionally limited to one side of y = c.y. */
-export const ring = (c: Point, r0: number, r1: number, half: 'all' | 'top' | 'bottom' = 'all'): Shape => (x, y) => {
+/** A ring between radii r0 and r1 around c, optionally limited to the half above y = c.y (the n's arch). */
+export const ring = (c: Point, r0: number, r1: number, half: 'all' | 'top' = 'all'): Shape => (x, y) => {
   if (half === 'top' && y > c.y) return false;
-  if (half === 'bottom' && y < c.y) return false;
   const d = Math.sqrt((x - c.x) * (x - c.x) + (y - c.y) * (y - c.y));
   return d >= r0 && d <= r1;
 };
@@ -45,4 +44,3 @@ export const segment = (a: Point, b: Point, w: number): Shape => {
 export const roundSegment = (a: Point, b: Point, w: number): Shape => any(segment(a, b, w), disc(a, w / 2), disc(b, w / 2));
 
 export const any = (...shapes: Shape[]): Shape => (x, y) => shapes.some((s) => s(x, y));
-export const both = (a: Shape, b: Shape): Shape => (x, y) => a(x, y) && b(x, y);
