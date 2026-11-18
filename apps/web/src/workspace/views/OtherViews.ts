@@ -15,12 +15,29 @@ import { stopJobSafetyText } from '../stopJobText.ts';
 import { Dismissable } from '../notes/Dismissable.ts';
 import { AccountPanel } from '../../live/AccountPanel.ts';
 import { accountState, signOut } from '../../live/account.ts';
+import { setupView } from '../cloud/setupSync.ts';
+import { restartSetup } from '../../wizard/setupActions.ts';
 
 function head(title: string, sub: string): ComponentChild {
   return h('div', { class: 'view-head' }, h('div', { class: 'title-block' }, h('h1', null, title), sub === '' ? null : h('p', null, sub)));
 }
 
 export { AnalyzeView } from './AnalyzeView.ts';
+
+export const SETUP_AGAIN = 'Run setup again';
+export const SETUP_AGAIN_TEXT = 'Walk through machine, firmware, homing, tools and a first project again.';
+
+/** "Run setup again" (first-run design §6.1): brings the setup wizard back at step 1 for a signed-in account. */
+function SetupPanel(): ComponentChild {
+  if (!setupView.value.account) return null;
+  return h(
+    'div',
+    { class: 'panel', 'data-region': 'setup-again' },
+    h('div', { class: 'panel-head' }, h('h2', null, 'Setup')),
+    h('p', { class: 'fine' }, SETUP_AGAIN_TEXT),
+    h('button', { type: 'button', class: 'small', 'data-action': 'run-setup-again', onClick: restartSetup }, SETUP_AGAIN),
+  );
+}
 
 /** True while a machine is connected or connecting (any LIVE step): sign-out is refused then (T-S58). */
 
@@ -35,6 +52,7 @@ export function PreferencesView({ build, model = null }: { readonly build: Build
       'div',
       { tabindex: 0, class: 'scroll-region' },
       h(AccountPanel, { state: accountState.value, live, onSignOut: () => void signOut(() => liveNow(model)) }),
+      h(SetupPanel, null),
       h(
         'div',
         { class: 'panel' },
