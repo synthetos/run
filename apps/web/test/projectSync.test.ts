@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { readProject } from '@synthetos/library';
+import { readProject, type Project } from '@synthetos/library';
 import { FilesError } from '../src/cloud/filesClient.ts';
 import { RecordsError } from '../src/cloud/recordsClient.ts';
 import { projectStore } from '../src/projects/browserStore.ts';
@@ -62,7 +62,7 @@ describe('project queue', () => {
     const h = await harness(); const remote = { ...h.p, name: 'Account plate' }; h.cache.records = [record('project', remote)];
     vi.mocked(h.client.put).mockRejectedValueOnce(new RecordsError(409, record('project', remote, 2)));
     enqueue(h.cache, 'project', h.p.id, h.p); expect(await h.drain()).toBe('saved');
-    expect(visibleRecords(h.cache).map(r => r.content.name)).toEqual(['Account plate', 'Plate (from this browser)']);
+    expect(visibleRecords(h.cache).map(r => (r.content as Project).name)).toEqual(['Account plate', 'Plate (from this browser)']);
     vi.mocked(h.client.archive).mockImplementation(async () => ({ ...record('project', remote, 3), archivedAt: 1 }));
     enqueue(h.cache, 'project', h.p.id, null); expect(await h.drain()).toBe('saved');
     expect(h.context.files.remove).not.toHaveBeenCalled(); expect(h.cache.fileDeletes).toEqual([h.p.files[0]!.hash]);
