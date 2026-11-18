@@ -11,8 +11,10 @@ export const DONE_LEAD = 'Everything from here is on the Job page.';
 export const DONE_NEXT = 'Place the job on the stock, check it, then run it.';
 export const MORE_TITLE = 'More to set up';
 
-export function doneHeadline(projectName: string | null): string {
-  return projectName === null ? 'No project is open yet' : `${projectName} is open on the Job page`;
+/** The project the wizard made: open on the Job page when it has a file, otherwise waiting in Projects. */
+export function doneHeadline(projectName: string | null, hasFile = true): string {
+  if (projectName === null) return 'No project is open yet';
+  return hasFile ? `${projectName} is open on the Job page` : `${projectName} is in Projects, with no files yet`;
 }
 
 function TopicRow({ topic, onView }: { readonly topic: Topic; readonly onView: (v: string) => void }): ComponentChild {
@@ -32,11 +34,11 @@ function TopicRow({ topic, onView }: { readonly topic: Topic; readonly onView: (
   );
 }
 
-export function Done(p: { readonly projectName: string | null; readonly onView: (v: string) => void }): ComponentChild {
+export function Done(p: { readonly projectName: string | null; readonly hasFile?: boolean; readonly onView: (v: string) => void }): ComponentChild {
   return h(
     'div',
     { class: 'wizard-done' },
-    h('p', { class: 'wizard-headline', 'data-wizard': 'headline' }, doneHeadline(p.projectName)),
+    h('p', { class: 'wizard-headline', 'data-wizard': 'headline' }, doneHeadline(p.projectName, p.hasFile ?? true)),
     h('p', { class: 'wizard-line' }, DONE_NEXT),
     h('h3', { class: 'wizard-more' }, MORE_TITLE),
     h('ul', { class: 'wizard-topics' }, MORE_TOPICS.map((topic) => h(TopicRow, { key: topic.id, topic, onView: p.onView }))),

@@ -22,6 +22,8 @@ import { Done, DONE_LEAD, DONE_TITLE } from './steps/Done.ts';
 import { Firmware, FIRMWARE_LEAD, FIRMWARE_TITLE, firmwareUpdating, startUpdate } from './steps/Firmware.ts';
 import { boardMismatch } from './homingStep.ts';
 import { Homing, HOMING_LEAD, HOMING_TITLE } from './steps/Homing.ts';
+import { createDemo, createNamed } from './createDemo.ts';
+import { CREATE_LABEL, FirstProject, PROJECT_LEAD, PROJECT_TITLE, projectBusy, projectChoice, projectError, projectName } from './steps/FirstProject.ts';
 import { fieldsFromStock, newToolSince, stockFromFields } from './stockFields.ts';
 import { catalogOpen, creatingTool, stockFields, ToolsStock, TOOLS_LEAD, TOOLS_TITLE, toolsBefore } from './steps/ToolsStock.ts';
 import { liveBoardId, Machine, MACHINE_LEAD, MACHINE_TITLE, machineDraft } from './steps/Machine.ts';
@@ -38,7 +40,7 @@ export interface WizardContext {
 
 interface StepView {
   readonly title: string; readonly lead: string; readonly body: ComponentChild;
-  readonly nextDisabled?: boolean; readonly next?: () => void;
+  readonly nextDisabled?: boolean; readonly next?: () => void; readonly nextLabel?: string | undefined;
   /** Overrides the step definition (the firmware step is not skippable while an update is needed). */
   readonly skippable?: boolean;
 }
@@ -103,6 +105,24 @@ function toolsStockStepView(): StepView {
   return { title: TOOLS_TITLE, lead: TOOLS_LEAD, body };
 }
 
+/** Step 6: "Open project" makes the demo (with the stock from step 5) or an empty named project, then moves on. */
+function projectStepView(): StepView {
+  const choice = projectChoice.value;
+  const create = async (): Promise<void> => {
+    if (projectBusy.peek()) return;
+    projectBusy.value = true; projectError.value = null;
+    try {
+      const made = choice === 'demo' ? await createDemo(undefined, setupView.peek().record?.stock ?? null) : await createNamed(projectName.peek());
+      if (made.ok) finishStep(6, { projectId: made.projectId });
+      else projectError.value = made.reason;
+    } catch (error) {
+      projectError.value = error instanceof Error ? error.message : 'The project could not be created.';
+    } finally { projectBusy.value = false; }
+  };
+  const body = h(FirstProject, { choice, onChoice: (c) => { projectChoice.value = c; }, name: projectName.value, onName: (n) => { projectName.value = n; }, error: projectError.value });
+  return { title: PROJECT_TITLE, lead: PROJECT_LEAD, body, nextLabel: choice === 'new' ? CREATE_LABEL : undefined, nextDisabled: projectBusy.value, next: () => { void create(); } };
+}
+
 /** The step's content; each step module fills its own case. */
 function stepView(step: StepId, ctx: WizardContext): StepView {
   switch (step) {
@@ -111,13 +131,17 @@ function stepView(step: StepId, ctx: WizardContext): StepView {
     case 3: return firmwareStepView(ctx);
     case 4: return homingStepView(ctx);
     case 5: return toolsStockStepView();
-    case 7: {
-      const id = setupView.value.record?.projectId ?? null;
-      const name = id === null ? null : projectsState.value.list.find((p) => p.id === id)?.name ?? null;
-      return { title: DONE_TITLE, lead: DONE_LEAD, body: h(Done, { projectName: name, onView: ctx.onView }), next: () => finishWizard(ctx) };
-    }
-    default: return { title: STEPS[step - 1]?.label ?? '', lead: '', body: null };
+    case 6: return projectStepView();
+    default: return doneStepView(ctx);
   }
+}
+
+/** Step 7: the project the wizard made, by the record's id. */
+function doneStepView(ctx: WizardContext): StepView {
+  const id = setupView.value.record?.projectId ?? null;
+  const made = id === null ? null : projectsState.value.list.find((p) => p.id === id) ?? null;
+  const body = h(Done, { projectName: made?.name ?? null, hasFile: (made?.files.length ?? 0) > 0, onView: ctx.onView });
+  return { title: DONE_TITLE, lead: DONE_LEAD, body, next: () => finishWizard(ctx) };
 }
 
 export function SetupWizard(p: WizardContext): ComponentChild {
@@ -129,6 +153,7 @@ export function SetupWizard(p: WizardContext): ComponentChild {
     machineDraft.value = null;
     firmwareUpdating.value = false;
     stockFields.value = null; catalogOpen.value = false; creatingTool.value = false;
+    projectError.value = null; projectBusy.value = false;
     toolsBefore.value = step === 5 ? toolStore.value.peek() : null;
     if (showing && typeof document !== 'undefined') document.getElementById('wizard-title')?.focus();
   }, [showing, step]);
@@ -142,7 +167,7 @@ export function SetupWizard(p: WizardContext): ComponentChild {
       marks: railMarks(record),
       title: view.title,
       lead: view.lead,
-      primary: { label: NEXT_LABEL[step], onClick: view.next ?? (() => finishStep(step)), disabled: view.nextDisabled === true },
+      primary: { label: view.nextLabel ?? NEXT_LABEL[step], onClick: view.next ?? (() => finishStep(step)), disabled: view.nextDisabled === true },
       onSkip: skippable ? () => skipStep(step) : null,
       onClose: closeSetup,
     },

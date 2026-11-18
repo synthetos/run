@@ -27,6 +27,7 @@ describe('step 7 Done', () => {
     expect(DONE_TITLE).toBe('You are set');
     expect(DONE_LEAD).toBe('Everything from here is on the Job page.');
     expect(doneHeadline('Name plate')).toBe('Name plate is open on the Job page');
+    expect(doneHeadline('Bracket', false)).toBe('Bracket is in Projects, with no files yet');
     expect(doneHeadline(null)).toBe('No project is open yet');
   });
   it('shows the headline, one next line, and one collapsed row per topic with its link', () => {
