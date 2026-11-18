@@ -17,8 +17,12 @@ describe('wizardOpen (R1)', () => {
   });
   it('a wizard that was started stays open after step 2 saved the machine, and resumes on another browser', () => {
     expect(wizardOpen('open', { ...base, machines: 1, record: { ...EMPTY_SETUP_RECORD, step: 3, done: [1, 2] } })).toBe(true);
-    expect(wizardOpen('open', { ...base, machines: 1, record: { ...EMPTY_SETUP_RECORD, step: 1 } })).toBe(false);
     expect(wizardOpen('open', { ...base, machines: 1, record: { ...EMPTY_SETUP_RECORD, step: 3, dismissed: true } })).toBe(false);
+  });
+  it('"Run setup again" (a record back at step 1, not dismissed) opens it for an account that has machines', () => {
+    expect(wizardOpen('open', { ...base, machines: 2, record: { ...EMPTY_SETUP_RECORD, step: 1, done: [] } })).toBe(true);
+    // A legacy account with machines and no record never sees it uninvited.
+    expect(wizardOpen('open', { ...base, machines: 2, record: null })).toBe(false);
   });
 });
 
