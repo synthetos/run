@@ -88,9 +88,9 @@ export const EXPECTED_ASSETS = {
 } as const;
 
 /**
- * env.staging's assets settings (P1-00): the top-level ones with the Worker
- * first for every path, so that it can grant `serial=(self)` to staging
- * documents (workers/run/src/headers.ts grantsSerial). Production uses the same routing and gates its serial grant on a validated session.
+ * env.staging's assets settings: the top-level ones. The Worker runs first for
+ * every path in both environments and gates its serial grant on a validated
+ * session (workers/run/src/headers.ts grantsSerial; OD-29, OD-40).
  */
 export const EXPECTED_STAGING_ASSETS = EXPECTED_ASSETS;
 

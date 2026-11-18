@@ -48,8 +48,8 @@ export const test = base.extend<Fixtures>({
   // the worker leave the page an observer, so W29 would cover every control: dismiss it on the spec's own page
   // whenever it appears. A spec that asserts W29 does so on a second page of its own (tab-stop), which this
   // handler does not touch.
-  page: async ({ page }, use, testInfo) => {
-    await stubFirmwareCatalog(page, undefined, testInfo.config.metadata['environment'] === 'staging' ? 'staging' : 'production');
+  page: async ({ page }, use) => {
+    await stubFirmwareCatalog(page);
     await page.addLocatorHandler(page.locator('[data-action="dismiss-w29"]'), async (ok) => {
       await ok.click();
     });

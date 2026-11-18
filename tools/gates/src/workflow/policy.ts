@@ -50,19 +50,19 @@ import { dataOrder, dataProvisionOrPreflight, dataStep, DATA_MIGRATION, DATA_DEP
  *   download and before it attests, extracts or deploys anything. This
  *   closes artifact poisoning: another job of the same run replacing
  *   `run-web` under the same name.
- * - `deploy-rollback` (ci.yml, P0 review): each deploy job's deploy step has
+ * - `deploy-rollback` (ci.yml, P0 review; OD-40): each deploy job's deploy step has
  *   `id: deploy`, and after the smoke test a step runs
  *   `rollback-cli.ts <env>` under exactly
- *   `if: failure() && (steps.deploy.outcome == 'failure' || steps.site_smoke.outcome == 'failure')`, so a deployment
- *   whose smoke test failed is taken down. Production additionally requires a successful
- *   deploy: rollback after a failed deploy could revert the previous healthy version.
+ *   `if: failure() && steps.deploy.outcome == 'success' && steps.site_smoke.outcome == 'failure'`, so a deployment
+ *   whose smoke test failed is rolled back to the previous version. Both environments require a
+ *   successful deploy: a rollback after a failed deploy could revert the previous healthy version.
  * - `deploy-config` (ci.yml, P0-04 review): each deploy job's preflight
  *   writes the allowlisted deployment configuration (DEPLOY_CONFIG), and
  *   every wrangler invocation comes after it and uses only that file; no
  *   other line writes it or reads wrangler.jsonc. wrangler runs a configured
  *   build.command even under --no-bundle, with the deploy token.
  * - `smoke-credentials` (ci.yml, P0 review): every smoke-test step of a
- *   deploy job, the staging pre-deploy Access check included, sets the
+ *   deploy job, the staging pre-deploy public check included, sets the
  *   Cloudflare token and account in its own env.
  * - `safety-review-job` (safety-review.yml): the gate runs from the base
  *   commit with the reviewers' repository permissions and the PR's recorded
@@ -650,7 +650,7 @@ function checkArtifactDigests(jobs: readonly Job[], add: (line: number, rule: Po
 
 /** The exact condition of the undo step. */
 export const ROLLBACK_IF = {
-  staging: "if: failure() && (steps.deploy.outcome == 'failure' || steps.site_smoke.outcome == 'failure')",
+  staging: "if: failure() && steps.deploy.outcome == 'success' && steps.site_smoke.outcome == 'failure'",
   production: "if: failure() && steps.deploy.outcome == 'success' && steps.site_smoke.outcome == 'failure'",
 } as const;
 
@@ -782,7 +782,7 @@ function checkSmokeCredentials(jobs: readonly Job[], add: (line: number, rule: P
     const flag = (line: number, message: string): void => add(line, 'smoke-credentials', message);
     const smokeLines = job.lines.filter((l) => l.text.includes('tools/gates/src/smoke/cli.ts'));
     if (name === 'deploy-staging' && !smokeLines.some((l) => l.text.replace(/^-\s+/, '') === 'run: node tools/gates/src/smoke/cli.ts --env staging --pre-deploy')) {
-      flag(job.line, "job 'deploy-staging' must run 'node tools/gates/src/smoke/cli.ts --env staging --pre-deploy' (the positive Access check, D31)");
+      flag(job.line, "job 'deploy-staging' must run 'node tools/gates/src/smoke/cli.ts --env staging --pre-deploy' (staging must be public, with no Access application: OD-40)");
     }
     for (const smoke of smokeLines) {
       const step = stepOf(job, smoke);

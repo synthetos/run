@@ -1,11 +1,10 @@
 /**
- * Deterministic public API metadata; browser tests never contact GitHub. The stub answers with the security headers of
- * the deployment the suite stands in for (production, or staging with serial granted: headers.staging.ts checks every
- * subresource), which fixtures.ts reads from the suite's metadata.
+ * Deterministic public API metadata; browser tests never contact GitHub. The stub answers with the fail-closed security
+ * headers an anonymous document gets on either deployed host (OD-29, OD-40; headers.e2e.ts and headers.staging.ts
+ * check every subresource).
  */
-import { securityHeadersFor } from '../../../workers/run/src/headers.ts';
+import { SECURITY_HEADERS } from '../../../workers/run/src/headers.ts';
 import type { Page } from '@playwright/test';
-import type { WorkerEnvironment } from '../src/served.ts';
 export const FIRMWARE_CATALOG = {
   format: 'synthetos-run/github-releases@1',
   releases: [450.06, 450.05, 450.04, 450.03, 450.02].map(fb => ({
@@ -14,7 +13,6 @@ export const FIRMWARE_CATALOG = {
     sha256: 'a'.repeat(64), size: 1000, unavailable: null,
   })),
 };
-export async function stubFirmwareCatalog(page: Page, catalog: unknown = FIRMWARE_CATALOG, environment: WorkerEnvironment = 'production'): Promise<void> {
-  const headers = securityHeadersFor(environment === 'staging');
-  await page.route('**/api/firmware/releases', route => route.fulfill({ status: 200, headers, contentType: 'application/json', body: JSON.stringify(catalog) }));
+export async function stubFirmwareCatalog(page: Page, catalog: unknown = FIRMWARE_CATALOG): Promise<void> {
+  await page.route('**/api/firmware/releases', route => route.fulfill({ status: 200, headers: { ...SECURITY_HEADERS }, contentType: 'application/json', body: JSON.stringify(catalog) }));
 }

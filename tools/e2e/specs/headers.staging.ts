@@ -1,24 +1,25 @@
 /**
- * P1-00 on the staging stand-in: every response the staging Worker returns
- * carries SERIAL_GRANTED_SECURITY_HEADERS exactly once each, so staging
- * documents may use Web Serial for their own origin and nothing else is
- * loosened. The main suite (headers.e2e.ts) proves production still denies
- * serial, against the same tree.
+ * The staging stand-in (OD-40): staging is public and answers an anonymous
+ * visitor exactly as production does. Every response carries SECURITY_HEADERS
+ * (serial=()) exactly once, the health body names the staging environment,
+ * and the browser refuses Web Serial in the page and in machine.worker. A
+ * validated run.connect session is the only thing that grants serial, on
+ * either host (workers/run/test/headers.test.ts covers that decision).
  */
 import type { Response } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
-import { HASHED_ASSET_CACHE_CONTROL, SERIAL_GRANTED_SECURITY_HEADERS } from '../../../workers/run/src/headers.ts';
-import { machineWorker, request } from './machineWorker.ts';
+import { HASHED_ASSET_CACHE_CONTROL, SECURITY_HEADERS } from '../../../workers/run/src/headers.ts';
+import { machineWorker } from './machineWorker.ts';
 import { SERIAL_PROBE } from './serialProbe.ts';
 
 function expectExact(all: readonly { name: string; value: string }[], url: string): void {
-  for (const [name, value] of Object.entries(SERIAL_GRANTED_SECURITY_HEADERS)) {
+  for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
     const found = all.filter((h) => h.name.toLowerCase() === name).map((h) => h.value);
     expect(found, `${name} on ${url}`).toEqual([value]);
   }
 }
 
-test('the staging shell and every subresource carry the serial-granted headers exactly once, and render without a violation', async ({ page, originGuard }) => {
+test('the staging shell and every subresource carry the fail-closed headers exactly once, and render without a violation', async ({ page, originGuard }) => {
   const responses: Response[] = [];
   page.on('response', (r) => responses.push(r));
   const main = await page.goto('/');
@@ -37,7 +38,7 @@ test('the staging shell and every subresource carry the serial-granted headers e
   expect(originGuard.findings).toEqual([]);
 });
 
-test('the 404 page, /api/health, other /api and /auth paths carry the serial-granted headers too', async ({ request }) => {
+test('the 404 page, /api/health, other /api and /auth paths carry the fail-closed headers too, and health names staging', async ({ request }) => {
   const notFound = await request.get('/no-such-page');
   expect(notFound.status()).toBe(404);
   const health = await request.get('/api/health');
@@ -49,7 +50,7 @@ test('the 404 page, /api/health, other /api and /auth paths carry the serial-gra
   for (const res of [notFound, health, api, auth]) expectExact(res.headersArray(), res.url());
 });
 
-test('staging grants Web Serial to its own documents, and only that: every other device API stays off', async ({ page }) => {
+test('an anonymous staging document gets no device API, serial included (OD-40)', async ({ page }) => {
   await page.goto('/');
   const allowed = await page.evaluate(() => {
     const fp = (document as unknown as { featurePolicy: { allowsFeature(f: string, origin?: string): boolean } }).featurePolicy;
@@ -59,7 +60,7 @@ test('staging grants Web Serial to its own documents, and only that: every other
     };
   });
   expect(allowed).toEqual({
-    serial: true,
+    serial: false,
     usb: false,
     hid: false,
     bluetooth: false,
@@ -71,21 +72,8 @@ test('staging grants Web Serial to its own documents, and only that: every other
   });
 });
 
-test('the browser allows Web Serial on staging, in the page and in machine.worker, which inherits the document policy', async ({ page }) => {
+test('the browser refuses Web Serial on anonymous staging, in the page and in machine.worker, which inherits the document policy', async ({ page }) => {
   const worker = await machineWorker(page);
-  expect(await page.evaluate(SERIAL_PROBE)).toBe('ok:0');
-  expect(await worker.evaluate(SERIAL_PROBE)).toBe('ok:0');
-});
-
-test('machine.worker asks Web Serial for the granted ports; with none granted, open is refused and the worker stays idle (P1-01)', async ({ page }) => {
-  const worker = await machineWorker(page);
-  expect(await request(worker, { v: 3, kind: 'status' })).toMatchObject({ status: { source: 'serial', state: 'idle' } });
-  expect(await request(worker, { v: 3, kind: 'prepare', port: { usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0, grantSnapshot: ['1027:24597'] } })).toEqual({
-    v: 3,
-    ok: false,
-    kind: 'prepare',
-    code: 'unavailable',
-    message: 'the granted ports changed or the selection expired',
-  });
-  expect(await request(worker, { v: 3, kind: 'status' })).toMatchObject({ status: { source: 'serial', state: 'idle', session: { base: 'NOT_CONNECTED', overlays: [] } } });
+  expect(await page.evaluate(SERIAL_PROBE)).toBe('err:SecurityError');
+  expect(await worker.evaluate(SERIAL_PROBE)).toBe('err:SecurityError');
 });

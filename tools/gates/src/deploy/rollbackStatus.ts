@@ -13,7 +13,7 @@ export async function workerPresence(environment: DeployEnvironment, account: st
   } catch { return 'unknown'; }
 }
 export function rollbackFailure(environment: DeployEnvironment, presence: WorkerPresence): string {
-  if (presence === 'absent') return `${environment} Worker ${environment === 'staging' ? 'deleted' : 'absent'}; cleanup step failed: wrangler returned an error`;
+  if (presence === 'absent') return `${environment} Worker absent; cleanup step failed: wrangler returned an error`;
   if (presence === 'present') return `${environment} Worker STILL LIVE; wrangler returned an error; deployed version not verified; act now`;
   return `${environment} Worker state UNKNOWN; wrangler returned an error and existence could not be checked; act now`;
 }

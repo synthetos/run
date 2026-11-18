@@ -82,10 +82,11 @@ export const REQUIRED_WORKER_FILES: readonly string[] = ['index.mjs', 'headers.m
 export type WorkerEnvironment = 'production' | 'staging';
 
 /**
- * The staging stand-in (P1-00): `--env staging`, and the Worker sees every
- * request as `https://staging.run.synthetos.com/...` (wrangler's local
- * upstream), so `grantsSerial` (workers/run/src/headers.ts) answers as it
- * does on staging. The browser still talks to 127.0.0.1.
+ * The staging stand-in: `--env staging`, and the Worker sees every request as
+ * `https://staging.run.synthetos.com/...` (wrangler's local upstream), so
+ * `grantsSerial` (workers/run/src/headers.ts) answers as it does on staging:
+ * since OD-40 the fail-closed set for an anonymous document, as in production.
+ * The browser still talks to 127.0.0.1.
  */
 export const STAGING_DEV_ARGS: readonly string[] = ['--env', 'staging', '--local-upstream', 'staging.run.synthetos.com', '--upstream-protocol', 'https'];
 
