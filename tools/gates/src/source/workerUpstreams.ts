@@ -54,6 +54,11 @@ export const WORKER_UPSTREAMS: readonly WorkerUpstream[] = Object.freeze([
     text: 'https://github.com',
     why: 'GitHub release downloads of the allowlisted synthetos repositories, fetched server-side and verified against GitHub asset digests in the current release list (OD-10).',
   },
+  {
+    file: 'avatarRoute.ts',
+    text: 'https://avatars.githubusercontent.com/u/${id}?s=96&v=4',
+    why: 'Owner 2026-11-18: the signed-in user’s GitHub avatar, fetched server-side for a numeric identity id only and served same-origin at /api/avatar, since the page’s CSP keeps the browser off GitHub.',
+  },
 ]);
 
 /** OD-10 and the owner's 2026-11-12 catalog decision: these are returned link

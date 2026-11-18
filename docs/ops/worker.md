@@ -44,6 +44,12 @@ otherwise 401 `{"identity":null,"reason":…}` (`not-available-here` where
 sign-in is not configured, `not-signed-in`, `connect-not-allowed`). Since
 OD-40 there is no other identity: the staging Cloudflare Access JWT path is
 gone with Access itself. `no-store`, like every API response.
+`GET /api/avatar` (owner, 2026-11-18) serves the signed-in user's GitHub
+picture same-origin: the Worker fetches
+`avatars.githubusercontent.com/u/<numeric id>` server-side (no redirects,
+10 s, 256 KB, png/jpeg/gif/webp only), caches it per id for a day, and
+answers `private, max-age=86400` with `vary: Cookie`; 401 without a session,
+404 for anything else (`workers/run/src/avatarRoute.ts`).
 From A1-06 (OD-26), `/auth/login`, `/auth/callback` and `/auth/logout` are
 the sign-in handoff with accounts (`workers/run/src/auth*.ts`; SAFETY H42 as
 built), and `/api/identity` names the run session first (`provider:

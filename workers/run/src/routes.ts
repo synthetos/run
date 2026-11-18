@@ -7,9 +7,10 @@ import { dataRoute } from './dataRoute.ts';
  * The API is `GET /api/health` and, from P1-05, `GET /api/identity` (the
  * D1 sign-in gate's identity: the run session where sign-in is on, A1-06,
  * then the verified Cloudflare Access identity on staging), and `GET
- * /api/session` (the account panel's read, always 200). `/auth/*` is the
- * sign-in handoff with accounts (authRoutes.ts), a 404 where sign-in is off.
- * Every other `/api/*` path is a 404.
+ * /api/session` (the account panel's read, always 200). `GET /api/avatar`
+ * serves the signed-in user's GitHub picture same-origin (avatarRoute.ts).
+ * `/auth/*` is the sign-in handoff with accounts (authRoutes.ts), a 404 where
+ * sign-in is off. Every other `/api/*` path is a 404.
  *
  * `GET /firmware/<owner>/<name>/<tag>/<asset>` (OD-10) serves a listed
  * GitHub release asset through the firmware proxy (firmwareProxy.ts). The
