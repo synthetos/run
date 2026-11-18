@@ -24,9 +24,13 @@ export const NEXT_LABEL: Readonly<Record<StepId, string>> = Object.freeze({
   1: 'Set up my machine', 2: 'Next: firmware', 3: 'Next: homing', 4: 'Next: tools & stock', 5: 'Next: project', 6: 'Open project', 7: 'Go to the Job page',
 });
 
-/** R1: signed in (the gate is open), the account read once, no machine record, and the wizard not dismissed. */
+/**
+ * R1: signed in (the gate is open), the account read once, the wizard not dismissed, and either no machine record
+ * yet or a wizard already under way (step 2 saves the machine; the record past step 1 keeps it open, on any browser).
+ */
 export function wizardOpen(gate: GateKind, view: SetupView): boolean {
-  return gate === 'open' && view.account && view.refreshed && view.machines === 0 && view.record?.dismissed !== true;
+  if (gate !== 'open' || !view.account || !view.refreshed || view.record?.dismissed === true) return false;
+  return view.machines === 0 || (view.record?.step ?? 1) > 1;
 }
 
 export function currentStep(record: SetupRecord | null): StepId {

@@ -15,6 +15,11 @@ describe('wizardOpen (R1)', () => {
     expect(wizardOpen('open', { ...base, record: { ...EMPTY_SETUP_RECORD, dismissed: true } })).toBe(false);
     expect(wizardOpen('open', { ...base, record: { ...EMPTY_SETUP_RECORD, step: 5 } })).toBe(true);
   });
+  it('a wizard that was started stays open after step 2 saved the machine, and resumes on another browser', () => {
+    expect(wizardOpen('open', { ...base, machines: 1, record: { ...EMPTY_SETUP_RECORD, step: 3, done: [1, 2] } })).toBe(true);
+    expect(wizardOpen('open', { ...base, machines: 1, record: { ...EMPTY_SETUP_RECORD, step: 1 } })).toBe(false);
+    expect(wizardOpen('open', { ...base, machines: 1, record: { ...EMPTY_SETUP_RECORD, step: 3, dismissed: true } })).toBe(false);
+  });
 });
 
 describe('steps and progress', () => {
