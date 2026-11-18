@@ -1,10 +1,10 @@
 import { ACCOUNT_STORAGE_BYTES, RECORD_KINDS, recordMaxBytes, type CloudRecord, type RecordActor, type RecordKind, type RecordResult } from '@synthetos/contracts';
-import { readMachine, readMaterial, readProject, readTool, type LibraryResult } from '@synthetos/library';
+import { readMachine, readMaterial, readProject, readSetup, readTool, type LibraryResult } from '@synthetos/library';
 import type { Database } from './database.ts';
 const ID = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 const kindOk = (kind: unknown): kind is RecordKind => RECORD_KINDS.includes(kind as RecordKind);
 /** The strict reader each kind passes before it is stored; the record id must be the content's own id. */
-const READERS: Readonly<Record<RecordKind, (value: unknown) => LibraryResult<{ readonly id: string }>>> = { tool: readTool, material: readMaterial, machine: readMachine, project: readProject };
+const READERS: Readonly<Record<RecordKind, (value: unknown) => LibraryResult<{ readonly id: string }>>> = { tool: readTool, material: readMaterial, machine: readMachine, project: readProject, setup: readSetup };
 function valid(actor: RecordActor, kind: RecordKind, id = 'x'): boolean {
   return /^usr_[A-Za-z0-9_-]{1,100}$/.test(actor.userId) && typeof actor.label === 'string' && actor.label.length <= 120 && kindOk(kind) && ID.test(id);
 }

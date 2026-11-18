@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BUILTIN_MATERIALS } from '@synthetos/library';
+import { BUILTIN_MATERIALS, EMPTY_SETUP_RECORD } from '@synthetos/library';
 import { PROJECT_RECORD_MAX_BYTES } from '@synthetos/contracts';
 import { RecordStore } from '../src/store.ts';
 import { database, migrationSql, migrations } from './harness.ts';
@@ -65,6 +65,34 @@ describe('migration 0002', () => {
     expect(() => sql.exec("UPDATE record_revisions SET actor_label='x'")).toThrow('append_only');
     expect(() => sql.exec("DELETE FROM record_revisions")).toThrow('append_only');
     expect((await store.put(a, 'machine', machine.id, null, machine)).ok).toBe(true);
+    expect(sql.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE type='trigger' AND tbl_name='record_revisions'").get()).toMatchObject({ n: 4 });
+    sql.close();
+  });
+});
+
+describe('setup records and migration 0004', () => {
+  it('store one setup document per account, and refuse a bad one or a mismatched id', async () => {
+    const { db, sql } = database(); const store = new RecordStore(db);
+    expect(await store.put(a, 'setup', 'setup', null, EMPTY_SETUP_RECORD)).toMatchObject({ ok: true, record: { kind: 'setup', rev: 1, content: { step: 1 } } });
+    expect(await store.put(a, 'setup', 'setup', 1, { ...EMPTY_SETUP_RECORD, step: 3, done: [1, 2] })).toMatchObject({ ok: true, record: { rev: 2 } });
+    expect(await store.put(a, 'setup', 'setup', 2, { ...EMPTY_SETUP_RECORD, step: 9 })).toEqual({ ok: false, error: 'invalid' });
+    expect(await store.put(a, 'setup', 'other', null, EMPTY_SETUP_RECORD)).toEqual({ ok: false, error: 'invalid' });
+    expect(await store.list(b, 'setup')).toEqual([]);
+    expect((await store.list(a, 'setup')).map((r) => r.id)).toEqual(['setup']);
+    sql.close();
+  });
+
+  it('0004 widens the kind check and keeps rows, counts and the triggers', async () => {
+    const { db, sql } = database('0003_files.sql'); const store = new RecordStore(db);
+    await store.put(a, 'machine', machine.id, null, machine);
+    expect(() => sql.exec("INSERT INTO records VALUES('usr_x','setup','setup',1,NULL)")).toThrow('CHECK');
+    const used = sql.prepare('SELECT used_bytes FROM account_storage WHERE user_id=?').get(a.userId)!['used_bytes'];
+    sql.exec(migrationSql(migrations().find((m) => m.startsWith('0004'))!));
+    expect(await store.get(a, 'machine', machine.id)).toMatchObject({ ok: true, record: { rev: 1 } });
+    expect(sql.prepare('SELECT used_bytes FROM account_storage WHERE user_id=?').get(a.userId)!['used_bytes']).toBe(used);
+    expect(await store.put(a, 'setup', 'setup', null, EMPTY_SETUP_RECORD)).toMatchObject({ ok: true, record: { rev: 1 } });
+    expect(await store.put(a, 'machine', machine.id, null, machine)).toMatchObject({ ok: false, error: 'conflict' });
+    expect(() => sql.exec("DELETE FROM record_revisions")).toThrow('append_only');
     expect(sql.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE type='trigger' AND tbl_name='record_revisions'").get()).toMatchObject({ n: 4 });
     sql.close();
   });
