@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="apps/web/src/brand/run-wordmark-dark.svg">
+  <img alt="run" src="apps/web/src/brand/run-wordmark.svg" height="64">
+</picture>
+
 # run.synthetos.com
 
 The browser workspace for Synthetos CNC controllers: configure the board,
