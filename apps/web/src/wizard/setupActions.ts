@@ -3,9 +3,30 @@
  * the wizard (dismissed, progress kept) and "Run setup again" from Preferences. Every write goes through
  * setupSync.ts into the account record queue; nothing is kept in browser storage.
  */
+import { signal } from '@preact/signals';
 import { EMPTY_SETUP_RECORD } from '@synthetos/library';
+import { openFirmwareUpdate, releaseRequest, viewRequest } from '../workspace/boardNavigation.ts';
 import { saveSetup, setupView, type SetupPatch } from '../workspace/cloud/setupSync.ts';
 import { markDone, skip, type StepId } from './wizardState.ts';
+
+/**
+ * True while the person left the wizard for Board → Firmware → Update (owner 167): the wizard steps aside and the
+ * page offers Back to setup. The step itself stays in the setup record; this page-only flag is never stored.
+ */
+export const setupAway = signal(false);
+
+/** Step 3's Update firmware: the full Firmware page, the offered release marked when there is one. */
+export function leaveSetupForFirmware(release: string | null): void {
+  setupAway.value = true;
+  openFirmwareUpdate();
+  releaseRequest.value = release;
+  viewRequest.value = 'board';
+}
+
+/** The Firmware page's Back to setup: the wizard again, on the step the record holds. */
+export function backToSetup(): void {
+  setupAway.value = false;
+}
 
 const record = () => setupView.peek().record ?? EMPTY_SETUP_RECORD;
 
@@ -23,5 +44,6 @@ export function closeSetup(): void {
 }
 
 export function restartSetup(): void {
+  setupAway.value = false;
   saveSetup({ dismissed: false, step: 1, done: [] });
 }

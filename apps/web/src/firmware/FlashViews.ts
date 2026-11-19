@@ -1,6 +1,6 @@
 /** Shared flash checklist and progress views. No workspace controls. */
-import { h, type ComponentChild } from 'preact';
-import { useState } from 'preact/hooks';
+import { h, type ComponentChild, type RefObject } from 'preact';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { boardText, c37, c6Boxes, c6Question, w11, w28, w47 } from '@synthetos/safety';
 import { signalText } from '../shell/signal.ts';
 import type { LiveView, ReleaseImage, FirmwareDownload } from '../workspace/model.ts';
@@ -30,11 +30,37 @@ export type Target =
   | { readonly kind: 'backup'; readonly id: string; readonly fb: number | null; readonly sha256: string }
   | { readonly kind: 'custom'; readonly name: string; readonly text: string; readonly sha256: string };
 
+/**
+ * For the scrolling column that opens ConfirmFlash at its top: back to the top as it opens, so its W11 and W28 are
+ * the first thing seen (owner 167). The column also sets `overflow-anchor: none` in CSS.
+ */
+export function useConfirmInView<T extends HTMLElement>(open: boolean): RefObject<T | null> {
+  const ref = useRef<T>(null);
+  useEffect(() => {
+    if (open && ref.current !== null) ref.current.scrollTop = 0;
+  }, [open]);
+  return ref;
+}
+
+/**
+ * Cancel takes the focus as the confirm opens, without scrolling to it (owner 167). A plain `autofocus` made the
+ * browser scroll the column down to Cancel, the last line, which pushed W11, W28 and the first boxes out of view:
+ * inside the setup wizard's nested scroll boxes the click on "Update to …" looked dead.
+ */
+function useQuietFocus(): RefObject<HTMLButtonElement | null> {
+  const ref = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    ref.current?.focus({ preventScroll: true });
+  }, []);
+  return ref;
+}
+
 /** The C6 checklist (and C37 for custom firmware), then the question. Nothing starts until every box is ticked. */
 export function ConfirmFlash({ view, target, openUpdate = false, onCancel, onConfirm }: { readonly view: Pick<LiveView, 'message'>; readonly target: Target; readonly openUpdate?: boolean; readonly onCancel: () => void; readonly onConfirm: () => void }): ComponentChild {
   // Owner decision, SAFETY §4.8: the open updater has no motion controls.
   const boxes = c6Boxes().boxes.map((text, i) => openUpdate && i === 4 ? '5. The tool is clear of the work.' : text);
   const [ticked, setTicked] = useState<boolean[]>(boxes.map(() => false));
+  const cancel = useQuietFocus();
   const id = view.message?.snapshot.identity;
   const boardId = typeof id?.id === 'string' ? boardText(id.id) : 'unknown board';
   const toBuild = target.kind === 'release' ? fbText(target.image.release.fb) : target.kind === 'backup' ? `${fbText(target.fb)} (firmware backup)` : 'custom';
@@ -73,7 +99,7 @@ export function ConfirmFlash({ view, target, openUpdate = false, onCancel, onCon
     h(
       'div',
       { class: 'row-actions' },
-      h('button', { type: 'button', class: 'small', 'data-action': 'cancel-flash', autofocus: true, onClick: onCancel }, 'Cancel'),
+      h('button', { type: 'button', class: 'small', 'data-action': 'cancel-flash', ref: cancel, onClick: onCancel }, 'Cancel'),
       h('button', { type: 'button', class: 'primary small', 'data-machine-control': 'flash', 'data-action': 'confirm-flash', disabled: !allTicked, onClick: onConfirm }, target.kind === 'custom' ? 'Flash custom firmware' : 'Update now'),
     ),
   );

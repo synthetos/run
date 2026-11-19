@@ -1,4 +1,4 @@
-import { ConfirmFlash, Progress, DownloadCard, type Target } from '../../firmware/FlashViews.ts';
+import { ConfirmFlash, Progress, DownloadCard, useConfirmInView, type Target } from '../../firmware/FlashViews.ts';
 /**
  * The Board view's Firmware tab (the Update panel, then the firmware image backups, custom firmware and trusted
  * builds) and its Backups tab (settings backups); until 2026-11-09 these were the Firmware and Firmware & Backups
@@ -191,6 +191,18 @@ function TrustOffer({ view, hub }: { readonly view: LiveView; readonly hub: Firm
   );
 }
 
+/** The release asked for by the update offer or the setup wizard (boardNavigation.ts): kept marked while this view is open. */
+function useAskedRelease(): string | null {
+  const [focusRelease, setFocusRelease] = useState<string | null>(null);
+  const asked = releaseRequest.value;
+  useEffect(() => {
+    if (asked === null) return;
+    setFocusRelease(asked);
+    releaseRequest.value = null;
+  }, [asked]);
+  return focusRelease;
+}
+
 export function FirmwareTab({ model, view: viewProp }: { readonly model?: WorkspaceModel | null; readonly view?: LiveView | null }): ComponentChild {
   const view = model?.live.value ?? viewProp ?? null;
   const actions = model?.actions.value ?? null;
@@ -198,6 +210,7 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
   MOTION.current = actions?.motion ?? null;
   const hub = view?.firmware ?? null;
   const [target, setTarget] = useState<Target | null>(null);
+  const aside = useConfirmInView<HTMLElement>(target !== null);
   const [chooseHardware, setChooseHardware] = useState(false);
   const [hardwareChoice, setHardwareChoice] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
@@ -211,14 +224,7 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
   const shown = shownBoard(on, id, flash, boardText);
   const running = flash !== null && flash.phase !== 'done' && flash.phase !== 'failed';
   const advanced = uiLevel.value.value === 'advanced';
-  // Asked for by the update offer (boardNavigation.ts): kept marked while this view is open.
-  const [focusRelease, setFocusRelease] = useState<string | null>(null);
-  const asked = releaseRequest.value;
-  useEffect(() => {
-    if (asked === null) return;
-    setFocusRelease(asked);
-    releaseRequest.value = null;
-  }, [asked]);
+  const focusRelease = useAskedRelease();
   const trusted = s?.classification?.approvalSource === 'trusted';
   const old = m?.oldFirmware ?? null;
   const start = (): void => {
@@ -272,7 +278,7 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
     ),
     h(
       'aside',
-      { tabindex: 0, class: 'inspector', 'aria-label': 'Firmware update' },
+      { tabindex: 0, class: 'inspector', 'aria-label': 'Firmware update', ref: aside },
       view !== null && target !== null ? h(ConfirmFlash, { view, target, onCancel: () => setTarget(null), onConfirm: start }) : null,
       download !== null && target === null && !running ? h(DownloadCard, { download }) : null,
       flash !== null && running && flash.phase !== 'recovery'

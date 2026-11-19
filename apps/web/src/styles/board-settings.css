@@ -95,6 +95,11 @@
 .firmware-tab > .subtabs { flex: 1; min-height: 0; }
 .firmware-tab .subtab-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .firmware-tab .subtab-pane > .configure-grid { flex: 1; min-height: 0; padding: 0; grid-template-rows: minmax(0, 1fr); }
+/* A C6 confirm opens at the top of its column: no scroll anchoring pushes its W11 and W28 out of view (owner 167). */
+.firmware-tab .inspector, .firmware-tab .hub { overflow-anchor: none; }
+/* The setup wizard's way back (wizard/BackToSetup.ts, owner 167): one slim row above the Update part. */
+.setup-return { flex: none; align-self: flex-start; display: flex; align-items: center; gap: 12px; margin: 0 0 10px; padding: 8px 12px; border: 1px solid var(--blue); border-radius: var(--r-sm); background: var(--blue-wash); }
+.setup-return > p { margin: 0; font-size: 13px; color: var(--ink); }
 .firmware-tab .releases-panel { overflow: hidden; display: flex; flex-direction: column; padding-bottom: 6px; }
 .release-list { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .release-list .releases-page { flex: 1; min-height: 0; overflow: hidden; }

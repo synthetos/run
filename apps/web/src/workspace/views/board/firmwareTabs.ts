@@ -3,7 +3,8 @@
  * and the update steps), Firmware backups, and Custom firmware. While an update runs or its settings check is open
  * (any post-flash phase but clear), only Update is offered, so its progress, restore and switch check stay in view.
  */
-import { h, type ComponentChild } from 'preact';
+import { Fragment, h, type ComponentChild } from 'preact';
+import { BackToSetup } from '../../../wizard/BackToSetup.ts';
 import type { WorkspaceModel } from '../../model.ts';
 import { CustomFirmware, ImageBackups } from '../FirmwareBackups.ts';
 import { FirmwareTab } from '../FirmwareViews.ts';
@@ -20,6 +21,7 @@ export function FirmwareSection({ model }: { readonly model: WorkspaceModel | nu
   const flash = m?.flash ?? null;
   const post = m?.postFlash ?? null;
   const busy = (flash !== null && flash.phase !== 'done' && flash.phase !== 'failed') || (post !== null && post.phase !== 'clear');
-  const part = (id: string): ComponentChild => (id === 'images' ? h(ImageBackups, { model }) : id === 'custom' ? h(CustomFirmware, { model }) : h(FirmwareTab, { model }));
+  // Update carries the setup wizard's way back while the person came here from its firmware step (owner 167).
+  const part = (id: string): ComponentChild => (id === 'images' ? h(ImageBackups, { model }) : id === 'custom' ? h(CustomFirmware, { model }) : h(Fragment, null, h(BackToSetup, null), h(FirmwareTab, { model })));
   return h('div', { class: 'firmware-tab' }, h(SubTabs, { name: 'Firmware', prefix: 'board-firmware', tabs: busy ? ALL.slice(0, 1) : ALL, choice: subTabChoice.firmware, render: part }));
 }

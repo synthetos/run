@@ -1,7 +1,7 @@
 /* The setup wizard (docs/superpowers/specs/2026-11-16-first-run-design.md §6.2): one 960 × 520 frame over the
    front door's scrim (gate.css). The frame never changes size between steps; the body scrolls instead.
    Every rule here names a wizard-owned class (`wizard-*`). The wizard hosts app parts (Connect and C1, the tool
-   catalog and editor, the Board tab's update flow, HomeQuick); a bare `h2`, `p`, `label`, `input` or `.field` rule
+   catalog and editor, HomeQuick); a bare `h2`, `p`, `label`, `input` or `.field` rule
    would reach into them (owner 145). The app's base input rules reach the wizard from workspace.css. */
 /* W1 stays on screen (OD-9; review 2026-11-18): the scrim, the frame, the catalog page and hosted dialogs start below
    the safety bar. `--wizard-top` is where the bar ends, measured by safetyBarOffset.ts on `.wizard-root`. */
@@ -55,7 +55,6 @@ li[data-mark="done"] .wizard-step-mark { border-color: var(--ok); color: var(--o
 .wizard-question { padding: 0; margin: 0 0 8px; font-size: 13.5px; font-weight: 600; color: var(--ink); }
 .wizard-coolant-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .wizard-coolant-cards .wizard-pick { margin: 0; padding: 7px 12px; }
-.wizard-embed { border: 1px solid var(--rule); border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
 /* Step 5's catalog page (owner 147): the catalog's own layout at the full viewport, above the frame and below the
    catalog's own dialogs (`.wizard .dialog-wrap`). */
 .wizard-catalog { position: fixed; inset: var(--wizard-top, 0px) 0 0; z-index: 4; display: flex; flex-direction: column; background: var(--paper); text-align: left; }
@@ -65,9 +64,6 @@ li[data-mark="done"] .wizard-step-mark { border-color: var(--ok); color: var(--o
 .wizard-catalog-body > .catalog-view { flex: 1; min-height: 0; }
 .wizard-catalog-body > .catalog-view > .list-panel { display: flex; flex-direction: column; min-height: 0; }
 .wizard-catalog-body .tool-table-wrap { flex: 1; min-height: 0; overflow: auto; }
-/* The Board tab's update flow inside the frame (R5): its two panels stack and scroll on their own; the frame stays put. */
-.wizard-embed .configure-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; height: auto; }
-.wizard-embed .list-panel, .wizard-embed .inspector { max-height: 300px; overflow: auto; }
 .wizard-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
 table.wizard-facts { border-collapse: collapse; margin: 0 0 14px; font-size: 13px; }
 table.wizard-facts th { text-align: left; font-weight: 500; color: var(--muted); padding: 6px 18px 6px 0; }

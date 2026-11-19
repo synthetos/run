@@ -194,7 +194,7 @@
       "complexity $/FunctionDeclaration:Strip#1": 23
     },
     "apps/web/src/workspace/FirmwareOffer.ts": {
-      "complexity $/FunctionDeclaration:FirmwareOffer#1": 25
+      "complexity $/FunctionDeclaration:FirmwareOffer#1": 23
     },
     "apps/web/src/workspace/MachineStrip.ts": {
       "complexity $/FunctionDeclaration:MachineStrip#1": 22,
@@ -325,7 +325,7 @@
     "apps/web/src/workspace/views/FirmwareViews.ts": {
       "complexity $/FunctionDeclaration:FirmwareTab#1": 94,
       "complexity $/FunctionDeclaration:flashBlocked#1": 19,
-      "max-lines-per-function $/FunctionDeclaration:FirmwareTab#1": 134
+      "max-lines-per-function $/FunctionDeclaration:FirmwareTab#1": 129
     },
     "apps/web/src/workspace/views/JobStatusCard.ts": {
       "complexity $/FunctionDeclaration:JobStatus#1": 48

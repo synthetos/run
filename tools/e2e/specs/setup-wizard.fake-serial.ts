@@ -155,7 +155,7 @@ test('below 1024 px the frame fills the page below the W1 safety bar, with the d
   await shot(page, 'step-2-light-960');
 });
 
-test('firmware needed (simulated): no skip, Next held, Update firmware opens the flow in place', async ({ page }) => {
+test('firmware needed (simulated): no skip, Next held, Update firmware opens Board → Firmware → Update (owner 167)', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   const { worker } = await open(page, [setupRecord({ step: 3, done: [1, 2] })], 3);
   await page.removeLocatorHandler(page.locator('[data-action="firmware-offer-later"]'));
@@ -165,15 +165,18 @@ test('firmware needed (simulated): no skip, Next held, Update firmware opens the
   await expect(next(page)).toBeDisabled();
   await shot(page, 'step-3-needed-light-1280');
   await page.locator('[data-action="wizard-update"]').click();
-  const row = page.locator('.wizard [data-release="tinyg-450.06.hex"]');
+  await expect(page.locator('[data-wizard-step]')).toHaveCount(0);
+  const w29 = page.locator('[data-action="dismiss-w29"]');
+  await w29.waitFor({ timeout: 3_000 }).then(() => w29.click(), () => undefined);
+  const row = page.locator('[data-screen="board"] [data-release="tinyg-450.06.hex"]');
   await expect(row).toHaveAttribute('data-release-focus', '');
-  await expect(next(page)).toBeDisabled();
-  await shot(page, 'step-3-update-light-1280');
-  // The flash closes the session: the step keeps the flow on screen, offers no Connect and holds Next and Skip.
+  // The flash closes the session: back in setup, the step offers no Connect and holds Next and Skip.
   expect(await request(worker, { v: 3, kind: 'close' })).toMatchObject({ ok: true });
   await expect.poll(() => base(worker), { timeout: 10_000 }).toBe('NOT_CONNECTED');
-  await expect(page.locator('.wizard [data-region="firmware-releases"]')).toBeVisible();
-  await expect(page.locator('.wizard [data-region="connect"]')).toHaveCount(0);
+  await page.locator('[data-action="back-to-setup"]').click();
+  await expect(step(page, 3)).toBeVisible();
+  await expect(page.locator('[data-firmware-step="updating"]')).toBeVisible();
+  await expect(page.locator('.wizard [data-region="connect"], .wizard [data-region="firmware-releases"]')).toHaveCount(0);
   await expect(page.locator('[data-action="wizard-skip"]')).toHaveCount(0);
   await expect(next(page)).toBeDisabled();
 });

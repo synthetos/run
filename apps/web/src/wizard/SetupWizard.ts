@@ -19,7 +19,7 @@ import { boardLabel } from '../workspace/status.ts';
 import { CATALOGUE, type MachineTemplate } from '../workspace/machineDrawings.ts';
 import { boardOwner, draftFromMachine, draftFromTemplate, draftValid, saveDraft, type MachineDraft } from './machineDraft.ts';
 import { firmwareGate, firmwareState } from './firmwareStep.ts';
-import { closeSetup, finishStep, skipStep } from './setupActions.ts';
+import { closeSetup, finishStep, setupAway, skipStep } from './setupActions.ts';
 import { Done, DONE_LEAD, DONE_TITLE } from './steps/Done.ts';
 import { Firmware, FIRMWARE_LEAD, FIRMWARE_TITLE, firmwareUpdating, startUpdate } from './steps/Firmware.ts';
 import { boardMismatch } from './homingStep.ts';
@@ -35,7 +35,8 @@ import { Welcome, WELCOME_LEAD, WELCOME_TITLE } from './steps/Welcome.ts';
 import { WizardFrame } from './WizardFrame.ts';
 import { currentStep, NEXT_LABEL, railMarks, STEPS, wizardOpen, type StepId } from './wizardState.ts';
 
-export const wizardShowing = computed(() => wizardOpen(pageGate(), setupView.value));
+/** Open by R1, unless the person stepped out to Board → Firmware from step 3 (setupActions.ts setupAway). */
+export const wizardShowing = computed(() => wizardOpen(pageGate(), setupView.value) && !setupAway.value);
 
 export interface WizardContext {
   readonly model: WorkspaceModel | null;

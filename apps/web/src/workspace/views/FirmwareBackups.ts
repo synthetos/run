@@ -8,7 +8,7 @@
 import { h, type ComponentChild } from 'preact';
 import { useState } from 'preact/hooks';
 import { boardText, w48 } from '@synthetos/safety';
-import { ConfirmFlash, type Target } from '../../firmware/FlashViews.ts';
+import { ConfirmFlash, useConfirmInView, type Target } from '../../firmware/FlashViews.ts';
 import type { FirmwareActions, FirmwareHubView, LiveView, WorkspaceModel } from '../model.ts';
 import { subTabChoice } from './board/subTabs.ts';
 import { flashBlocked } from './FirmwareViews.ts';
@@ -36,6 +36,7 @@ function Frame({ model, region, children }: { readonly model: WorkspaceModel | n
   const fw = model?.actions.value?.firmware;
   const hub = view?.firmware ?? null;
   const [target, setTarget] = useState<Target | null>(null);
+  const column = useConfirmInView<HTMLDivElement>(target !== null);
   const [msg, setMsg] = useState<string | null>(null);
   const confirm = (t: Target): void => {
     setTarget(null);
@@ -46,7 +47,7 @@ function Frame({ model, region, children }: { readonly model: WorkspaceModel | n
   };
   return h(
     'div',
-    { tabindex: 0, class: 'hub', 'data-region': region },
+    { tabindex: 0, class: 'hub', 'data-region': region, ref: column },
     view !== null && target !== null ? h(ConfirmFlash, { view, target, onCancel: () => setTarget(null), onConfirm: () => confirm(target) }) : null,
     msg === null ? null : h('p', { class: 'backup-progress', role: 'status', 'data-hub-message': 'true' }, msg),
     hub?.notice === null || hub?.notice === undefined ? null : h('p', { class: `backup-progress ${hub.notice.kind === 'ok' ? 'ok' : 'danger'}`, role: 'status' }, hub.notice.text),

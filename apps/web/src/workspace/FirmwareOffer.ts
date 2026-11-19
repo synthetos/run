@@ -10,6 +10,7 @@ import { h, type ComponentChild } from 'preact';
 import { useRef, useState } from 'preact/hooks';
 import { offerText, fbText, updateOffer } from '../firmware/updateOffer.ts';
 import { dismissOffer, offerDismissed } from '../firmware/offerMemory.ts';
+import { setupAway } from '../wizard/setupActions.ts';
 import { openFirmwareUpdate, releaseRequest, viewRequest } from './boardNavigation.ts';
 import { jobStep } from './jobWorkflow.ts';
 import { currentFile } from './fileBridge.ts';
@@ -22,6 +23,14 @@ export interface FirmwareOfferProps {
   /** This tab's observer role and LIVE state: W29 (a released lock) is a machine message the offer waits behind. */
   readonly role: TabRole | null;
   readonly live: boolean;
+}
+
+/**
+ * The offer waits: W29 (a released lock) is up, or the setup wizard's Update firmware sent the person to the update
+ * page already (owner 167).
+ */
+function offerWaits(role: TabRole | null, live: boolean): boolean {
+  return setupAway.value || (role !== null && !live && role.released.length > 0);
 }
 
 export function FirmwareOffer({ model, role, live }: FirmwareOfferProps): ComponentChild {
@@ -41,7 +50,7 @@ export function FirmwareOffer({ model, role, live }: FirmwareOfferProps): Compon
     releases: hub !== null && hub.releases.ok ? hub.releases.list : null,
     onRunStep: jobStep.value === 'run',
     fileOpen: currentFile.value !== null,
-    messageUp: role !== null && !live && role.released.length > 0,
+    messageUp: offerWaits(role, live),
   });
   if (offer === null) {
     showing.current = false;

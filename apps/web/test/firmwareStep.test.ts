@@ -4,7 +4,9 @@ import { renderToString } from 'preact-render-to-string';
 import type { FirmwareRelease, FirmwareReleases } from '@synthetos/protocol';
 import { offerText } from '../src/firmware/updateOffer.ts';
 import { firmwareGate, firmwareState, HELD_TEXT, type FirmwareState } from '../src/wizard/firmwareStep.ts';
-import { CHECKING_TEXT, CONNECT_FOR_FIRMWARE, Firmware, FIRMWARE_LEAD, FIRMWARE_TITLE, LIST_FAILED_TEXT } from '../src/wizard/steps/Firmware.ts';
+import { CHECKING_TEXT, CONNECT_FOR_FIRMWARE, Firmware, FIRMWARE_LEAD, FIRMWARE_TITLE, firmwareUpdating, LIST_FAILED_TEXT, startUpdate, UPDATING_TEXT } from '../src/wizard/steps/Firmware.ts';
+import { setupAway } from '../src/wizard/setupActions.ts';
+import { releaseRequest } from '../src/workspace/boardNavigation.ts';
 import { createWorkspaceModel, type LiveView } from '../src/workspace/model.ts';
 import { snap, view } from './runMotionHarness.ts';
 
@@ -97,6 +99,23 @@ describe('firmwareState: the board against the release list, the offer only for 
   });
 });
 
+describe('step 3 Update firmware (owner 167)', () => {
+  it('marks the release Run expects on the Firmware page, offer up or held, and steps the wizard aside', () => {
+    try {
+      startUpdate(firmwareState(board(450.02, { base: 'JOB_RUNNING', job: { phase: 'running' } })));
+      expect(releaseRequest.value).toBe('tinyg-450.06.hex');
+      expect(setupAway.value).toBe(true);
+      releaseRequest.value = null;
+      startUpdate(firmwareState(board(450.02)));
+      expect(releaseRequest.value).toBe('tinyg-450.06.hex');
+    } finally {
+      setupAway.value = false;
+      releaseRequest.value = null;
+      firmwareUpdating.value = false;
+    }
+  });
+});
+
 describe('step 3 Firmware (render)', () => {
   const model = createWorkspaceModel();
   const base = { updating: false, onUpdate: () => undefined, board: null, mismatch: null };
@@ -110,8 +129,17 @@ describe('step 3 Firmware (render)', () => {
     expect(html).toContain('450.07');
     expect(html).toContain('450.06');
     expect(html).toContain(`data-firmware-step="text">${offerText(state.facts)}<`);
-    expect(html).toContain('data-action="wizard-update"');
+    expect(html).toMatch(/data-action="wizard-update"[^>]*>Update firmware</);
+    // Owner 167: no release list or updater inside the frame; the button opens Board → Firmware.
     expect(html).not.toContain('data-region="firmware-releases"');
+    expect(html).not.toContain('wizard-embed');
+    expect(html).not.toContain('update-release');
+  });
+  it('held where Board → Firmware can help (busy, read-only, unidentified): the reason and Update firmware to open it', () => {
+    const busy = renderToString(h(Firmware, { ...base, model, state: firmwareState(board(450.02, { base: 'JOB_RUNNING', job: { phase: 'running' } })) }));
+    expect(busy).toContain(HELD_TEXT.busy);
+    expect(busy).toContain('data-action="wizard-update"');
+    expect(busy).not.toContain('data-region="firmware-releases"');
   });
   it('held: the facts table, the reason line, no Update firmware and never "current"', () => {
     const state = firmwareState(board(449.01, STOCK_449, { flasher: false }));
@@ -144,16 +172,18 @@ describe('step 3 Firmware (render)', () => {
     expect(html).toContain('This is board B-2');
     expect(html).not.toContain('data-action="wizard-update"');
   });
-  it('updating: the Board tab’s update flow is embedded in the frame, with no connect line even when the session is closed', () => {
+  it('updating: one line and a way to the running update on Board → Firmware; no flow in the frame and no connect line', () => {
     const live = board(450.02);
     model.live.value = live;
     const html = renderToString(h(Firmware, { ...base, model, state: firmwareState(live), updating: true }));
-    expect(html).toContain('data-region="firmware-releases"');
-    expect(html).toContain('class="wizard-embed"');
+    expect(html).not.toContain('data-region="firmware-releases"');
+    expect(html).toContain('data-action="wizard-update"');
     const closed = renderToString(h(Firmware, { ...base, model, state: { kind: 'updating' }, updating: true }));
-    expect(closed).toContain('data-region="firmware-releases"');
+    expect(closed).toContain(`data-firmware-step="updating">${UPDATING_TEXT}<`);
+    expect(UPDATING_TEXT).toBe('The update runs on Board → Firmware.');
+    expect(closed).toMatch(/data-action="wizard-update"[^>]*>Show the update</);
+    expect(closed).not.toContain('data-region="firmware-releases"');
     expect(closed).not.toContain('data-region="connect"');
-    expect(closed).not.toContain('data-action="wizard-update"');
   });
   it('current: one line; disconnected: the connect line and the Connect flow', () => {
     expect(renderToString(h(Firmware, { ...base, model, state: { kind: 'current', fb: 450.06 } }))).toContain('Firmware 450.06 is current.');
