@@ -15,7 +15,9 @@ import { createWorkspaceModel, INITIAL_LIVE_VIEW, type LiveView } from '../src/w
 import { clearDraft, draftStore, setDraft } from '../src/workspace/boardFacts.ts';
 import { pendingPlan, settingsWriteBlocked, writableKey } from '../src/workspace/settings/pending.ts';
 import { editBlocked } from '../src/workspace/settings/editGate.ts';
-import { ApplyConfirm, PendingTray, SettingsTable, stageRestore } from '../src/workspace/settings/SettingsUi.ts';
+import { ReviewPanel } from '../src/workspace/settings/ReviewPanel.ts';
+import { reviewOpen } from '../src/workspace/settings/reviewState.ts';
+import { ApplyConfirm, SettingsTable, stageRestore } from '../src/workspace/settings/SettingsUi.ts';
 
 type Snapshot = NonNullable<LiveView['message']>['snapshot'];
 type SettingWrite = NonNullable<Snapshot['settingWrite']>;
@@ -252,8 +254,9 @@ describe('the settings controls gate (enabled only with the phase switch on and 
     const render = (v: LiveView): string => {
       const model = createWorkspaceModel();
       model.live.value = v;
-      return renderToString(h(PendingTray, { model }));
+      return renderToString(h(ReviewPanel, { model }));
     };
+    reviewOpen.value = true;
     const apply = (html: string): string => /<button[^>]*data-action="apply-settings"[^>]*>/.exec(html)?.[0] ?? '';
     const ready = render(view(snap()));
     expect(apply(ready)).not.toMatch(/\sdisabled/);
@@ -268,6 +271,7 @@ describe('the settings controls gate (enabled only with the phase switch on and 
     const plan = pendingPlan(view(snap()));
     expect(plan?.ok && plan.changes.map((c) => c.key)).toEqual(['xfr', 'st']);
     clearDraft();
+    reviewOpen.value = false;
     expect(render(view(snap()))).toBe('');
   });
 

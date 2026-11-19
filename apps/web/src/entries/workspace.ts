@@ -37,6 +37,7 @@ import type { LiveMarkerView } from '../preview/PreviewPanel.ts';
 import { startTheme } from '../theme/theme.ts';
 import { AppShell } from '../workspace/AppShell.ts';
 import { createWorkspaceModel } from '../workspace/model.ts';
+import { watchBoardChange } from '../workspace/settings/boardChange.ts';
 import { mountLibrarySync } from '../workspace/cloud/mount.ts';
 import { loadStoredLibraries } from '../workspace/storage.ts';
 import '../styles/base.css';
@@ -70,6 +71,8 @@ const previousSession = signal(false);
 const marker = signal<LiveMarkerView | null>(null);
 // The document-lifetime session model the views read (workspace/model.ts).
 const model = createWorkspaceModel();
+// Pending settings changes belong to one board: discarded when another connects (Board settings spec §5.2).
+watchBoardChange(model.live);
 
 // Stop controls (P1-06), before anything that could fail, hydration included: Pause, Escape and the
 // cross-tab requests are never gated, and a rendering failure cannot remove them (SAFETY §4.3).

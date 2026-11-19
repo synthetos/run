@@ -300,8 +300,6 @@
       "max-params $/FunctionDeclaration:mountingPlate#1/ArrowFunctionExpression:edge#1": 5
     },
     "apps/web/src/workspace/settings/SettingsUi.ts": {
-      "complexity $/FunctionDeclaration:ApplyProgress#1": 21,
-      "complexity $/FunctionDeclaration:PendingTray#1": 32,
       "complexity $/FunctionDeclaration:RestorePanel#1": 16,
       "complexity $/FunctionDeclaration:stageRestore#1": 21
     },

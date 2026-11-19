@@ -11,6 +11,7 @@
  * Imported by the workspace entry only.
  */
 @import './settings.css';
+@import './board-settings.css';
 
 /* Stacking order of the workspace, in one place. Every z-index in this file
    uses one of these. Low to high:

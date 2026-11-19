@@ -66,24 +66,35 @@ async function openBoard(page: Page): Promise<void> {
   // W29 is dismissed by the page fixture's handler (specs/fixtures.ts).
 }
 
+/** Tabs that still hide their controls behind Edit values get it pressed; tabs with controls in place need nothing. */
+async function openEditing(page: Page, tab: string): Promise<void> {
+  const toggle = page.locator(`#board-pane-${tab} [data-action="toggle-edit"]`);
+  await expect(page.locator(`#board-pane-${tab} :is([data-action="toggle-edit"], [data-setting-control])`).first()).toBeVisible({ timeout: 20_000 });
+  if ((await toggle.count()) === 0) return;
+  await expect(toggle).toBeEnabled({ timeout: 20_000 });
+  await toggle.click();
+}
+
 test('edit a setting, apply: backup downloaded first, written once and read back, persisted; then revert from the backup', async ({ page }) => {
   test.setTimeout(90_000);
   await page.setViewportSize({ width: 1440, height: 900 });
   const worker = await connectedTab(page);
   await openBoard(page);
   await page.locator('[data-board-tab="axes"]').click();
-  const edit = page.locator('#board-pane-axes [data-action="toggle-edit"]');
-  await expect(edit).toBeEnabled({ timeout: 20_000 });
+  await openEditing(page, 'axes');
+  const field = page.locator('#board-pane-axes [data-setting-control="xfr"] input');
+  await expect(field).toBeEnabled({ timeout: 20_000 });
   const before = await board(worker);
   const old = before.eeprom['xfr'];
   expect(typeof old).toBe('number');
   const next = (old as number) - 100;
-  await edit.click();
-  const field = page.locator('#board-pane-axes [data-setting-edit="xfr"]');
   await field.fill(String(next));
   await field.press('Tab');
 
-  // The pending changes tray shows the diff; Apply is enabled (switch on, board idle and approved).
+  // The sticky bar counts the change; Review and apply opens the panel with the diff; Apply is enabled (switch on, board idle and approved).
+  const bar = page.locator('[data-region="pending-bar"]');
+  await expect(bar.locator('[data-pending-count]')).toHaveText('1 change pending');
+  await bar.locator('[data-action="review-apply"]').click();
   const tray = page.locator('[data-region="pending-changes"]');
   await expect(tray).toBeVisible();
   await expect(tray.locator('[data-pending-key="xfr"]')).toBeVisible();
@@ -93,9 +104,9 @@ test('edit a setting, apply: backup downloaded first, written once and read back
 
   // A high-risk change (switch type) needs its consequence ticked and WRITE typed: shown, then cancelled.
   await page.locator('[data-board-tab="inputs"]').click();
-  await page.locator('#board-pane-inputs [data-action="toggle-edit"]').click();
+  await openEditing(page, 'inputs');
   const st = before.eeprom['st'] === 1 ? '0' : '1';
-  await page.locator('#board-pane-inputs [data-setting-edit="st"]').selectOption(st);
+  await page.locator(`#board-pane-inputs [data-setting-control="st"] [data-value="${st}"]`).first().click();
   await expect(tray.locator('[data-pending-key="st"]')).toHaveClass(/high-risk/);
   if (SHOTS !== undefined) await page.screenshot({ path: `${SHOTS}/settings-pending-tray-1440.png` });
   await apply.click();

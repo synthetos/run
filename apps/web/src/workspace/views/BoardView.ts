@@ -1,34 +1,33 @@
 /**
- * The Board view (Stage 1, read-only): the board's configuration as it was
- * read, organised in tabs so nothing needs a long scroll.
+ * The Board view: the board's configuration as it was read, organised in
+ * tabs so nothing needs a long scroll (Board settings spec §5).
  *
  * - Overview: the OD-5 board drawing, where every screw terminal and pin is
  *   its own target (name, function, current setting), and what the board
  *   reported about itself.
  * - Motors, Axes, Inputs, Spindle and coolant, Communications: every value is
- *   the real settings read, in plain words with the raw key as secondary
- *   text. Values can be edited where Run may write them; edits collect as
+ *   the real settings read, named and spelled out from the dialect's settings
+ *   file. Controls sit in place wherever Run may write; changes collect as
  *   pending changes.
- * - All settings (grouped, searchable, with the drift check, P1-07), Backups
- *   (back up, and restore through the same write path) and Firmware (future,
- *   disabled).
+ * - All settings, Backups and Firmware.
  *
- * Settings writes (SAFETY §4.6, amendment 2026-11-02): the pending changes
- * tray (workspace/settings) shows the diff and is the only place that
- * writes, through the model's `applySettings`, behind the phase switch and
- * the idle gate. Every value shown is what the board answered to a GET
+ * A read-only board gets one notice above the tabs. Settings writes (SAFETY
+ * §4.6, amendment 2026-11-02): the sticky pending bar opens the review panel
+ * (workspace/settings/ReviewPanel.ts), which shows the diff, asks C5 and is
+ * the only place that writes, through the model's `applySettings`, behind the
+ * phase switch and the idle gate. Every value shown is what the board answered to a GET
  * through the read allowlist; strings from the board go through `boardText`
  * (T-S85). Pin names come from the generated board definition (RUN_PLAN
  * rule 6).
  */
 import { h, type ComponentChild } from 'preact';
 import { useState } from 'preact/hooks';
-import {
-  draftStore
-} from '../boardFacts.ts';
 import { boardTab, type BoardTab as Tab } from '../boardNavigation.ts';
 import { type WorkspaceModel } from '../model.ts';
-import { PendingTray } from '../settings/SettingsUi.ts';
+import { BoardNotices } from '../settings/BoardNotices.ts';
+import { PendingBar } from '../settings/PendingBar.ts';
+import { pendingByTab } from '../settings/pendingTabs.ts';
+import { ReviewPanel } from '../settings/ReviewPanel.ts';
 import { TabBar, TabPane } from '../ui.ts';
 import { AxesTab } from './board/axes.ts';
 import { CommsTab } from './board/comms.ts';
@@ -51,15 +50,16 @@ export function BoardView({ model }: { readonly model: WorkspaceModel | null }):
     setOldSeen(oldKey);
     if (tab !== 'firmware') setTab('firmware');
   }
-  const drafts = Object.keys(draftStore.value.value).length;
+  const pending = pendingByTab(view);
+  const badge = (id: Tab): { badge?: string } => (pending[id] === undefined ? {} : { badge: String(pending[id]) });
   const tabs: readonly { id: Tab; label: string; badge?: string }[] = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'motors', label: 'Motors', ...(drafts === 0 ? {} : { badge: String(drafts) }) },
-    { id: 'axes', label: 'Axes' },
-    { id: 'inputs', label: 'Inputs' },
-    { id: 'io', label: 'Spindle and coolant' },
-    { id: 'comms', label: 'Communications' },
-    { id: 'settings', label: 'All settings' },
+    { id: 'overview', label: 'Overview', ...badge('overview') },
+    { id: 'motors', label: 'Motors', ...badge('motors') },
+    { id: 'axes', label: 'Axes', ...badge('axes') },
+    { id: 'inputs', label: 'Inputs', ...badge('inputs') },
+    { id: 'io', label: 'Spindle and coolant', ...badge('io') },
+    { id: 'comms', label: 'Communications', ...badge('comms') },
+    { id: 'settings', label: 'All settings', ...badge('settings') },
     { id: 'firmware', label: 'Firmware', ...(old === null ? {} : { badge: 'Update' }) },
     { id: 'backups', label: 'Backups' },
   ];
@@ -68,7 +68,7 @@ export function BoardView({ model }: { readonly model: WorkspaceModel | null }):
     'div',
     { class: 'board-view' },
     h('div', { class: 'view-head' }, h('div', { class: 'title-block' }, h('h1', null, 'Board')), h('div', { class: 'view-actions board-tabs' }, h(TabBar<Tab>, { label: 'Board', prefix: 'board', attr: 'data-board-tab', current: tab, onSelect: setTab, tabs }))),
-    h(PendingTray, { model }),
+    h(BoardNotices, { model, onUpdate: () => setTab('firmware') }),
     pane('overview', h(OverviewTab, { view })),
     pane('motors', h(MotorsTab, { view })),
     pane('axes', h(AxesTab, { view })),
@@ -78,6 +78,7 @@ export function BoardView({ model }: { readonly model: WorkspaceModel | null }):
     pane('settings', h(SettingsTab, { model })),
     pane('firmware', h('div', { class: 'firmware-tab' }, h(FirmwareTab, { model }), h(BackupsHub, { model, part: 'firmware' }))),
     pane('backups', h(BackupsHub, { model, part: 'settings' })),
+    h('div', { class: 'pending-dock' }, h(ReviewPanel, { model }), h(PendingBar, { model })),
   );
 }
 

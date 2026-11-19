@@ -1,14 +1,10 @@
-import { visibleSettingGroups } from './visibleGroups.ts';
-import { ConfirmSettings } from '../../firmware/ConfirmSettings.ts';
 /**
  * The settings-write UI (SAFETY §4.6, H57-H63, amendment 2026-11-02):
  *
  * - One setting's control is `SettingControl` (SettingControl.ts) and the
  *   edit gate is `editBlocked` (editGate.ts).
- * - `PendingTray`: the pending changes as a diff (board value, new value,
- *   plain words, risk), with Apply and, after a failure, Revert. Apply and
- *   Revert are the only controls that write, and they are enabled only when
- *   the phase switch is on and the machine is idle (`settingsWriteBlocked`).
+ * - Pending changes: the sticky `PendingBar` and the `ReviewPanel` (diff,
+ *   C5, progress). Apply and Revert are the only controls that write.
  * - `ApplyConfirm`: C5. A high-risk change is named with its consequence,
  *   each needs its own tick, and the word WRITE must be typed.
  * - `SettingsTable`: "All settings", grouped, searchable, with plain names,
@@ -17,154 +13,24 @@ import { ConfirmSettings } from '../../firmware/ConfirmSettings.ts';
  *   (identity, read-only and forbidden keys are skipped and listed).
  *
  * Strings that came from the board render as text through `boardText`
- * (T-S85). Nothing here talks to the machine except through the model's
- * `applySettings` and `revertSettings` actions.
+ * (T-S85). Nothing here talks to the machine.
  */
 import { h, type ComponentChild } from 'preact';
 import { useState } from 'preact/hooks';
-import { boardText, w20 } from '@synthetos/safety';
+import { boardText } from '@synthetos/safety';
 import { restoreChanges, type PlannedChange, type RestoreChanges, type SettingValue } from '@synthetos/schema';
-import { draftStore, plainValue, setDraft, clearDraft, settingMeta } from '../boardFacts.ts';
-import type { LiveView, WorkspaceModel } from '../model.ts';
-import type { ApplyState, ApplyStep } from '../../live/settingsApply.ts';
+import { ConfirmSettings } from '../../firmware/ConfirmSettings.ts';
+import { draftStore, plainValue, setDraft, settingMeta } from '../boardFacts.ts';
+import type { LiveView } from '../model.ts';
 import { editBlocked } from './editGate.ts';
-import { pendingPlan, settingsWriteBlocked } from './pending.ts';
+import { settingsWriteBlocked } from './pending.ts';
 import { SettingControl } from './SettingControl.ts';
+import { visibleSettingGroups } from './visibleGroups.ts';
 
 type Settings = Readonly<Record<string, SettingValue>>;
 
-// ---------------------------------------------------------------- the tray
-
-function riskTag(c: PlannedChange): ComponentChild {
-  if (c.risk.highRisk) return h('span', { class: 'tag danger', title: c.risk.consequence ?? '' }, 'High risk');
-  if (c.risk.afterWrite === 'W20') return h('span', { class: 'tag warn' }, 'Check after');
-  return null;
-}
-
-const STEP_WORDS: Readonly<Record<ApplyStep['status'], string>> = { pending: 'Waiting', writing: 'Writing…', verified: 'Written and read back', failed: 'Failed', notRun: 'Not written' };
-
-function Steps({ steps }: { readonly steps: readonly ApplyStep[] }): ComponentChild {
-  return h(
-    'ol',
-    { class: 'apply-steps', 'aria-label': 'Write progress' },
-    steps.map((s) =>
-      h(
-        'li',
-        { key: s.key, class: `step-${s.status}`, 'data-apply-step': s.key, 'data-step-status': s.status },
-        h('span', { class: 'step-mark', 'aria-hidden': 'true' }, s.status === 'verified' ? '✓' : s.status === 'failed' ? '!' : s.status === 'writing' ? '…' : '·'),
-        h('span', { class: 'step-name' }, s.label, h('code', { class: 'raw-key' }, s.key)),
-        h('span', { class: 'step-words' }, s.words),
-        h('span', { class: 'step-status' }, STEP_WORDS[s.status], s.detail === undefined || s.status === 'verified' ? null : h('small', { class: 'block' }, s.detail)),
-      ),
-    ),
-  );
-}
-
-function ApplyProgress({ state, model, blocked }: { readonly state: ApplyState; readonly model: WorkspaceModel | null; readonly blocked: string | null }): ComponentChild {
-  if (state.kind === 'idle') return null;
-  if (state.kind === 'backingUp') {
-    return h('div', { class: 'apply-progress', role: 'status', 'data-apply': 'backing-up' }, h('strong', null, 'Backing up every setting first…'), ` ${state.done} of ${state.of} groups read. Nothing is written until the backup is saved.`);
-  }
-  const verb = state.mode === 'revert' ? 'Revert' : 'Apply';
-  return h(
-    'div',
-    { class: `apply-progress ${state.kind}`, role: state.kind === 'failed' ? 'alert' : 'status', 'data-apply': state.kind, 'data-apply-mode': state.mode },
-    state.kind === 'writing' ? h('strong', null, `${verb}: writing one setting at a time, each read back…`) : null,
-    state.kind === 'done' ? h('strong', null, state.mode === 'revert' ? 'Reverted: the backed-up values were written back and read back.' : 'Applied: every change was written and read back.') : null,
-    state.kind === 'failed' ? h('strong', null, state.message) : null,
-    state.backupName === null || state.backupName === '' ? null : h('p', { class: 'fine', 'data-apply-backup': state.backupName }, `Backup saved before writing: ${state.backupName} (kept on this computer and downloaded).`),
-    h(Steps, { steps: state.steps }),
-    state.kind === 'done' && state.mode === 'apply' && state.steps.length > 0 ? h('p', { class: 'note' }, w20()) : null,
-    h(
-      'div',
-      { class: 'tray-actions' },
-      (state.kind === 'failed' && state.revertable) || (state.kind === 'done' && state.mode === 'apply' && state.steps.length > 0)
-        ? h('button', { type: 'button', class: 'small danger', 'data-machine-control': 'settings-write', 'data-action': 'revert-settings', disabled: blocked !== null, title: blocked ?? 'Write the backed-up values back', onClick: () => model?.actions.value?.revertSettings() }, 'Revert to the backup')
-        : null,
-      state.kind === 'writing' ? null : h('button', { type: 'button', class: 'small quiet', 'data-action': 'clear-apply', onClick: () => model?.actions.value?.clearApply() }, 'Close'),
-    ),
-  );
-}
-
 export function ApplyConfirm({ changes, view, onCancel, onConfirm }: { readonly changes: readonly PlannedChange[]; readonly view: LiveView | null; readonly onCancel: () => void; readonly onConfirm: () => void }): ComponentChild {
   return h(ConfirmSettings, { changes, boardId: view?.message?.snapshot.identity?.id ?? null, blocked: settingsWriteBlocked(view) !== null, onCancel, onConfirm });
-}
-
-/** The pending changes tray, shown in the Board view while there are changes or a write result. */
-export function PendingTray({ model }: { readonly model: WorkspaceModel | null }): ComponentChild {
-  const view = model?.live.value ?? null;
-  const [open, setOpen] = useState(true);
-  const [confirming, setConfirming] = useState(false);
-  const drafts = Object.keys(draftStore.value.value);
-  const apply = view?.apply ?? { kind: 'idle' as const };
-  if (drafts.length === 0 && apply.kind === 'idle') return null;
-  const plan = pendingPlan(view);
-  const blocked = settingsWriteBlocked(view);
-  const running = apply.kind === 'backingUp' || apply.kind === 'writing';
-  const changes = plan !== null && plan.ok ? plan.changes : [];
-  const highCount = changes.filter((c) => c.risk.highRisk).length;
-  return h(
-    'section',
-    { class: `pending-tray${open ? ' open' : ''}`, 'data-region': 'pending-changes', 'aria-labelledby': 'pending-title' },
-    h(
-      'header',
-      { class: 'tray-head' },
-      h('button', { type: 'button', class: 'tray-toggle', 'data-action': 'toggle-pending', 'aria-expanded': open ? 'true' : 'false', onClick: () => setOpen((o) => !o) }, h('span', { class: 'chev', 'aria-hidden': 'true' }, open ? '▾' : '▸'), h('h2', { id: 'pending-title' }, 'Pending changes'), h('span', { class: 'tab-badge' }, String(drafts.length))),
-      highCount === 0 ? null : h('span', { class: 'tag danger' }, `${highCount} high risk`),
-      h('span', { class: 'tray-why fine', 'data-settings-write': blocked === null ? 'ready' : 'blocked' }, blocked ?? 'Ready: the board is idle. Apply backs up first, then writes one setting at a time.'),
-      h('span', { class: 'grow' }),
-      h('button', { type: 'button', class: 'small quiet', 'data-action': 'discard-pending', disabled: running || drafts.length === 0, onClick: () => clearDraft() }, 'Discard all'),
-      h(
-        'button',
-        { type: 'button', class: 'small primary', 'data-machine-control': 'settings-write', 'data-action': 'apply-settings', disabled: blocked !== null || running || changes.length === 0, title: blocked ?? `Write ${changes.length} settings`, onClick: () => setConfirming(true) },
-        running ? 'Writing…' : `Apply ${changes.length === 0 ? '' : changes.length} ${changes.length === 1 ? 'change' : 'changes'}`.replace('  ', ' '),
-      ),
-    ),
-    open
-      ? h(
-          'div',
-          { class: 'tray-body' },
-          plan !== null && !plan.ok
-            ? h('div', { class: 'tray-refused', role: 'alert' }, h('strong', null, 'These changes cannot be written as they are:'), h('ul', null, plan.refused.map((i) => h('li', { key: `${i.key}${i.code}` }, h('code', null, i.key), ` ${i.message}`))))
-            : null,
-          changes.length === 0 && plan !== null && plan.ok && drafts.length > 0 ? h('p', { class: 'fine' }, 'Every pending value already matches the board.') : null,
-          changes.length === 0
-            ? null
-            : h(
-                'table',
-                { class: 'cfg-table pending-table' },
-                h('thead', null, h('tr', null, ...['Setting', 'On the board', 'New value', 'What changes', ''].map((t) => h('th', { scope: 'col', key: t }, t)))),
-                h(
-                  'tbody',
-                  null,
-                  changes.map((c) =>
-                    h(
-                      'tr',
-                      { key: c.key, 'data-pending-key': c.key, class: c.risk.highRisk ? 'high-risk' : undefined },
-                      h('th', { scope: 'row' }, c.label, h('code', { class: 'raw-key' }, c.key)),
-                      h('td', null, plainValue(c.key, c.from ?? undefined, view?.readout.dialectId ?? null) ?? 'Not read'),
-                      h('td', { class: 'new-value' }, plainValue(c.key, c.to, view?.readout.dialectId ?? null) ?? String(c.to)),
-                      h('td', { class: 'change-words' }, riskTag(c), c.risk.consequence === null ? null : h('small', { class: 'block' }, c.risk.consequence)),
-                      h('td', null, h('button', { type: 'button', class: 'icon-button quiet', 'data-action': 'remove-pending', 'aria-label': `Remove the change to ${c.label}`, disabled: running, onClick: () => setDraft(c.key, null) }, '×')),
-                    ),
-                  ),
-                ),
-              ),
-          h(ApplyProgress, { state: apply, model, blocked }),
-        )
-      : null,
-    confirming
-      ? h(ApplyConfirm, {
-          changes,
-          view,
-          onCancel: () => setConfirming(false),
-          onConfirm: () => {
-            setConfirming(false);
-            model?.actions.value?.applySettings(changes);
-          },
-        })
-      : null,
-  );
 }
 
 // ---------------------------------------------------------------- all settings

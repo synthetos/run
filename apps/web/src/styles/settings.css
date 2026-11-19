@@ -9,16 +9,7 @@ button.danger { background: var(--danger); border-color: var(--danger); color: v
 button.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 85%, var(--ink)); border-color: color-mix(in srgb, var(--danger) 85%, var(--ink)); }
 button.danger:disabled { background: color-mix(in srgb, var(--danger) 18%, var(--sheet)); border-color: transparent; color: color-mix(in srgb, var(--danger) 60%, var(--ink)); }
 
-/* ---------- Pending changes tray ---------- */
-.pending-tray { margin: 0 20px 12px; border: 1px solid color-mix(in srgb, var(--blue) 35%, var(--rule)); border-radius: 8px; background: var(--sheet); box-shadow: 0 1px 3px color-mix(in srgb, var(--ink) 8%, transparent); flex-shrink: 0; max-height: 46vh; display: flex; flex-direction: column; }
-.pending-tray .tray-head { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid transparent; flex-wrap: wrap; }
-.pending-tray.open .tray-head { border-bottom-color: var(--line-soft); background: var(--blue-wash); border-radius: 8px 8px 0 0; }
-.pending-tray .tray-toggle { border: 0; background: transparent; min-height: 28px; padding: 0 4px; gap: 8px; }
-.pending-tray .tray-toggle h2 { font-size: 15px; margin: 0; }
-.pending-tray .chev { color: var(--muted); width: 12px; }
-.pending-tray .tray-why { max-width: 46ch; }
-.pending-tray .grow { flex: 1; }
-.pending-tray .tray-body { overflow: auto; padding: 4px 12px 12px; }
+/* ---------- Review panel diff (the bar and panel themselves: board-settings.css) ---------- */
 .pending-table th, .pending-table td { padding: 8px 12px 8px 0; }
 .pending-table .new-value { font-weight: 600; color: var(--blue-dk); }
 .pending-table tr.high-risk th { box-shadow: inset 3px 0 0 var(--danger); padding-left: 10px; }
@@ -50,9 +41,6 @@ button.danger:disabled { background: color-mix(in srgb, var(--danger) 18%, var(-
 /* ---------- Inline editors ---------- */
 .edit-bar { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; }
 .cell-edit { margin-top: 4px; }
-
-
-.setting-edit.changed input, .setting-edit.changed select { border-color: var(--blue); background: var(--blue-wash); }
 tr.drafted > th, tr.drafted > td { background: color-mix(in srgb, var(--blue-wash) 60%, transparent); }
 
 /* ---------- All settings ---------- */
@@ -72,6 +60,3 @@ tr.drafted > th, tr.drafted > td { background: color-mix(in srgb, var(--blue-was
 .file-pick { display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--rule); border-radius: var(--r-sm); min-height: 36px; margin-top: 12px; cursor: pointer; font-weight: 500; font-size: 13px; }
 .file-pick.disabled { cursor: not-allowed; color: color-mix(in srgb, var(--ink) 42%, var(--sheet)); background: color-mix(in srgb, var(--paper) 60%, var(--sheet)); border-color: var(--line-soft); }
 .restore-result { margin-top: 10px; font-size: 13px; }
-.setting-edit.select-wrap, .setting-edit.unit-input { display: inline-flex; width: auto; max-width: 100%; }
-.setting-edit.select-wrap select { width: 16em; }
-.setting-edit.unit-input input { width: 9.5em; }
