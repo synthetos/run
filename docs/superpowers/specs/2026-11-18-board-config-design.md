@@ -587,6 +587,11 @@ Needs safety-path review:
 
 ## 9. Owner questions
 
+**Answered (owner, 2026-11-19, OD-44):** "advanced should show the tokens with the text not just the tokens. yes to the
+rest". So Q1–Q7, Q9 and Q10 are yes as recommended. Q8 is settled as: Simple shows plain names and spelled-out values
+only; Advanced shows the same plain name and value AND the raw token beside them (for example "Microsteps · `1mi`:
+half step (2)"), never the token alone.
+
 1. **Drop the Edit values toggle and show controls inline wherever Run may write?** Yes: the toggle hides what can be
    set, which is the core complaint. No: keep the toggle and only fix the words. **Recommend yes.** Nothing writes
    without Review and apply and C5.
