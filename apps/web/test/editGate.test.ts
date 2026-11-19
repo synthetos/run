@@ -8,7 +8,7 @@ import { signal } from '@preact/signals';
 import { INITIAL_LIVE_VIEW, type LiveView, type WorkspaceModel } from '../src/workspace/model.ts';
 import { BoardNotices } from '../src/workspace/settings/BoardNotices.ts';
 import { editBlocked, readOnlyNotice } from '../src/workspace/settings/editGate.ts';
-import { all, byAttr, one, root, text } from './tree.ts';
+import { all, byAttr, one, root, text, type El } from './tree.ts';
 import { SETTINGS_WRITES_UNAVAILABLE, settingsWriteBlocked } from '../src/workspace/settings/pending.ts';
 import { boardView, OWNER_449 } from './boardViews.ts';
 
@@ -70,6 +70,18 @@ function identifying(): LiveView {
   const m = v.message as NonNullable<LiveView['message']>;
   return { ...v, message: { ...m, snapshot: { ...m.snapshot, classification: null } } };
 }
+
+describe('the read-only notice\'s Back up settings (review finding 11)', () => {
+  const notice = (v: LiveView): El => one(root(h(BoardNotices, { model: { live: signal(v), actions: signal({ backup: () => undefined }) } as unknown as WorkspaceModel, onUpdate: () => undefined })), byAttr('data-action', 'notice-backup'));
+
+  it('follows backupBlocked: disabled with its reason when the board cannot be read now', () => {
+    const v = boardView(OWNER_449);
+    const m = v.message as NonNullable<LiveView['message']>;
+    const busy = { ...v, message: { ...m, snapshot: { ...m.snapshot, base: 'RUNNING' } } } as LiveView;
+    expect(notice(busy).props).toMatchObject({ disabled: true, title: 'Wait until the board is identified, read and at rest.' });
+    expect(notice(v).props['disabled']).toBe(false);
+  });
+});
 
 describe('classification not known yet (review finding 8)', () => {
   it('controls stay locked with the neutral "Reading the board…", and no read-only notice', () => {

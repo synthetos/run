@@ -5,9 +5,18 @@
  * for another board were discarded.
  */
 import { h, type ComponentChild } from 'preact';
+import { backupBlocked } from '../../live/backup.ts';
 import type { WorkspaceModel } from '../model.ts';
 import { discardNotice } from './boardChange.ts';
 import { editBlocked, READING_BOARD, readOnlyNotice } from './editGate.ts';
+
+/** Back up settings, under the same rule as the Backups section's button (backupBlocked, review finding 11). */
+function NoticeBackup({ model }: { readonly model: WorkspaceModel | null }): ComponentChild {
+  const view = model?.live.value ?? null;
+  const blocked = backupBlocked(view?.message?.snapshot ?? null);
+  const reading = view?.readout.phase.kind === 'reading' || view?.backup.kind === 'reading';
+  return h('button', { type: 'button', class: 'small', 'data-action': 'notice-backup', 'data-machine-control': 'read', disabled: blocked !== null || reading || model === null, title: blocked ?? undefined, onClick: () => model?.actions.value?.backup() }, 'Back up settings');
+}
 
 export function BoardNotices({ model, onUpdate }: { readonly model: WorkspaceModel | null; readonly onUpdate: () => void }): ComponentChild {
   const view = model?.live.value ?? null;
@@ -25,7 +34,7 @@ export function BoardNotices({ model, onUpdate }: { readonly model: WorkspaceMod
           'div',
           { class: 'board-notice', role: 'note', 'data-region': 'read-only-notice' },
           h('p', null, notice.text),
-          h('button', { type: 'button', class: 'small', 'data-action': 'notice-backup', onClick: () => model?.actions.value?.backup() }, 'Back up settings'),
+          h(NoticeBackup, { model }),
           notice.update ? h('button', { type: 'button', class: 'small primary', 'data-action': 'notice-update', onClick: onUpdate }, 'Update firmware') : null,
         ),
     discarded === null
