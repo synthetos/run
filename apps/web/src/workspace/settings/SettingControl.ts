@@ -122,7 +122,7 @@ function NumberField({ c }: { readonly c: Ctx }): ComponentChild {
       max: r?.max,
       defaultValue: shown,
       title: rangeWords(c),
-      style: `width: ${Math.max(5, shown.length + 3)}ch`,
+      style: `width: calc(${Math.max(4, shown.length + 1)}ch + 18px)`,
       onChange: (e: Event) => {
         const raw = (e.currentTarget as HTMLInputElement).value.trim();
         const n = Number(raw);

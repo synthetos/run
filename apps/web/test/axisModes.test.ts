@@ -6,7 +6,9 @@
 import { describe, expect, it } from 'vitest';
 import { h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
-import { AxisModes, axisModeView, familyOf } from '../src/machine-ui/AxisModes.ts';
+import { axisModeFact, axisModeLine, axisModeState, axisModeView, familyOf } from '../src/machine-ui/AxisModes.ts';
+import { AxesTab } from '../src/workspace/views/board/axes.ts';
+import { boardView } from './boardViews.ts';
 
 const STANDARD = { xam: 1, yam: 1, zam: 1, aam: 1, bam: 0, cam: 0 };
 const AT_ZERO = ['x', 'y', 'z', 'a', 'b', 'c'].map((axis) => ({ axis, machine: 0 }));
@@ -47,19 +49,27 @@ describe('axisModeView', () => {
   });
 });
 
-describe('AxisModes', () => {
-  it('renders every fact as text, with its axis and code', () => {
-    const view = axisModeView({ dialectId: 'tinyg-en', reading: false, settings: { ...STANDARD, xam: 0, aam: 2 }, machine: AT_ZERO.map((a) => (a.axis === 'a' ? { axis: 'a', machine: 12 } : a)) });
-    const html = renderToString(h(AxisModes, { view }));
-    expect(html).toContain('data-region="axis-modes"');
+describe('axis-mode facts on the Axes tab (Board settings spec §5.6: each fact in its axis card)', () => {
+  const settings = { ...STANDARD, xam: 0, aam: 2, xtn: 0, xtm: 100, atn: 0, atm: 360 };
+  const facts = axisModeView({ dialectId: 'tinyg-en', reading: false, settings, machine: AT_ZERO.map((a) => (a.axis === 'a' ? { axis: 'a', machine: 12 } : a)) });
+
+  it('renders every fact as text in its axis card, with its axis and code', () => {
+    const html = renderToString(h(AxesTab, { view: { ...boardView({ settings }), axisModes: facts } }));
+    expect(html).toContain('data-region="axes"');
+    expect(html).toContain('data-axis-modes="facts"');
     expect(html).toContain('data-axis="X" data-axis-fact="linear-disabled"');
     expect(html).toContain('data-axis="A" data-axis-fact="inhibited-away-from-zero"');
     expect(html).toMatch(/A is inhibited \(aam=2\) and it reads 12(\.0+)?\b/);
   });
 
-  it('renders the clear, reading and unclassified states', () => {
-    expect(renderToString(h(AxisModes, { view: axisModeView({ dialectId: 'tinyg-en', reading: false, settings: STANDARD, machine: AT_ZERO }) }))).toContain('data-axis-modes="clear"');
-    expect(renderToString(h(AxisModes, { view: { kind: 'reading' } }))).toContain('data-axis-modes="reading"');
-    expect(renderToString(h(AxisModes, { view: { kind: 'unclassified' } }))).toContain('data-axis-modes="unclassified"');
+  it('picks one axis\'s fact, and names the clear, reading and unclassified states', () => {
+    expect(axisModeFact(facts, 'a')?.code).toBe('inhibited-away-from-zero');
+    expect(axisModeLine(facts, 'x')).toMatch(/^X is disabled \(xam=0\)/);
+    expect(axisModeLine(facts, 'y')).toBeNull();
+    expect(axisModeLine({ kind: 'reading' }, 'x')).toBeNull();
+    expect(axisModeState(axisModeView({ dialectId: 'tinyg-en', reading: false, settings: STANDARD, machine: AT_ZERO }))).toBe('clear');
+    expect(axisModeState({ kind: 'reading' })).toBe('reading');
+    expect(axisModeState({ kind: 'unclassified' })).toBe('unclassified');
+    expect(axisModeState(null)).toBeNull();
   });
 });

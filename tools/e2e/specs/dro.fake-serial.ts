@@ -69,11 +69,11 @@ test('the DRO machine position follows pushed reports, with no poll; settings an
   // Settings writes: All settings is one grouped table (a tbody per group), no longer a list of <details>.
   await expect(page.locator('#board-pane-settings tbody[data-group="x"]')).toContainText('How the X axis moves');
   // Row 35 / BENCH-P100-5: the axis-mode facts are rendered from the same read (the simulated board's modes), not hidden.
-  // Polish pass 1: they sit on the Board view's Axes tab.
+  // Board settings spec §5.6: they sit in each axis's card on the Axes tab; the tab says whether there are any.
   await page.locator('[data-board-tab="axes"]').click();
-  const axisModes = page.locator('[data-region="axis-modes"]');
-  await expect(axisModes).toBeVisible();
-  await expect(axisModes.locator('[data-axis-modes="clear"], [data-axis-modes="facts"]')).toHaveCount(1);
+  const axes = page.locator('[data-region="axes"]');
+  await expect(axes).toBeVisible();
+  await expect(axes).toHaveAttribute('data-axis-modes', /^(clear|facts)$/);
   const all = await writes(worker);
   for (const w of afterRunningFirmwarePrecheck(all)) {
     expect(w.includes('\u0018') || w.includes('\u0004'), JSON.stringify(w)).toBe(false);

@@ -34,6 +34,7 @@
     { "id": "amin", "label": "A min switch", "pin": "J8.5", "function": "asn", "contact": "st" },
     { "id": "amax", "label": "A max switch", "pin": "J8.6", "function": "asx", "contact": "st" }
   ],
+  "homingTravel": { "rule": "backoffOnly", "src": "TG cycle_homing.c:252-253 (search = |tm - tn| + lb, so equal ends search only the latch backoff)" },
   "enums": {
     "offOn": { "values": [{ "value": 0, "label": "Off" }, { "value": 1, "label": "On" }] },
     "motorAxis": {

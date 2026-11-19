@@ -37,6 +37,7 @@
   "probeAllowed": ["x", "y", "z"],
   "probeAllowedSrc": "S449 switch.c:258-280 find_probe_switch (a probe on A refused, -3; two probe inputs refused, -2)",
   "probeContact": { "fixed": "Normally open. Fixed on this firmware.", "src": "S449 switch.c:126-128 (a probe input always reads as normally open)" },
+  "homingTravel": { "rule": "backoffOnly", "src": "S449 cycle_homing.c:231-232 (search = |tm - tn| + lb, so equal ends search only the latch backoff; bench check BC-9)" },
   "enums": {
     "offOn": { "values": [{ "value": 0, "label": "Off" }, { "value": 1, "label": "On" }] },
     "motorAxis": {

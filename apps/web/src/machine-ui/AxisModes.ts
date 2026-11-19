@@ -1,18 +1,17 @@
 /**
- * The axis-mode facts for read-only sessions (Phase 0 finding row 35, its
- * Phase 1 consequence; BENCH-P100-5; packages/safety/src/axisModeFacts.ts).
- *
- * Phase 1 sends no motion, but an axis-mode configuration that is unsafe
- * for LATER motion is shown, never hidden: an inhibited axis away from 0, a
- * mode that was not read or is not recognised, a disabled or radius-mode
- * linear axis. Every fact is one plain sentence from @synthetos/safety,
- * rendered as a text node. An axis whose mode was not read is reported as
- * such, never assumed standard.
+ * The axis-mode facts (Phase 0 finding row 35; BENCH-P100-5;
+ * packages/safety/src/axisModeFacts.ts): an axis-mode configuration that
+ * blocks motion is shown, never hidden: an inhibited axis away from 0, a mode
+ * that was not read or is not recognised, a disabled or radius-mode linear
+ * axis. Every fact is one plain sentence from @synthetos/safety, rendered as a
+ * text node in that axis's card on the Board view's Axes tab (Board settings
+ * spec §5.6). An axis whose mode was not read is reported as such, never
+ * assumed standard.
  *
  * `axisModeView` turns the settings read (`xam`..`cam`) and the reported
- * machine position into the facts; `AxisModes` renders them. Both are pure.
+ * machine position into the facts; `axisModeFact` picks one axis's. Both are
+ * pure.
  */
-import { h, type ComponentChild } from 'preact';
 import { axisModeFacts, type AxisModeFact, type AxisModeSession } from '@synthetos/safety';
 import type { Family } from '@synthetos/protocol';
 import type { SettingValue } from '@synthetos/schema';
@@ -61,28 +60,19 @@ export function axisModeView(input: AxisModeInput): AxisModeView {
   return { kind: 'facts', facts, session };
 }
 
-export function AxisModes({ view }: { readonly view: AxisModeView }): ComponentChild {
-  const body = (): ComponentChild => {
-    switch (view.kind) {
-      case 'reading':
-        return h('p', { role: 'status', 'data-axis-modes': 'reading' }, 'Reading the axis modes with the settings…');
-      case 'unclassified':
-        return h('p', { 'data-axis-modes': 'unclassified' }, 'The board is not classified, so its axis modes were not read. Motion stays blocked.');
-      case 'facts':
-        return view.facts.length === 0
-          ? h('p', { 'data-axis-modes': 'clear' }, 'Every axis reads a mode that later motion can use, and no inhibited axis is away from 0.')
-          : h(
-              'ul',
-              { class: 'axis-facts', 'data-axis-modes': 'facts' },
-              view.facts.map((f) => h('li', { key: `${f.axis}-${f.code}`, 'data-axis': f.axis, 'data-axis-fact': f.code }, f.text)),
-            );
-    }
-  };
-  return h(
-    'section',
-    { class: 'axis-modes', 'data-region': 'axis-modes', 'aria-labelledby': 'axis-modes-title' },
-    h('h2', { id: 'axis-modes-title' }, 'Axis modes (read only)'),
-    h('p', { class: 'axis-modes-note' }, 'This release never moves the machine. Each line below would block motion in a later release until it is resolved; nothing here changes the board.'),
-    body(),
-  );
+/** The state of the axis-mode facts in one word, for the Axes tab's `data-axis-modes`. */
+export function axisModeState(view: AxisModeView | null): 'reading' | 'unclassified' | 'clear' | 'facts' | null {
+  if (view === null) return null;
+  if (view.kind !== 'facts') return view.kind;
+  return view.facts.length === 0 ? 'clear' : 'facts';
+}
+
+/** The fact for one axis (`x`..`c`, either case), or null. */
+export function axisModeFact(view: AxisModeView | null, axis: string): AxisModeFact | null {
+  return view?.kind === 'facts' ? (view.facts.find((f) => f.axis === axis.toUpperCase()) ?? null) : null;
+}
+
+/** The fact sentence for one axis, or null (for the axis cards). */
+export function axisModeLine(view: AxisModeView | null, axis: string): string | null {
+  return axisModeFact(view, axis)?.text ?? null;
 }

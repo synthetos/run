@@ -38,6 +38,7 @@
   "probeAllowed": ["x", "y", "z"],
   "probeAllowedSrc": "EN switch.c:285-322 find_probe_switch (a probe on A refused, -3; two probe inputs refused, -2); bench check BC-5",
   "probeContact": { "token": "prbp" },
+  "homingTravel": { "rule": "radiusFullTurn", "src": "EN cycle_homing.c:251-255 (search = |tm - tn| + lb; a radius-mode axis with tn == tm searches one turn, 2 pi r; bench check BC-9)" },
   "families": [
     {
       "pattern": "{m}ma", "for": { "m": ["1", "2", "3", "4"] }, "rows": { "1": 211, "2": 221, "3": 232, "4": 243 }, "src": "EN config_app.c:{row}",
@@ -354,7 +355,7 @@
       }
     },
     {
-      "pattern": "{a}tn", "for": { "a": ["a", "b", "c"] }, "rows": { "a": 324, "b": 340, "c": 359 }, "src": "EN config_app.c:{row}",
+      "pattern": "{a}tn", "for": { "a": ["a", "b", "c"] }, "rows": { "a": 324, "b": 340, "c": 359 }, "src": "EN config_app.c:{row}", "verify": "BC-8",
       "label": "{A} travel minimum", "short": "Start", "description": "Lowest {A} machine coordinate: the soft-limit and homing-search bound.",
       "unit": "deg", "group": "axis-{a}", "tab": "axes", "access": "write",
       "write": {
@@ -366,7 +367,7 @@
       }
     },
     {
-      "pattern": "{a}tm", "for": { "a": ["a", "b", "c"] }, "rows": { "a": 325, "b": 341, "c": 360 }, "src": "EN config_app.c:{row}",
+      "pattern": "{a}tm", "for": { "a": ["a", "b", "c"] }, "rows": { "a": 325, "b": 341, "c": 360 }, "src": "EN config_app.c:{row}", "verify": "BC-8",
       "label": "{A} travel maximum", "short": "End", "description": "Highest {A} machine coordinate: the soft-limit and homing-search bound.",
       "unit": "deg", "group": "axis-{a}", "tab": "axes", "access": "write",
       "write": {
@@ -426,7 +427,7 @@
       }
     },
     {
-      "pattern": "{a}sv", "for": { "a": ["a"] }, "rows": { "a": 332 }, "src": "EN config_app.c:{row}",
+      "pattern": "{a}sv", "for": { "a": ["a"] }, "rows": { "a": 332 }, "src": "EN config_app.c:{row}", "verify": "BC-8",
       "label": "{A} homing search velocity", "short": "Search speed", "description": "Velocity of the {A} homing search towards the switch.",
       "unit": "deg/min", "group": "axis-{a}", "tab": "axes", "access": "write",
       "write": {
@@ -438,7 +439,7 @@
       }
     },
     {
-      "pattern": "{a}lv", "for": { "a": ["a"] }, "rows": { "a": 333 }, "src": "EN config_app.c:{row}",
+      "pattern": "{a}lv", "for": { "a": ["a"] }, "rows": { "a": 333 }, "src": "EN config_app.c:{row}", "verify": "BC-8",
       "label": "{A} homing latch velocity", "short": "Latch speed", "description": "Velocity of the slow {A} move off the switch that sets the home position.",
       "unit": "deg/min", "group": "axis-{a}", "tab": "axes", "access": "write",
       "write": {
@@ -450,7 +451,7 @@
       }
     },
     {
-      "pattern": "{a}lb", "for": { "a": ["a"] }, "rows": { "a": 334 }, "src": "EN config_app.c:{row}",
+      "pattern": "{a}lb", "for": { "a": ["a"] }, "rows": { "a": 334 }, "src": "EN config_app.c:{row}", "verify": "BC-8",
       "label": "{A} latch backoff", "short": "Latch backoff", "description": "How far {A} backs off the switch to release it while homing.",
       "unit": "deg", "group": "axis-{a}", "tab": "axes", "access": "write",
       "write": {
@@ -462,7 +463,7 @@
       }
     },
     {
-      "pattern": "{a}zb", "for": { "a": ["a"] }, "rows": { "a": 335 }, "src": "EN config_app.c:{row}",
+      "pattern": "{a}zb", "for": { "a": ["a"] }, "rows": { "a": 335 }, "src": "EN config_app.c:{row}", "verify": "BC-8",
       "label": "{A} zero backoff", "short": "Zero backoff", "description": "How far {A} moves off the switch after homing before it sets zero.",
       "unit": "deg", "group": "axis-{a}", "tab": "axes", "access": "write",
       "write": {
