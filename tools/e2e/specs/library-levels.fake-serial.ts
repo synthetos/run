@@ -47,6 +47,8 @@ test('guided settings stage only, survive level changes, and reach the existing 
   await page.locator('[data-action="ui-level-advanced"]').click();
   await expect(guided).toHaveCount(0);
   await screen.getByText('All board settings', { exact: true }).click();
+  // All settings shows one group at a time; the X axis chip opens xfr's group (owner walk 2026-11-19).
+  await screen.locator('[data-region="all-settings"] [data-group-chip="axis-x"]').click();
   await expect(screen.locator('[data-region="all-settings"] [data-setting-control="xfr"] input')).toHaveValue(String(next));
   await expect(screen.locator('[data-region="tinyg-mapping"] thead th')).toHaveCount(5);
   await screen.locator('[data-region="tinyg-mapping"]').scrollIntoViewIfNeeded();

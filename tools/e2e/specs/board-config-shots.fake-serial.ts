@@ -1,6 +1,7 @@
 /**
  * Board settings walkthrough pictures (owner rule: UI changes need a first-time-user walkthrough with screenshots).
- * Runs only when BOARD_CONFIG_SHOTS names a folder; then it captures every Board tab at 1280 px, dark and light, for
+ * Runs only when BOARD_CONFIG_SHOTS names a folder; then it captures every Board tab and its sub-tabs at 1280 × 800
+ * (the owner's window, 2026-11-19), dark and light, for
  * an approved board (the plain simulator) and a read-only one (the edge-next simulator reporting 449.01, READ_ONLY:
  * the test kit has no stock-449 simulator), plus a pending change with the review panel, a change the plan refuses,
  * a read-only board with a change left from before (Discard only), All settings at Advanced, and Backups after one
@@ -16,7 +17,7 @@ const TABS = ['overview', 'motors', 'axes', 'inputs', 'io', 'settings', 'firmwar
 const READ_ONLY = { build: { fb: 449.01, fv: 0.97, hv: 8, layout: 10002 } };
 
 async function connect(page: Page, board?: Record<string, unknown>): Promise<Worker> {
-  await page.setViewportSize({ width: 1280, height: 1000 });
+  await page.setViewportSize({ width: 1280, height: 800 });
   const worker = await machineWorker(page);
   if (board !== undefined) {
     await worker.evaluate((o) => {
@@ -42,20 +43,32 @@ async function tab(page: Page, id: string): Promise<void> {
   await expect(page.locator(`#board-pane-${id}`)).toBeVisible();
 }
 
+/** The sub-tabs pictured per Board tab (owner walk 2026-11-19: one part at a time, nothing scrolls). */
+const PARTS: Readonly<Record<string, readonly string[]>> = { axes: ['all', 'x', 'a', 'other'], motors: ['1', '4'], inputs: ['switches', 'homing'], io: ['outputs', 'pwm'], firmware: ['update', 'images', 'custom'] };
+
+/** A tab, and each pictured sub-tab of it: `<board>-<tab>[-<part>]-<theme>.png`. */
+async function everyPart(page: Page, board: string, id: string, theme: string): Promise<void> {
+  await tab(page, id);
+  const parts = PARTS[id];
+  if (parts === undefined) return shoot(page, `${board}-${id}-${theme}`);
+  for (const part of parts) {
+    await page.locator(`#board-pane-${id} [data-subtab="${part}"]`).click();
+    await shoot(page, `${board}-${id}-${part}-${theme}`);
+  }
+}
+
 for (const theme of ['dark', 'light'] as const) {
   test.describe(`walkthrough, ${theme}`, () => {
     test.use({ colorScheme: theme });
     test.skip(SHOTS === undefined, 'set BOARD_CONFIG_SHOTS to a folder to take the walkthrough pictures');
 
     test(`approved board, every tab, ${theme}`, async ({ page }) => {
-      test.setTimeout(120_000);
+      test.setTimeout(180_000);
       await connect(page);
-      for (const id of TABS) {
-        await tab(page, id);
-        await shoot(page, `approved-${id}-${theme}`);
-      }
+      for (const id of TABS) await everyPart(page, 'approved', id, theme);
       await page.locator('[data-action="ui-level-advanced"]').click();
       await tab(page, 'settings');
+      await page.locator('#board-pane-settings [data-group-chip="communications"]').click();
       await shoot(page, `approved-settings-advanced-${theme}`);
     });
 
@@ -86,6 +99,7 @@ for (const theme of ['dark', 'light'] as const) {
     test(`approved board, a change the plan refuses, ${theme}`, async ({ page }) => {
       await connect(page);
       await tab(page, 'axes');
+      await page.locator('#board-pane-axes [data-subtab="x"]').click();
       const field = page.locator('#board-pane-axes [data-setting-control="xvm"] input');
       await field.fill('-5');
       await field.press('Tab');
@@ -113,10 +127,7 @@ for (const theme of ['dark', 'light'] as const) {
       await connect(page, READ_ONLY);
       // Wait for the settings read: the notice's Back up settings is enabled only once the board is read and at rest.
       await expect(page.locator('[data-action="notice-backup"]')).toBeEnabled({ timeout: 20_000 });
-      for (const id of TABS) {
-        await tab(page, id);
-        await shoot(page, `readonly-${id}-${theme}`);
-      }
+      for (const id of TABS) await everyPart(page, 'readonly', id, theme);
     });
   });
 }

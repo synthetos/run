@@ -73,6 +73,7 @@ test('edit a setting, apply: backup downloaded first, written once and read back
   await openBoard(page);
   // Controls sit in place on every tab (OD-44): no Edit values toggle.
   await page.locator('[data-board-tab="axes"]').click();
+  await page.locator('#board-pane-axes [data-subtab="x"]').click();
   const field = page.locator('#board-pane-axes [data-setting-control="xfr"] input');
   await expect(field).toBeEnabled({ timeout: 20_000 });
   const before = await board(worker);

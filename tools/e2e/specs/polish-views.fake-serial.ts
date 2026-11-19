@@ -74,7 +74,14 @@ test('a × on informational notices outside the Job view, remembered per notice;
 
   // Safety text is never dismissable: the downgrade note beside its button, the magnesium line.
   await boardTab(page, 'firmware');
-  await expect(page.locator('[data-release="tinyg-440.21.hex"] [data-release-note="downgrade"]')).toBeVisible();
+  // The releases page to fit the panel (owner walk 2026-11-19: no scrolling): page on to the 440.21 row. The page
+  // size can settle after the first paint (the panel around the list fills in), so a Next that turns disabled is retried.
+  const older = page.locator('[data-release="tinyg-440.21.hex"]');
+  await expect(async () => {
+    if ((await older.count()) === 0) await page.locator('[data-action="releases-page-next"]').click({ timeout: 1000 });
+    await expect(older).toHaveCount(1, { timeout: 1000 });
+  }).toPass({ timeout: 15_000 });
+  await expect(older.locator('[data-release-note="downgrade"]')).toBeVisible();
   await expect(page.locator('.dismissable [data-release-note]')).toHaveCount(0);
   await rail(page, 'library');
   await page.locator('#library-tab-materials').click();
@@ -105,14 +112,17 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(page.locator('.cfg-section .cfg-table tbody tr:nth-child(even)').first()).toBeAttached();
 
     await boardTab(page, 'firmware');
-    for (const fb of ['450.06', '450.05', '450.04', '450.03']) {
-      await expect(page.locator(`[data-release="tinyg-${fb}.hex"] [data-release-title]`)).toHaveText(`TinyG edge-next 450 · ${fb}`);
-    }
-    await expect(page.locator('[data-release-title]')).toHaveCount(5);
-    await expect(page.locator('[data-release="tinyg-440.21.hex"] [data-release-title]')).toHaveText('TinyG 440 · 440.21');
     expect(await background(page.locator('.releases > li').nth(1))).toBe(stripe);
     expect(CLEAR).toContain(await background(page.locator('.releases > li').nth(0)));
     await shot(page, 'board-firmware', theme);
+    // The releases page to fit the panel (owner walk 2026-11-19: no scrolling): every title, across the pages.
+    const titles: string[] = [];
+    await expect(async () => {
+      for (const t of await page.locator('[data-release-title]').allTextContents()) if (!titles.includes(t)) titles.push(t);
+      if (titles.length < 5) await page.locator('[data-action="releases-page-next"]').click({ timeout: 1000 });
+      expect(titles).toHaveLength(5);
+    }).toPass({ timeout: 15_000 });
+    expect(titles).toEqual([...['450.06', '450.05', '450.04', '450.03'].map((fb) => `TinyG edge-next 450 · ${fb}`), 'TinyG 440 · 440.21']);
 
     await boardTab(page, 'backups');
     for (let i = 1; i <= 3; i++) {
