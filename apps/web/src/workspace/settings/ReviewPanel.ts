@@ -55,6 +55,11 @@ function confirmDialog(model: WorkspaceModel | null, view: LiveView | null, chan
   });
 }
 
+function applyWords(running: boolean, count: number): string {
+  if (running) return 'Writing…';
+  return count === 0 ? 'Apply' : `Apply ${count} ${count === 1 ? 'change' : 'changes'}`;
+}
+
 function ReviewHead({ blocked, running, count }: { readonly blocked: string | null; readonly running: boolean; readonly count: number }): ComponentChild {
   return h(
     'header',
@@ -62,7 +67,7 @@ function ReviewHead({ blocked, running, count }: { readonly blocked: string | nu
     h('h2', { id: 'review-title' }, 'Review changes'),
     h('span', { class: 'review-why fine', 'data-settings-write': blocked === null ? 'ready' : 'blocked' }, blocked ?? 'The board is idle. Apply backs up first, then writes one setting at a time.'),
     h('span', { class: 'grow' }),
-    h('button', { type: 'button', class: 'small primary', 'data-machine-control': 'settings-write', 'data-action': 'apply-settings', disabled: blocked !== null || running || count === 0, title: blocked ?? `Write ${count} settings`, onClick: () => { confirming.value = true; } }, running ? 'Writing…' : `Apply ${count} ${count === 1 ? 'change' : 'changes'}`),
+    h('button', { type: 'button', class: 'small primary', 'data-machine-control': 'settings-write', 'data-action': 'apply-settings', disabled: blocked !== null || running || count === 0, title: blocked ?? `Write ${count} settings`, onClick: () => { confirming.value = true; } }, applyWords(running, count)),
     h('button', { type: 'button', class: 'small quiet', 'data-action': 'close-review', disabled: running, onClick: () => { reviewOpen.value = false; } }, 'Close'),
   );
 }

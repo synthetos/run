@@ -103,6 +103,8 @@ describe('PendingBar', () => {
     expect(text(one(one(adv, (e) => e.props['class'] === 'tray-refused'), (e) => e.tag === 'code'))).toBe('xvm');
     uiLevel.set('simple');
     expect(one(panel, byAttr('data-action', 'apply-settings')).props['disabled']).toBe(true);
+    // Nothing to apply reads "Apply", never "Apply 0 changes" (lead review, refused picture).
+    expect(text(one(panel, byAttr('data-action', 'apply-settings')))).toBe('Apply');
   });
 
   it('a read-only board with leftover pending changes gets the bar with Discard only, no Review (review finding 4)', () => {
