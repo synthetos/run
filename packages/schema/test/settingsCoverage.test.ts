@@ -19,6 +19,15 @@ function members(dialect: string): string[] {
   return settingsReadGroups(dialect).flatMap((g) => g.members);
 }
 
+/** Every token whose cfgArray flags end in "c" (F_CONVERT) at the dialect's pin, read from config_app.c. */
+function convertRows(d: string): string[] {
+  const each = (xs: readonly string[], ys: readonly string[]): string[] => xs.flatMap((x) => ys.map((y) => `${x}${y}`));
+  const linear = each(['x', 'y', 'z'], ['vm', 'fr', 'tn', 'tm', 'jm', 'jh', 'jd', 'sv', 'lv', 'lb', 'zb']);
+  const works = each(['g54', 'g55', 'g56', 'g57', 'g58', 'g59'], d === TG440 ? ['x', 'y', 'z', 'a', 'b', 'c'] : ['x', 'y', 'z']);
+  const stored = d === TG440 ? [] : each(['g28', 'g30'], ['x', 'y', 'z']);
+  return [...each(['1', '2', '3', '4'], ['tr']), ...linear, 'ara', 'bra', 'cra', 'ja', 'ct', ...works, ...stored].sort();
+}
+
 describe('tinyg-450.json coverage', () => {
   it('every file validates against settings.schema.json', () => {
     for (const f of [tinyg449, tinyg440, tinyg450]) expect(validateSchema(SETTINGS_FILE_SCHEMA, f)).toEqual([]);
@@ -161,11 +170,8 @@ describe('describe-only files for stock 449 and 440 (safety: nothing becomes wri
   });
 
   it.each(DIALECTS)('%s: exactly the cfgArray F_CONVERT rows (_fipc, _fipnc) are marked as lengths', (d) => {
-    const lin = ['vm', 'fr', 'tn', 'tm', 'jm', 'jh', 'jd', 'sv', 'lv', 'lb', 'zb'];
-    const offsets = ['54', '55', '56', '57', '58', '59', ...(d === TG440 ? [] : ['28', '30'])].flatMap((w) => ['x', 'y', 'z'].map((a) => `g${w}${a}`));
-    const expected = [...['1', '2', '3', '4'].map((m) => `${m}tr`), ...['x', 'y', 'z'].flatMap((a) => lin.map((k) => `${a}${k}`)), 'ara', 'bra', 'cra', 'ja', 'ct', ...offsets].sort();
     const marked = members(d).filter((k) => settingsDefsFor(d)!.tokens.get(k)?.convert === true).sort();
-    expect(marked).toEqual(expected);
+    expect(marked).toEqual(convertRows(d));
   });
 
   it.each([S449, TG440])('%s: every src cites its own pin', (d) => {

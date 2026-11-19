@@ -265,9 +265,11 @@ describe('the settings controls gate (enabled only with the phase switch on and 
     expect(ready).toMatch(/data-pending-key="xfr"/);
     expect(ready).toMatch(/data-pending-key="st"[^>]*class="high-risk"/);
     expect(ready).toMatch(/always pressed or never pressed/);
-    for (const v of [view(snap(), false), view(snap({ overlays: ['READ_ONLY'] } as Partial<Snapshot>)), view(snap({ live: { machineClass: 'running', stat: 5, vel: 100, pos: {}, mpo: {} } } as Partial<Snapshot>)), view(snap({ overlays: ['UNKNOWN'] } as Partial<Snapshot>))]) {
+    for (const v of [view(snap({ live: { machineClass: 'running', stat: 5, vel: 100, pos: {}, mpo: {} } } as Partial<Snapshot>)), view(snap({ overlays: ['UNKNOWN'] } as Partial<Snapshot>))]) {
       expect(apply(render(v))).toMatch(/\sdisabled/);
     }
+    // Switch off or a read-only board: no review panel at all, so no Apply control (review finding 4).
+    for (const v of [view(snap(), false), view(snap({ overlays: ['READ_ONLY'] } as Partial<Snapshot>))]) expect(render(v)).toBe('');
     // The plan orders and screens the drafts against the board.
     const plan = pendingPlan(view(snap()));
     expect(plan?.ok && plan.changes.map((c) => c.key)).toEqual(['xfr', 'st']);
