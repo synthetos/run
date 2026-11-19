@@ -28,6 +28,7 @@ import type { FlashBackupsMessage, FlashSourceRequest } from '../machine-worker/
 import type { FlashCommand, SnapshotMessage } from '../machine-worker/rpc.ts';
 import {
   installedKey,
+  NOT_MILLIMETRES,
   pendingKey,
   recordId,
   settingsRecord,
@@ -76,6 +77,22 @@ export interface UpdaterDeps {
   readonly readInputs: () => Promise<unknown>;
   readonly setInterval: (fn: () => void, ms: number) => unknown;
   readonly clearInterval: (handle: unknown) => void;
+}
+
+/** The record kept while an update's settings check is open, with the units its baseline was read in. */
+function pendingRestore(boardId: string, file: BackupFile, now: Date): PendingRestore {
+  return { boardId, baseline: file.tokens, backupId: recordId('settings', boardId, file.takenAt), at: now.toISOString(), unit: file.units?.unit ?? null };
+}
+
+/**
+ * The settings taken before the update, or why they cannot be restored. Same rule as restoring a stored backup:
+ * only a baseline read in millimetres; unknown units are refused.
+ */
+function baselineOf(pending: PendingRestore | undefined, file: BackupFile | null): { readonly tokens: Readonly<Record<string, number | string>> } | string {
+  const tokens = pending?.baseline ?? file?.tokens ?? null;
+  if (tokens === null) return 'The backup taken before the update is not on this computer.';
+  const unit = pending === undefined ? file?.units?.unit : pending.unit;
+  return unit === 1 ? { tokens } : NOT_MILLIMETRES;
 }
 
 export class FirmwareUpdater {
@@ -131,8 +148,7 @@ export class FirmwareUpdater {
       if (!parsed.ok) return this.#fail(`The image was refused: ${parsed.error.message}`);
       const sha256 = await sha256Hex(req.hex);
       if (boardId !== null && file !== null) {
-        const pending: PendingRestore = { boardId, baseline: file.tokens, backupId: recordId('settings', boardId, file.takenAt), at: this.#d.now().toISOString() };
-        await this.#d.store.set(pendingKey(boardId), pending);
+        await this.#d.store.set(pendingKey(boardId), pendingRestore(boardId, file, this.#d.now()));
       }
       this.#request = req;
       this.#set({ kind: 'flashing' });
@@ -244,8 +260,9 @@ export class FirmwareUpdater {
     const dialect = m?.snapshot.classification?.dialectId ?? null;
     if (post === null || post.phase !== 'restoreRequired' || dialect === null) return 'There is nothing to restore.';
     const pending = (await this.#d.store.get(pendingKey(post.boardId))) as PendingRestore | undefined;
-    const baseline = pending?.baseline ?? this.#baseline?.tokens ?? null;
-    if (baseline === null) return 'The backup taken before the update is not on this computer.';
+    const base = baselineOf(pending, this.#baseline);
+    if (typeof base === 'string') return base;
+    const baseline = base.tokens;
     const proposed = post.differences.map((d) => {
       const v = baseline[d.key];
       return { key: d.key, value: typeof v === 'number' ? v : d.backup };

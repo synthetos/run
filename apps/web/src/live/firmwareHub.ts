@@ -11,7 +11,7 @@ import { restoreChanges, settingsReadGroups, type PlannedChange, type SettingVal
 import { loadFirmwareCatalog } from './firmwareCatalog.ts';
 import { fetchFirmwareImage } from '../cloud/live.ts';
 import { FirmwareUpdater } from '../firmware/updater.ts';
-import { installedKey, memoryRepository, openRepository, parseBackupImport, settingsRecord, trustRecords, type BackupRepository, type InstalledRecord, type SettingsBackupRecord } from '../firmware/store.ts';
+import { installedKey, memoryRepository, NOT_MILLIMETRES, openRepository, parseBackupImport, settingsRecord, trustRecords, type BackupRepository, type InstalledRecord, type SettingsBackupRecord } from '../firmware/store.ts';
 import { approvalEnvironment } from '../machine-worker/approval.ts';
 import type { FlashBackupsPost, FlashCommand, SnapshotMessage } from '../machine-worker/rpc.ts';
 import type { FirmwareActions, FirmwareDownload, FirmwareHubView } from '../workspace/model.ts';
@@ -49,8 +49,7 @@ export function restoreRefusal(r: SettingsBackupRecord | undefined, dialect: str
   if (r === undefined) return 'That backup is not on this computer.';
   if (dialect === null) return 'Connect the board first.';
   if (r.file.board.dialect !== dialect) return `This backup is from ${r.file.board.dialect}, not ${dialect}.`;
-  // Lengths in a backup read under G20 are inches; writes are millimetres only (SAFETY §4.6 step 5, H60).
-  if (r.file.units?.unit !== 1) return 'This backup was not read in millimetres, so its lengths cannot be restored safely.';
+  if (r.file.units?.unit !== 1) return NOT_MILLIMETRES;
   return null;
 }
 

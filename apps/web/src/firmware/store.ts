@@ -189,7 +189,12 @@ export interface PendingRestore {
   readonly baseline: Readonly<Record<string, number | string>>;
   readonly backupId: string;
   readonly at: string;
+  /** The board's units when the baseline was read (1 = mm). Absent in records from before this field: unknown. */
+  readonly unit?: number | null;
 }
+
+/** Lengths read under G20 are inches; writes are millimetres only (SAFETY §4.6 step 5, H60). */
+export const NOT_MILLIMETRES = 'This backup was not read in millimetres, so its lengths cannot be restored safely.';
 
 export const trustKey = (boardId: string, sha256: string): string => `trust/${boardId}/${sha256}`;
 export const installedKey = (boardId: string): string => `installed/${boardId}`;
