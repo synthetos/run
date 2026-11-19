@@ -121,6 +121,25 @@ function switchName(key: string): string {
   return `${axis}-${key.endsWith('sn') ? 'min' : 'max'}`;
 }
 
+/** What a switch mode does (TinyG {a}sn/{a}sx: 0 Off, 1 Homing, 2 Limit, 3 Homing and limit, 4 Probe). */
+const SWITCH_ROLES: readonly { readonly on: readonly number[]; readonly gained: string; readonly lost: string }[] = [
+  { on: [2, 3], gained: 'it will now stop the machine at the end of travel', lost: 'it will no longer stop the machine at the end of travel' },
+  { on: [1, 3], gained: 'homing will use it', lost: 'homing will no longer use it' },
+  { on: [4], gained: 'it will now be read as the probe input', lost: 'it will no longer be read as the probe input' },
+];
+
+/** What changes for this switch, in the direction of the change (review finding 10). */
+function switchEffects(from: SettingValue | undefined, to: number): string {
+  const generic = 'this changes whether it stops the machine at the end of travel or is used for homing';
+  if (typeof from !== 'number') return generic;
+  const parts = SWITCH_ROLES.flatMap((r) => {
+    const was = r.on.includes(from);
+    const now = r.on.includes(to);
+    return was === now ? [] : [now ? r.gained : r.lost];
+  });
+  return parts.length === 0 ? generic : parts.join(', and ');
+}
+
 /** The consequence text for a high-risk change (SAFETY H57-H63). */
 function consequenceFor(category: RiskCategory, key: string, def: SettingDef | undefined, from: SettingValue | undefined, to: number): string {
   const was = valueWords(def, from);
@@ -130,7 +149,7 @@ function consequenceFor(category: RiskCategory, key: string, def: SettingDef | u
       if (key === 'st') {
         return `Changing the switch type from ${was} to ${now} when the switches are wired the other way means every switch reads as always pressed or never pressed: limits may not stop the machine and homing may not find its switch. Test each switch after applying.`;
       }
-      return `Changing the ${switchName(key)} switch from ${was} to ${now} changes whether it stops the machine at the end of travel or is used for homing. A limit that is turned off no longer stops the machine there. Test this switch after applying.`;
+      return `Changing the ${switchName(key)} switch from ${was} to ${now}: ${switchEffects(from, to)}. Test this switch after applying.`;
     case 'homing':
       return `${label(def, key)} changes from ${was} to ${now}. Homing uses it: a wrong value can drive the axis hard into its switch or end stop, or back off too far. Home with your hand on the E-stop after applying.`;
     case 'motor': {
