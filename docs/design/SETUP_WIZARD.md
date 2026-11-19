@@ -1,7 +1,7 @@
 # The setup wizard
 
 A signed-in account with no machine is met by one dialog over the dimmed workspace: the run wordmark, seven
-numbered steps down the left, one job per screen. Welcome, your machine, firmware, homing, tools, a first project,
+numbered steps down the left, one job per screen. Welcome, your machine, firmware, homing and coolant, tools, a first project,
 done. Every step but the first and the last can be skipped. Progress lives in the account, so the wizard resumes
 where it was left on any browser. It ends with the demo name plate open on the Job page. Design:
 `docs/superpowers/specs/2026-11-16-first-run-design.md` §6 (amended by OD-41 and OD-42); plans and rulings:
@@ -23,7 +23,7 @@ person who connects from the wizard never sees that.
 | 3 Firmware | The board's build against the verified release list (`firmware/updateOffer.ts` `firmwareStanding`). Here the simulated board runs 450.02 and 450.06 is released: skippable, Next on. "Current" only when the list is loaded and names nothing newer. | ![Step 3](screenshots/setup-wizard/step-3-light-1280.png) | ![Step 3 dark](screenshots/setup-wizard/step-3-dark-1280.png) |
 | 3 Firmware, needed | Below what Run controls: no Skip, Next held, the exact offer text, "Update firmware". On a site with no updater Skip stays and Next is held. When the update cannot run right now the facts stay and one line says why. | ![Step 3 needed](screenshots/setup-wizard/step-3-needed-light-1280.png) | |
 | 3 Firmware, updating | "Update firmware" runs the Board tab's own update flow inside the frame with the offered release marked. The flash itself is the existing flow, unchanged (`flasher.fake-serial.ts` covers it). | ![Step 3 update](screenshots/setup-wizard/step-3-update-light-1280.png) | |
-| 4 Homing | Two radio cards, the radio at the left beside the title. The choice is written to the setup record as it is made and never to the board. The wizard never offers Home (OD-41): with switches it points to the Job page; without switches it shows the existing Set machine zero control (no motion). | ![Step 4](screenshots/setup-wizard/step-4-light-1280.png) | ![Step 4 dark](screenshots/setup-wizard/step-4-dark-1280.png) |
+| 4 Homing and coolant | Two radio cards, the radio at the left beside the title. The choice is written to the setup record as it is made and never to the board. The wizard never offers Home (OD-41): with switches it points to the Job page; without switches it shows the existing Set machine zero control (no motion). Below, one compact question (OD-43): what is wired to the coolant output, saved on the step-2 machine; it names the Job page's coolant toggle. | ![Step 4](screenshots/setup-wizard/step-4-light-1280.png) | ![Step 4 dark](screenshots/setup-wizard/step-4-dark-1280.png) |
 | 5 Tools | Tools only (OD-42). Add from catalog opens the catalog as a whole page; adding a tool there brings the step back with it. Create a tool opens the tool editor above the frame. | ![Step 5](screenshots/setup-wizard/step-5-light-1280.png) | ![Step 5 dark](screenshots/wizard-fixes/step-5-dark-1280.png) |
 | 5 Tools, the catalog | The catalog's own layout at the full viewport: every tool listed without a search, filters for maker, size and type, and a search that takes name, size, flutes or part number. | ![Catalog](screenshots/wizard-fixes/step-5-catalog-light-1280.png) | ![Catalog dark](screenshots/wizard-fixes/step-5-catalog-dark-1280.png) |
 | 6 First project | The demo name plate, or a new project by name (the field opens inside the card). Open project makes the demo as a real project in the account, on its own 180 × 120 × 6.35 mm MDF, and opens its file. | ![Step 6](screenshots/setup-wizard/step-6-light-1280.png) | ![Step 6 dark](screenshots/wizard-fixes/step-6-dark-1280.png) |
@@ -37,7 +37,7 @@ Below 1024 px the frame is full-screen and the rail collapses to seven dots and 
 | 1 Welcome | ![Step 1 at 960](screenshots/setup-wizard/step-1-light-960.png) | ![Step 1 at 960 dark](screenshots/setup-wizard/step-1-dark-960.png) |
 | 2 Your machine | ![Step 2 at 960](screenshots/setup-wizard/step-2-light-960.png) | ![Step 2 at 960 dark](screenshots/setup-wizard/step-2-dark-960.png) |
 | 3 Firmware | ![Step 3 at 960](screenshots/setup-wizard/step-3-light-960.png) | ![Step 3 at 960 dark](screenshots/setup-wizard/step-3-dark-960.png) |
-| 4 Homing | ![Step 4 at 960](screenshots/setup-wizard/step-4-light-960.png) | ![Step 4 at 960 dark](screenshots/setup-wizard/step-4-dark-960.png) |
+| 4 Homing and coolant | ![Step 4 at 960](screenshots/setup-wizard/step-4-light-960.png) | ![Step 4 at 960 dark](screenshots/setup-wizard/step-4-dark-960.png) |
 | 5 Tools | ![Step 5 at 960](screenshots/wizard-fixes/step-5-light-960.png) | ![Step 5 at 960 dark](screenshots/wizard-fixes/step-5-dark-960.png) |
 | 6 New project | ![Step 6 at 960](screenshots/setup-wizard/step-6-new-light-960.png) | ![Step 6 at 960 dark](screenshots/setup-wizard/step-6-new-dark-960.png) |
 | 7 You are set | ![Step 7 at 960](screenshots/setup-wizard/step-7-light-960.png) | ![Step 7 at 960 dark](screenshots/setup-wizard/step-7-dark-960.png) |
@@ -58,7 +58,7 @@ Below 1024 px the frame is full-screen and the rail collapses to seven dots and 
 
 ## What the wizard writes
 
-Only account records, through the paths that exist: the machine (with `boardId`), the tool entry, the project with
+Only account records, through the paths that exist: the machine (with `boardId`, and `coolant` from step 4), the tool entry, the project with
 its file and setup, and the setup record itself (`dismissed`, `step`, `done`, `homing`, `toolId`, `machineId`,
 `projectId`). It no longer writes `stock` (OD-42); an older record that has one still reads. Nothing goes to browser
 storage; nothing is written to the board.

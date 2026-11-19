@@ -1,6 +1,7 @@
 # Setup wizard fixes (owner's staging walk, 2026-11-18)
 
-The owner walked the setup wizard on staging with a real board, in the dark theme, and rejected four screens:
+The owner walked the setup wizard on staging with a real board, in the dark theme, and rejected four screens, then
+three more on the Job page and Board (149 to 152, at the end of this page):
 “fix all of this in staging then we will take another look after it deploys”. Each section below has the owner's
 picture, the same screen after the fix, what was wrong and why. The new pictures are from the fake-serial stand-in
 (simulated board, stubbed account); no bench hardware was used. Plan and rulings:
@@ -116,3 +117,70 @@ for sideways overflow, centred text and stretched checkboxes or radios.
   did not show it. The step now records the tool list it opened with.
 - **Dialogs the wizard hosts.** The tool editor and the catalog's preview and add dialogs had the same clipping cause
   as C1. They now cover the page above the frame.
+
+## 149: the machine strip's read-only text trails off
+
+Owner: “this text trails off, could be as simple as UPDATE REQUIRED to something.....”
+
+| Owner, staging | After, 1280 | After, 1700 |
+|---|---|---|
+| ![149](screenshots/wizard-fixes/owner/149.png) | ![Strip at 1280](screenshots/wizard-fixes/read-only-dark-1280.png) | ![Strip at 1700](screenshots/wizard-fixes/read-only-light-1700.png) |
+
+**What was wrong.** Beside a "Read only" pill the strip printed a whole sentence, "It runs stock TinyG firmware
+(449.01, no build id), which Run only reads. Run reads it and moves nothing.", cut off with an ellipsis.
+
+**Why.** The strip's text slot is what is left after the title, the readouts and the stop buttons. At 1280 that is
+between 0 and about 90 px, so even short words do not fit there.
+
+**Fix.** The words are short: when a TinyG update fixes it, the pill says "Update required" and the text says
+"Firmware 449.01 → 450.06", with the target from the verified release list ("Firmware 449.01 · update required"
+before the list loads). Other reasons get a short pill and phrase too ("Flow control", "Not identified"). The text
+now shows whole or not at all: without room it wraps out of sight instead of being cut. The pill's words open the
+same text and the long reason on demand. With room, as at 1700 px, the text shows beside the pill. A browser test
+checks the text is never cut at 1280 and shows whole at 1700. The stand-in board cannot report stock 449, so the
+browser check uses its unapproved 450.90 build, which takes the same path and words; unit tests pin the 449 words.
+Refusal titles on disabled controls are short too: "Read only: firmware 449.01 needs an update."
+
+## 150: the Position card's run-on sentence
+
+Owner: “again another text runon that is not needed?”
+
+| Owner, staging | After |
+|---|---|
+| ![150](screenshots/wizard-fixes/owner/150.png) | ![Position card](screenshots/wizard-fixes/read-only-dark-1280.png) |
+
+**What was wrong.** The card read "Run can’t control this board yet. It runs stock TinyG firmware (449.01, no build
+id), which Run only reads." before its buttons.
+
+**Fix.** The card's title is the state, "Update required", followed by one short line, "449.01 is read only in Run.
+Install 450.06.", and the Update firmware button. The long reason sits behind a "?" on the card. Cards for other
+reasons get a short title ("Flow control not supported", "Board not identified") and keep their how-to-fix lines.
+
+## 151 and 152: coolant
+
+Owner, 151: “this also looks like shit. also how in the hell would tg know if its flood or coolant? what do these
+buttons do?” Owner, 152: “i think you would go to board and set this as flood or mist? this way the ui would auto set
+the button to the right text? we might want a step in the wizard to ask if the board using the coolant feature and
+if yes flood or mist kind of thing?”
+
+| Owner, staging | After: Job page | After: Board → J6.6 | After: wizard step 4 |
+|---|---|---|---|
+| ![151](screenshots/wizard-fixes/owner/151.png) ![152](screenshots/wizard-fixes/owner/152.png) | ![Mist toggle](screenshots/wizard-fixes/coolant-mist-dark.png) | ![Wired to](screenshots/wizard-fixes/board-coolant-wired-light.png) | ![Step 4](screenshots/setup-wizard/step-4-dark-1280.png) |
+
+**What was wrong.** The Job page showed two buttons, Mist and Flood, under a "Coolant" label. TinyG v8 drives one
+coolant output for both M7 and M8 and cannot know what is wired to it, so the two buttons claimed a difference the
+board does not have, and nothing said what they send.
+
+**Fix.** What is wired to the coolant output is now a property of the machine: Not used, Flood coolant, Mist or Air
+blast, saved on the machine record (OD-43). It is set in three places with the same words: Board → the J6.6 coolant
+pin ("Wired to", saved with the machine chosen on the Job page, never written to the board), Library → Machines,
+and the setup wizard's step 4, now "Homing and coolant". The Job page shows one toggle named by that choice: Flood
+(M8), Mist or Air (M7), and M9 to switch off. Its "?" says what it sends and that Run cannot tell what is wired.
+When the machine says nothing is wired, the row is not shown. Until the machine says, the toggle reads "Coolant"
+(M8) with a "Set what is wired" link to Board → J6.6. The strip's readout follows: "Mist on", "Coolant off", and it
+drops away when off or not used. The toggle and its "?" sit on one line, sized to the word. G-code files' own M7,
+M8 and M9 go to the board unchanged, and Pause and Stop job are unchanged.
+
+| No choice yet | No machine chosen |
+|---|---|
+| ![Coolant, unset](screenshots/wizard-fixes/coolant-unset-light.png) | Board → J6.6 says "Choose a machine on the Job page first." and offers no choice. |
