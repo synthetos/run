@@ -29,7 +29,7 @@ describe('MotorsTab', () => {
     expect(text(row(m1, '1sa'))).toContain('1.8° per step');
     expect(text(row(m1, '1sa'))).toContain('200 steps per turn');
     expect(text(row(m1, '1tr'))).toContain('1.25 mm');
-    expect(text(row(m1, '1mi'))).toContain('Half step (2)');
+    expect(text(row(m1, '1mi'))).toContain('Half step (1/2)');
     expect(text(row(m1, '1po'))).toContain('Reversed');
     expect(text(row(m1, '1pm'))).toContain('On during a job, off after the idle time');
     expect(text(one(m1, byAttr('data-steps-per-unit')))).toBe('320');

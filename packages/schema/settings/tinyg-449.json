@@ -51,9 +51,9 @@
       "labelSrc": "S449 stepper.c:1317 fmt_0mi [1,2,4,8]",
       "values": [
         { "value": 1, "label": "Full step (1)", "help": "200 steps per turn on a 1.8° motor." },
-        { "value": 2, "label": "Half step (2)" },
-        { "value": 4, "label": "Quarter step (4)" },
-        { "value": 8, "label": "Eighth step (8)", "help": "The TinyG driver's finest setting." }
+        { "value": 2, "label": "Half step (1/2)" },
+        { "value": 4, "label": "Quarter step (1/4)" },
+        { "value": 8, "label": "Eighth step (1/8)", "help": "The TinyG v8 driver's finest setting." }
       ]
     },
     "polarity": { "labelSrc": "S449 stepper.c:1318 fmt_0po [0=normal,1=reverse]", "values": [{ "value": 0, "label": "Normal" }, { "value": 1, "label": "Reversed" }] },
@@ -114,7 +114,7 @@
     { "pattern": "{m}ma", "for": { "m": ["1", "2", "3", "4"] }, "rows": { "1": 186, "2": 196, "3": 207, "4": 218 }, "src": "S449 config_app.c:{row}", "label": "Motor {m} axis", "short": "Drives", "description": "The axis motor {m} drives.", "unit": "enum", "enum": "motorAxis", "group": "motor-{m}", "tab": "motors", "access": "read", "reason": "Read only on this firmware." },
     { "pattern": "{m}sa", "for": { "m": ["1", "2", "3", "4"] }, "rows": { "1": 187, "2": 197, "3": 208, "4": 219 }, "src": "S449 config_app.c:{row}", "label": "Motor {m} step angle", "short": "Step angle", "description": "Degrees per full step of motor {m} (1.8 for a 200-step motor).", "unit": "deg/step", "group": "motor-{m}", "tab": "motors", "access": "read", "reason": "Read only on this firmware." },
     { "pattern": "{m}tr", "for": { "m": ["1", "2", "3", "4"] }, "rows": { "1": 188, "2": 198, "3": 209, "4": 220 }, "src": "S449 config_app.c:{row}", "label": "Motor {m} travel per revolution", "short": "Travel per turn", "description": "Millimetres (or degrees, on a rotary axis) the axis moves per motor revolution: screw lead, or belt pitch × pulley teeth.", "unit": "mm/rev", "rotary": { "when": "{m}ma", "in": [3, 4, 5], "unit": "deg/rev" }, "convert": true, "group": "motor-{m}", "tab": "motors", "access": "read", "reason": "Read only on this firmware." },
-    { "pattern": "{m}mi", "for": { "m": ["1", "2", "3", "4"] }, "rows": { "1": 189, "2": 199, "3": 210, "4": 221 }, "src": "S449 config_app.c:{row}", "label": "Motor {m} microsteps", "short": "Microsteps", "description": "Microstep setting of the motor {m} driver.", "unit": "microsteps", "enum": "microsteps", "group": "motor-{m}", "tab": "motors", "access": "read", "reason": "Read only on this firmware." },
+    { "pattern": "{m}mi", "for": { "m": ["1", "2", "3", "4"] }, "rows": { "1": 189, "2": 199, "3": 210, "4": 221 }, "src": "S449 config_app.c:{row}", "label": "Motor {m} microsteps", "short": "Microsteps", "description": "Microstep setting of the motor {m} driver.", "unit": "microsteps", "enum": "microsteps", "custom": { "label": "1/# step (custom)", "src": "S449 stepper.c:1195-1204 (any value is stored, with a warning; the v8 driver pins change only for 1, 2, 4 and 8, stepper.c:1129-1140)" }, "group": "motor-{m}", "tab": "motors", "access": "read", "reason": "Read only on this firmware." },
     { "pattern": "{m}po", "for": { "m": ["1", "2", "3", "4"] }, "rows": { "1": 190, "2": 200, "3": 211, "4": 222 }, "src": "S449 config_app.c:{row}", "label": "Motor {m} polarity", "short": "Direction", "description": "Direction of motor {m}: 0 normal, 1 reversed.", "unit": "enum", "enum": "polarity", "group": "motor-{m}", "tab": "motors", "access": "read", "reason": "Read only on this firmware." },
     { "pattern": "{m}pm", "for": { "m": ["1", "2", "3", "4"] }, "rows": { "1": 191, "2": 201, "3": 212, "4": 223 }, "src": "S449 config_app.c:{row}", "label": "Motor {m} power management", "short": "Power", "description": "When motor {m} is energized.", "unit": "enum", "enum": "power", "group": "motor-{m}", "tab": "motors", "access": "read", "reason": "Read only on this firmware." },
 

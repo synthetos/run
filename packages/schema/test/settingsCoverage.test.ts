@@ -35,6 +35,15 @@ function convertRows(d: string): string[] {
 const RUN_OWNS = 'Run sets this itself. Changing it could cut the connection.';
 const isConnectionGroup = (group: string): boolean => group === 'communications' || group === 'status-report';
 
+describe('microsteps (owner walk 2026-11-19)', () => {
+  it.each(DIALECTS)('%s: the list is the v8 driver steps as fractions; 449 and 440 name a stored custom value, 450 refuses one', (d) => {
+    const mi = settingsDefsFor(d)!.tokens.get('1mi')!;
+    expect(mi.values?.map((v) => `${v.value} ${v.label}`)).toEqual(['1 Full step (1)', '2 Half step (1/2)', '4 Quarter step (1/4)', '8 Eighth step (1/8)']);
+    if (d === EN) expect(mi.custom).toBeUndefined();
+    else expect(mi.custom?.label).toBe('1/# step (custom)');
+  });
+});
+
 describe('settings Run owns (lead decision 2026-11-19: no Communications tab)', () => {
   it.each(DIALECTS)('%s: every communication and status-report setting is read-only with the one reason, on All settings, at Advanced only', (d) => {
     const f = settingsDefsFor(d)!;

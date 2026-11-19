@@ -79,8 +79,13 @@ export function metaWith(meta: SettingMeta, settings: Readonly<Record<string, Se
  */
 export function valueWordsOf(d: SettingDefinition | null, v: number, inches = false): string {
   if (d === null) return numberWords(v);
-  if (d.values !== undefined) return d.values.find((e) => e.value === v)?.label ?? `Unknown value (${numberWords(v)})`;
+  if (d.values !== undefined) return d.values.find((e) => e.value === v)?.label ?? outsideWords(d, v);
   return withUnit(v, d.unit, d.display, inches && d.convert === true);
+}
+
+/** A value outside the list: the data's custom words where the firmware stores one ("1/16 step (custom)"). */
+function outsideWords(d: SettingDefinition, v: number): string {
+  return d.custom === undefined ? `Unknown value (${numberWords(v)})` : d.custom.label.replace('#', numberWords(v));
 }
 
 /** The board reports inches (`unit` 0, G20). */

@@ -27,7 +27,7 @@ interface RawFile extends Omit<SettingsFile, 'tokens'> {
 }
 
 /** Fields copied as they are when present. */
-const OPTIONAL = ['display', 'reason', 'since', 'until', 'labelSrc', 'verify', 'differs', 'rotary'] as const;
+const OPTIONAL = ['display', 'reason', 'since', 'until', 'labelSrc', 'verify', 'differs', 'rotary', 'custom'] as const;
 
 function validated(raw: unknown): RawFile {
   const errors = validateSchema(SETTINGS_FILE_SCHEMA, raw);

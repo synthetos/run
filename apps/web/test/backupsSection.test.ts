@@ -94,8 +94,8 @@ describe('BackupsSection', () => {
     const compare = { id: 'b1', changes: 1, same: 185, skipped: 0, keys: ['1mi'], diffs: [{ key: '1mi', backup: 4, board: 8 }] };
     const diff = one(render(withHub(HUB([ROW()], compare))), byAttr('data-compare', 'b1'));
     expect(text(diff)).toContain('Motor 1 microsteps');
-    expect(text(diff)).toContain('Quarter step (4)');
-    expect(text(diff)).toContain('Eighth step (8)');
+    expect(text(diff)).toContain('Quarter step (1/4)');
+    expect(text(diff)).toContain('Eighth step (1/8)');
   });
 
   it('Compare: the board column in the board\'s units, the backup column in the backup\'s units (review finding 1)', () => {

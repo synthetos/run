@@ -11,14 +11,20 @@ import type { LiveView } from '../src/workspace/model.ts';
 const S449 = 'tinyg-449-stock';
 
 describe('settingMeta and plainValue read the definitions', () => {
-  it('449: 1mi 2 reads "Half step (2)"', () => expect(plainValue('1mi', 2, S449)).toBe('Half step (2)'));
+  it('449: 1mi 2 reads "Half step (1/2)", as a fraction (owner walk 2026-11-19)', () => expect(plainValue('1mi', 2, S449)).toBe('Half step (1/2)'));
+
+  it('a custom microstep value 449 or 440 stored reads as a fraction; 450 refuses such values, so it stays unknown', () => {
+    expect(plainValue('1mi', 16, S449)).toBe('1/16 step (custom)');
+    expect(plainValue('1mi', 32, 'tinyg-440')).toBe('1/32 step (custom)');
+    expect(plainValue('1mi', 16, 'tinyg-en')).toBe('Unknown value (16)');
+  });
 
   it('449: xsn 4 reads "Probe"; gun 1 reads "Millimetres (G21)"', () => {
     expect(plainValue('xsn', 4, S449)).toBe('Probe');
     expect(plainValue('gun', 1, S449)).toBe('Millimetres (G21)');
   });
 
-  it('449: 1mi 3 reads "Unknown value (3)"', () => expect(plainValue('1mi', 3, S449)).toBe('Unknown value (3)'));
+  it('449: 1mi 3 (stored with a warning by that firmware) reads "1/3 step (custom)"', () => expect(plainValue('1mi', 3, S449)).toBe('1/3 step (custom)'));
 
   it('449: coph has no definition', () => {
     expect(settingMeta('coph', S449).access).toBeNull();
@@ -39,7 +45,7 @@ describe('settingMeta and plainValue read the definitions', () => {
 
   it('carries short name, access, reason and token', () => {
     expect(settingMeta('2mi', 'tinyg-en')).toMatchObject({ key: '2mi', token: '2mi', label: 'Motor 2 microsteps', short: 'Microsteps', access: 'write', hwAllowed: [1, 2, 4, 8] });
-    expect(settingMeta('ex', 'tinyg-en')).toMatchObject({ access: 'forbidden', reason: "Run's sending depends on it, so Run never writes it." });
+    expect(settingMeta('ex', 'tinyg-en')).toMatchObject({ access: 'forbidden', reason: 'Run sets this itself. Changing it could cut the connection.' });
   });
 
   it('units come from the data and read as words', () => {

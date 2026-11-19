@@ -113,6 +113,13 @@
     "unit": {
       "enum": ["mm", "mm/min", "mm/rev", "deg", "deg/min", "deg/step", "Mmm/min3", "Mdeg/min3", "microsteps", "s", "enum", "none", "text", "Hz", "mm/min2", "ratio", "rpm", "ms", "deg/rev"]
     },
+    "custom": {
+      "$comment": "Words for a stored value outside `values` (the firmware stores any value, with a warning): # is the value. Describe only.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "src"],
+      "properties": { "label": { "type": "string", "pattern": "#" }, "src": { "type": "string", "minLength": 1 } }
+    },
     "rotary": {
       "$comment": "The unit a setting reads in when the token `when` holds one of `in` (its motor drives a rotary axis). Describe only.",
       "type": "object",
@@ -184,6 +191,7 @@
         "differs": { "type": "string", "minLength": 1 },
         "convert": { "$comment": "F_CONVERT: the board reports it in inches under G20. A write object's convert must agree.", "type": "boolean" },
         "rotary": { "$ref": "#/$defs/rotary" },
+        "custom": { "$ref": "#/$defs/custom" },
         "write": { "$ref": "#/$defs/write" }
       }
     },
@@ -222,6 +230,7 @@
         "differs": { "type": "string", "minLength": 1 },
         "convert": { "type": "boolean" },
         "rotary": { "$ref": "#/$defs/rotary" },
+        "custom": { "$ref": "#/$defs/custom" },
         "write": { "$ref": "#/$defs/write" }
       }
     }

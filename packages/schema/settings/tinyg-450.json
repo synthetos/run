@@ -96,9 +96,9 @@
       "unit": "microsteps", "group": "motor-{m}", "tab": "motors", "access": "write",
       "values": [
         { "value": 1, "label": "Full step (1)", "help": "200 steps per turn on a 1.8° motor." },
-        { "value": 2, "label": "Half step (2)" },
-        { "value": 4, "label": "Quarter step (4)" },
-        { "value": 8, "label": "Eighth step (8)", "help": "The TinyG driver's finest setting." }
+        { "value": 2, "label": "Half step (1/2)" },
+        { "value": 4, "label": "Quarter step (1/4)" },
+        { "value": 8, "label": "Eighth step (1/8)", "help": "The TinyG v8 driver's finest setting." }
       ],
       "labelSrc": "EN stepper.c:1653 fmt_0mi [1,2,4,8]",
       "write": {

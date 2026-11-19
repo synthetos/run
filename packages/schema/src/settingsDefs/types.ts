@@ -82,6 +82,8 @@ export interface SettingDefinition {
   readonly convert?: true;
   /** The unit it reads in on a rotary axis (describe only: writes and ranges keep `unit`). */
   readonly rotary?: RotaryUnit;
+  /** Words for a stored value outside `values` ("1/# step (custom)", # is the value), where the firmware stores one. */
+  readonly custom?: { readonly label: string; readonly src: string };
   readonly write?: WriteDef;
 }
 

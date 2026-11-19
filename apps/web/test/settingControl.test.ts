@@ -26,11 +26,11 @@ describe('SettingControl', () => {
     expect(segments(el).filter((s) => s.props['aria-checked'] === 'true').map(text)).toEqual(['Homing']);
   });
 
-  it('1mi renders a select with Full step (1) … Eighth step (8) and no "Keep" option', () => {
+  it('1mi renders a select of the v8 driver steps as fractions, Full step (1) … Eighth step (1/8), and no "Keep" option', () => {
     const el = render('1mi');
     expect(el.props['data-control-kind']).toBe('select');
     const options = all(el, (e) => e.tag === 'option');
-    expect(options.map(text)).toEqual(['Full step (1)', 'Half step (2)', 'Quarter step (4)', 'Eighth step (8)']);
+    expect(options.map(text)).toEqual(['Full step (1)', 'Half step (1/2)', 'Quarter step (1/4)', 'Eighth step (1/8)']);
     expect(one(el, (e) => e.tag === 'select').props['value']).toBe('8');
   });
 
@@ -84,8 +84,8 @@ describe('SettingControl', () => {
     expect(enabled(xsn)).toEqual([]);
     const mi = render('1mi', view);
     expect(mi.props['data-control-kind']).toBe('locked');
-    expect(text(mi)).toContain('Half step (2)');
-    expect(text(mi)).toContain('Eighth step (8)');
+    expect(text(mi)).toContain('Half step (1/2)');
+    expect(text(mi)).toContain('Eighth step (1/8)');
     expect(render('xvm', view).props['data-control-kind']).toBe('text');
     expect(text(render('xvm', view))).toBe('800 mm/min');
   });
@@ -111,7 +111,7 @@ describe('SettingControl', () => {
 describe('SettingControl sizes', () => {
   it('a select is sized to its longest option, with room for the chevron (lead review, Motors 1)', () => {
     const width = (k: string): unknown => one(render(k), (e) => e.tag === 'select').props['style'];
-    expect(width('1mi')).toBe(`width: calc(${'Quarter step (4)'.length}ch + 44px)`);
+    expect(width('1mi')).toBe(`width: calc(${'Quarter step (1/4)'.length}ch + 44px)`);
     const pm = all(render('1pm'), (e) => e.tag === 'option').map(text);
     expect(width('1pm')).toBe(`width: calc(${Math.max(...pm.map((t) => t.length))}ch + 44px)`);
   });
