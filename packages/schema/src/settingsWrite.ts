@@ -172,6 +172,8 @@ function consequenceFor({ dialectId, category, key, def, from, to }: ChangeAt): 
       return `Motor ${key[0]} will drive ${now} instead of ${was}. Commands for one axis will move another. Check every axis with a 1 mm move after applying.`;
     case 'axisMode':
       return `${label(def, key)} changes from ${was} to ${now}. A disabled or inhibited axis does not move when commanded, and a rotary axis in radius mode reads its moves in linear units: G-code that worked before can move differently.`;
+    case 'scale':
+      return `${label(def, key)} changes from ${was} to ${now}. It changes how far the motor moves for each step, so every move on its axis travels a different distance. Check with a short move, hand on the E-stop, after applying.`;
     case 'travel':
       if (key === 'sl') return `Soft limits change from ${was} to ${now}. With soft limits off, the machine can be commanded past its travel.`;
       return `${label(def, key)} changes from ${was} to ${now}. It sets the soft limit and the homing search distance: a wrong value lets the machine run past its end, or stop short. Home and check the travel after applying.`;

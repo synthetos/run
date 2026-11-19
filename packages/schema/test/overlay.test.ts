@@ -111,9 +111,10 @@ describe('risk, confirmations and invalidations (SAFETY §4.6)', () => {
     expect(get('prbp').invalidates).toContain('probe.*');
   });
 
-  it('typed C5 always for motor map and polarity, switch type and modes, travel, and rotary axis mode', () => {
+  it('typed C5 always for motor map, polarity and microsteps, switch type and modes, travel, and rotary axis mode', () => {
     // Rotary `am` can select radius mode, which multiplies every move on that axis by 360 / (2π ra).
-    const always = [...MOTORS.flatMap((m) => [`${m}ma`, `${m}po`]), 'st', 'aam', 'bam', 'cam', ...['x', 'y', 'z', 'a'].flatMap((a) => [`${a}sn`, `${a}sx`]), ...['x', 'y', 'z', 'a', 'b', 'c'].flatMap((a) => [`${a}tn`, `${a}tm`]), 'spep', 'spdp', 'prbp'];
+    // Microsteps change steps per mm, so every move goes a different distance (owner walk 2026-11-19, a tightening).
+    const always = [...MOTORS.flatMap((m) => [`${m}ma`, `${m}po`, `${m}mi`]), 'st', 'aam', 'bam', 'cam', ...['x', 'y', 'z', 'a'].flatMap((a) => [`${a}sn`, `${a}sx`]), ...['x', 'y', 'z', 'a', 'b', 'c'].flatMap((a) => [`${a}tn`, `${a}tm`]), 'spep', 'spdp', 'prbp'];
     expect(TINYG_EN_OVERLAY.filter((o) => o.typedConfirm.kind === 'always').map((o) => o.key).sort()).toEqual(always.sort());
     expect(get('xam').typedConfirm).toEqual({ kind: 'never' });
     expect(get('aam').whatGoesWrong).toContain('radius mode');

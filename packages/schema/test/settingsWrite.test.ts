@@ -59,6 +59,14 @@ describe('changeRisk', () => {
     expect(changeRisk('tinyg-en', 'xsn', undefined, 3).consequence).toContain('not read to Homing and limit: this changes whether it stops the machine at the end of travel or is used for homing.');
   });
 
+  it('a microstep change is high risk, with the typed confirmation, and says every move goes a different distance (owner walk 2026-11-19)', () => {
+    for (const m of ['1', '2', '3', '4']) {
+      const r = changeRisk('tinyg-en', `${m}mi`, 8, 4);
+      expect(r.highRisk).toBe(true);
+      expect(r.consequence).toMatch(/every move on its axis travels a different distance/);
+    }
+  });
+
   it('a doubled velocity needs the typed confirmation (overlay increaseFactor)', () => {
     expect(changeRisk('tinyg-en', 'xvm', 1000, 2500).highRisk).toBe(true);
   });

@@ -104,7 +104,7 @@
       "write": {
         "valueType": "integer", "range": { "min": 1, "max": 8 },
         "rangeSource": "EN stepper.c:1511-1530 (0 refused with 108, E158; from 450.02 any value other than 1, 2, 4, 8 is refused with a range error and nothing changes)",
-        "hwAllowed": [1, 2, 4, 8], "e158": true, "convert": false, "scope": "persisted", "risk": "high", "typedConfirm": { "kind": "never" }, "afterWrite": "W20",
+        "hwAllowed": [1, 2, 4, 8], "e158": true, "convert": false, "scope": "persisted", "risk": "high", "typedConfirm": { "kind": "always" }, "afterWrite": "W20",
         "invalidates": ["scale.*", "homing.*", "softlimits"],
         "whatGoesWrong": "The TinyG v8 drivers support only 1, 2, 4 and 8 microsteps. Older builds stored any other value anyway, so the scale no longer matched what the driver did; 450.02 refuses it."
       }
