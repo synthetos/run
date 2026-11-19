@@ -42,6 +42,14 @@ function overflowing(page: Page): Promise<string[]> {
       if (!['auto', 'scroll'].includes(s.overflowY) || el.offsetParent === null) continue;
       if (el.scrollHeight > el.clientHeight + 1) out.push(`${el.tagName.toLowerCase()}.${el.className.split(' ').join('.')} +${el.scrollHeight - el.clientHeight}px`);
     }
+    // A fixed-height row hides its overflow, so a control cut off at its bottom edge would not scroll: check it fits.
+    for (const row of Array.from(document.querySelectorAll<HTMLElement>('li[data-release]'))) {
+      const bottom = row.getBoundingClientRect().bottom;
+      for (const c of Array.from(row.querySelectorAll<HTMLElement>('button, label, .tag'))) {
+        const cut = c.getBoundingClientRect().bottom - bottom;
+        if (c.offsetParent !== null && cut > 1) out.push(`release ${row.dataset['release'] ?? ''} cuts off "${c.textContent ?? ''}" by ${Math.round(cut)}px`);
+      }
+    }
     return out;
   });
 }

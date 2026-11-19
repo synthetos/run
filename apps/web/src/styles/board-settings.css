@@ -100,15 +100,19 @@
 .release-list .releases-page { flex: 1; min-height: 0; overflow: hidden; }
 .release-list .pager { padding: 0 18px; }
 /* One fixed-height row per release (FirmwareReleaseList.ts ROW_PX), so a page of them fits. */
-.release-list .releases li { grid-template-columns: 120px minmax(0, 1fr) auto; gap: 16px; height: 76px; padding: 8px 0; align-items: center; overflow: hidden; }
+/* The grid row is the row's inside (60 px Simple), so nothing in it can push the actions past the bottom edge. */
+.release-list .releases li { grid-template-columns: 190px minmax(0, 1fr) auto; grid-template-rows: minmax(0, 1fr); box-sizing: border-box; gap: 16px; height: 76px; padding: 8px 0; align-items: center; overflow: hidden; }
 .release-list .releases.adv li { height: 112px; }
-.release-list .rel-ver { display: flex; flex-wrap: wrap; gap: 2px 6px; align-items: baseline; align-self: center; }
-.release-list .rel-ver strong { flex-basis: 100%; }
+/* Version and date on the first line, the tags (Pre-release, Recommended, Older) on the second. */
+.release-list .rel-ver { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; align-self: center; }
+.release-list .rel-ver small { margin-right: 40px; }
 .release-list .rel-ver .tag { margin-top: 2px; }
 .release-list .rel-notes { min-width: 0; }
 .release-list .rel-notes > * { margin: 0 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .release-list .rel-notes .changelog { white-space: nowrap; }
-.release-list .row-actions { margin: 0; flex-direction: column; align-items: stretch; flex-wrap: nowrap; }
+.release-list .row-actions { margin: 0; flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 4px; }
+/* Two 28 px actions and their gap fill the 60 px inside a Simple row (76 px less 16 px padding), nothing cut off. */
+.release-list .row-actions > button, .release-list .row-actions > .file-pick { min-height: 28px; height: 28px; }
 
 /* ---------- Overview → This board: fits the inspector at 1280 × 800 at both levels (owner walk 2026-11-19) ---------- */
 .board-facts > div { padding-top: 3px; padding-bottom: 3px; }
