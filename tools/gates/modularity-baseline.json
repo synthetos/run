@@ -325,7 +325,7 @@
     "apps/web/src/workspace/views/FirmwareViews.ts": {
       "complexity $/FunctionDeclaration:FirmwareTab#1": 94,
       "complexity $/FunctionDeclaration:flashBlocked#1": 19,
-      "max-lines-per-function $/FunctionDeclaration:FirmwareTab#1": 129
+      "max-lines-per-function $/FunctionDeclaration:FirmwareTab#1": 128
     },
     "apps/web/src/workspace/views/JobStatusCard.ts": {
       "complexity $/FunctionDeclaration:JobStatus#1": 48

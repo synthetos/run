@@ -356,6 +356,7 @@ a.button svg, .report-actions button svg { width: 15px; height: 15px; }
 .flash-danger { border-left: 3px solid var(--danger); background: var(--danger-soft); }
 .flash-warn { border-left: 3px solid var(--warn); background: var(--warn-soft); }
 .flash-warn.pad { margin: 12px 18px 0; }
+.flash-confirm-cols, .flash-confirm-warnings { display: grid; gap: 10px; }
 .flash-boxes { display: grid; gap: 6px; font-size: 12.5px; }
 .flash-boxes label { display: flex; gap: 8px; align-items: flex-start; }
 .flash-boxes input { margin-top: 2px; }

@@ -55,8 +55,38 @@ function useQuietFocus(): RefObject<HTMLButtonElement | null> {
   return ref;
 }
 
-/** The C6 checklist (and C37 for custom firmware), then the question. Nothing starts until every box is ticked. */
-export function ConfirmFlash({ view, target, openUpdate = false, onCancel, onConfirm }: { readonly view: Pick<LiveView, 'message'>; readonly target: Target; readonly openUpdate?: boolean; readonly onCancel: () => void; readonly onConfirm: () => void }): ComponentChild {
+/** The C6 boxes in their order; each one opens only after the one before it is ticked. */
+function Boxes({ boxes, ticked, setTicked }: { readonly boxes: readonly string[]; readonly ticked: readonly boolean[]; readonly setTicked: (t: boolean[]) => void }): ComponentChild {
+  return h(
+    'ol',
+    { class: 'flash-boxes' },
+    boxes.map((b, i) =>
+      h(
+        'li',
+        { key: b },
+        h(
+          'label',
+          null,
+          h('input', {
+            type: 'checkbox',
+            checked: ticked[i],
+            disabled: i > 0 && !(ticked[i - 1] ?? false),
+            'aria-label': `C6 step ${i + 1}`,
+            onChange: (e: Event) => setTicked(ticked.map((t, k) => (k === i ? (e.currentTarget as HTMLInputElement).checked : t))),
+          }),
+          ` ${/^\d+\. /.test(b) ? '' : `${i + 1}. `}${b}`,
+        ),
+      ),
+    ),
+  );
+}
+
+/**
+ * The C6 checklist (and C37 for custom firmware), then the question. Nothing starts until every box is ticked. The
+ * warnings and the boxes are two blocks in reading order; `wide` sets them side by side so the whole confirm fits
+ * the Board → Firmware page without scrolling (owner 167). The texts and their order are the same either way.
+ */
+export function ConfirmFlash({ view, target, openUpdate = false, wide = false, onCancel, onConfirm }: { readonly view: Pick<LiveView, 'message'>; readonly target: Target; readonly openUpdate?: boolean; readonly wide?: boolean; readonly onCancel: () => void; readonly onConfirm: () => void }): ComponentChild {
   // Owner decision, SAFETY §4.8: the open updater has no motion controls.
   const boxes = c6Boxes().boxes.map((text, i) => openUpdate && i === 4 ? '5. The tool is clear of the work.' : text);
   const [ticked, setTicked] = useState<boolean[]>(boxes.map(() => false));
@@ -68,31 +98,18 @@ export function ConfirmFlash({ view, target, openUpdate = false, onCancel, onCon
   const allTicked = ticked.every((t, i) => t && ticked.slice(0, i).every(Boolean));
   return h(
     'div',
-    { class: 'flash-confirm', role: 'dialog', 'aria-label': 'Confirm the firmware update', 'data-region': 'flash-confirm' },
-    h('p', { class: 'flash-danger', 'data-safety': 'W11' }, ...signalText(w11())),
-    h('p', { class: 'flash-danger', 'data-safety': 'W28' }, ...signalText(w28())),
-    target.kind === 'custom' ? h('p', { class: 'flash-warn', 'data-safety': 'W47' }, ...signalText(w47())) : null,
+    { class: wide ? 'flash-confirm wide' : 'flash-confirm', role: 'dialog', 'aria-label': 'Confirm the firmware update', 'data-region': 'flash-confirm' },
     h(
-      'ol',
-      { class: 'flash-boxes' },
-      boxes.map((b, i) =>
-        h(
-          'li',
-          { key: b },
-          h(
-            'label',
-            null,
-            h('input', {
-              type: 'checkbox',
-              checked: ticked[i],
-              disabled: i > 0 && !(ticked[i - 1] ?? false),
-              'aria-label': `C6 step ${i + 1}`,
-              onChange: (e: Event) => setTicked(ticked.map((t, k) => (k === i ? (e.currentTarget as HTMLInputElement).checked : t))),
-            }),
-            ` ${/^\d+\. /.test(b) ? '' : `${i + 1}. `}${b}`,
-          ),
-        ),
+      'div',
+      { class: 'flash-confirm-cols' },
+      h(
+        'div',
+        { class: 'flash-confirm-warnings' },
+        h('p', { class: 'flash-danger', 'data-safety': 'W11' }, ...signalText(w11())),
+        h('p', { class: 'flash-danger', 'data-safety': 'W28' }, ...signalText(w28())),
+        target.kind === 'custom' ? h('p', { class: 'flash-warn', 'data-safety': 'W47' }, ...signalText(w47())) : null,
       ),
+      h(Boxes, { boxes, ticked, setTicked }),
     ),
     h('p', { class: 'flash-question', 'data-safety': 'C6' }, c6Question({ boardId, fromBuild: fbText(id?.fb), toBuild, sha256Short: shortSha(sha) })),
     target.kind === 'custom' ? h('p', { class: 'flash-question', 'data-safety': 'C37' }, c37({ name: boardText(target.name), sha256Short: shortSha(sha), boardId })) : null,

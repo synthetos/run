@@ -1,4 +1,4 @@
-import { ConfirmFlash, Progress, DownloadCard, useConfirmInView, type Target } from '../../firmware/FlashViews.ts';
+import { ConfirmFlash, Progress, DownloadCard, type Target } from '../../firmware/FlashViews.ts';
 /**
  * The Board view's Firmware tab (the Update panel, then the firmware image backups, custom firmware and trusted
  * builds) and its Backups tab (settings backups); until 2026-11-09 these were the Firmware and Firmware & Backups
@@ -210,7 +210,6 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
   MOTION.current = actions?.motion ?? null;
   const hub = view?.firmware ?? null;
   const [target, setTarget] = useState<Target | null>(null);
-  const aside = useConfirmInView<HTMLElement>(target !== null);
   const [chooseHardware, setChooseHardware] = useState(false);
   const [hardwareChoice, setHardwareChoice] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
@@ -250,6 +249,9 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
     setMsg(null);
     void fw.checkLocalCopy(r, text).then((got) => (got.ok ? setTarget({ kind: 'release', image: got.image }) : setMsg(got.message)));
   };
+  // C6 takes the Update part's whole area while it is open, the releases and the side column set aside, so every
+  // warning, box and button fits without scrolling (owner 167).
+  if (view !== null && target !== null) return h(ConfirmFlash, { view, target, wide: true, onCancel: () => setTarget(null), onConfirm: start });
   return h(
     'div',
     { class: 'configure-grid' },
@@ -278,8 +280,7 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
     ),
     h(
       'aside',
-      { tabindex: 0, class: 'inspector', 'aria-label': 'Firmware update', ref: aside },
-      view !== null && target !== null ? h(ConfirmFlash, { view, target, onCancel: () => setTarget(null), onConfirm: start }) : null,
+      { tabindex: 0, class: 'inspector', 'aria-label': 'Firmware update' },
       download !== null && target === null && !running ? h(DownloadCard, { download }) : null,
       flash !== null && running && flash.phase !== 'recovery'
         ? h(

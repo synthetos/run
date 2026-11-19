@@ -48,7 +48,7 @@ function Frame({ model, region, children }: { readonly model: WorkspaceModel | n
   return h(
     'div',
     { tabindex: 0, class: 'hub', 'data-region': region, ref: column },
-    view !== null && target !== null ? h(ConfirmFlash, { view, target, onCancel: () => setTarget(null), onConfirm: () => confirm(target) }) : null,
+    view !== null && target !== null ? h(ConfirmFlash, { view, target, wide: true, onCancel: () => setTarget(null), onConfirm: () => confirm(target) }) : null,
     msg === null ? null : h('p', { class: 'backup-progress', role: 'status', 'data-hub-message': 'true' }, msg),
     hub?.notice === null || hub?.notice === undefined ? null : h('p', { class: `backup-progress ${hub.notice.kind === 'ok' ? 'ok' : 'danger'}`, role: 'status' }, hub.notice.text),
     children({ view, fw, hub, blocked: flashBlocked(view), setTarget }),

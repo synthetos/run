@@ -47,6 +47,19 @@ async function scrolls(page: Page): Promise<{ page: boolean; body: boolean }> {
   });
 }
 
+/** Every box on the page whose content overflows a scrolling area (the page itself included); empty when nothing scrolls. */
+function scrollingBoxes(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const out: string[] = [];
+    if (document.documentElement.scrollHeight > window.innerHeight + 1) out.push('page');
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>('body *'))) {
+      const o = getComputedStyle(el).overflowY;
+      if ((o === 'auto' || o === 'scroll') && el.scrollHeight > el.clientHeight + 1 && el.getClientRects().length > 0) out.push(`${el.tagName.toLowerCase()}.${el.className}`);
+    }
+    return out;
+  });
+}
+
 /** True when the element's box lies wholly inside the viewport and inside every clipping ancestor. */
 function wholeInView(page: Page, selector: string): Promise<boolean> {
   return page.locator(selector).first().evaluate((el) => {
@@ -104,7 +117,11 @@ async function updateFromTheStep(page: Page, theme: 'light' | 'dark'): Promise<v
   // It opens at its head, with Cancel focused: W11 stays wholly in view (the focus used to scroll the column to Cancel).
   await expect(confirm.locator('[data-action="cancel-flash"]')).toBeFocused();
   await page.waitForTimeout(300);
-  expect(await wholeInView(page, '[data-region="flash-confirm"] [data-safety="W11"]')).toBe(true);
+  // C6 fits at 1280 × 800: nothing scrolls, and every warning, every box, Cancel and Update now are in view at once.
+  expect(await scrollingBoxes(page)).toEqual([]);
+  for (const part of ['[data-safety="W11"]', '[data-safety="W28"]', 'li:last-child', '[data-safety="C6"]', '[data-action="cancel-flash"]', '[data-action="confirm-flash"]']) {
+    expect(await wholeInView(page, `[data-region="flash-confirm"] ${part}`), part).toBe(true);
+  }
   await shotIn(page, SHOT_DIR, `confirm-${theme}-1280`);
   await expect(confirm.locator('[data-action="confirm-flash"]')).toBeDisabled();
   const boxes = confirm.locator('input[type="checkbox"]');
