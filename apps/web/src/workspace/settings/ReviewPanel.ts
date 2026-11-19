@@ -12,7 +12,7 @@ import { draftStore, plainValue, setDraft } from '../boardFacts.ts';
 import type { LiveView, WorkspaceModel } from '../model.ts';
 import { ApplyProgress, riskTag } from './ApplyProgress.ts';
 import { boardBuild } from './defs.ts';
-import { editBlocked } from './editGate.ts';
+import { editBlocked, readOnlyNotice } from './editGate.ts';
 import { pendingPlan, settingsWriteBlocked } from './pending.ts';
 import { confirming, reviewOpen } from './reviewState.ts';
 import { ApplyConfirm } from './SettingsUi.ts';
@@ -78,7 +78,8 @@ function PlanNotes({ plan }: { readonly plan: ReturnType<typeof pendingPlan> }):
 export function ReviewPanel({ model }: { readonly model: WorkspaceModel | null }): ComponentChild {
   const view = model?.live.value ?? null;
   const apply = view?.apply ?? { kind: 'idle' as const };
-  if (!reviewOpen.value && apply.kind === 'idle') return null;
+  // Nothing to review on a board Run can't change: the bar offers Discard only (review finding 4).
+  if (apply.kind === 'idle' && (!reviewOpen.value || readOnlyNotice(view) !== null)) return null;
   const plan = pendingPlan(view);
   const blocked = editBlocked(view) ?? settingsWriteBlocked(view);
   const running = apply.kind === 'backingUp' || apply.kind === 'writing';

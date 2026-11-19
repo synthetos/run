@@ -61,10 +61,23 @@ function BarActions({ s }: { readonly s: BarState }): ComponentChild {
   );
 }
 
+/** A board Run can't change, with pending changes left from before: the count and Discard, nothing to review or apply. */
+function DiscardOnlyBar({ n }: { readonly n: number }): ComponentChild {
+  return h(
+    'div',
+    { class: 'pending-bar', 'data-region': 'pending-bar', role: 'region', 'aria-label': 'Pending changes' },
+    h('strong', { class: 'pending-count', 'data-pending-count': '' }, countWords(n, { kind: 'idle' })),
+    h('span', { class: 'pending-refused', 'data-pending-readonly': '' }, n === 1 ? "Run can't apply it on this board. Discard it." : "Run can't apply them on this board. Discard them."),
+    h('span', { class: 'grow' }),
+    h('span', { class: 'bar-actions' }, h('button', { type: 'button', class: 'small primary', 'data-action': 'discard-pending', onClick: () => clearDraft() }, 'Discard')),
+  );
+}
+
 export function PendingBar({ model }: { readonly model: WorkspaceModel | null }): ComponentChild {
   const view = model?.live.value ?? null;
   const s = barState(view);
-  if (s.apply.kind === 'idle' && (s.drafts === 0 || readOnlyNotice(view) !== null)) return null;
+  if (s.apply.kind === 'idle' && s.drafts === 0) return null;
+  if (s.apply.kind === 'idle' && readOnlyNotice(view) !== null) return h(DiscardOnlyBar, { n: s.drafts });
   const high = s.changes.filter((c) => c.risk.highRisk).length;
   const one = s.changes.length === 1 ? (s.changes[0]?.risk.consequence ?? null) : null;
   return h(

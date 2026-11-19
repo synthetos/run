@@ -18,6 +18,7 @@ import { confirming, reviewOpen } from '../src/workspace/settings/reviewState.ts
 import { all, byAttr, one, rootUntil, text, type El } from './tree.ts';
 import { boardView } from './boardViews.ts';
 
+const OWNER_449_VIEW = { dialectId: 'tinyg-449-stock', fb: 449.01, readOnly: true } as const;
 const BOARD = { xsn: 1, xsx: 2, ysn: 1, ysx: 2, zsn: 0, zsx: 1, asn: 0, asx: 0, st: 0, xjd: 0.05, '1mi': 8, '2mi': 8 };
 
 function fakeModel(view: LiveView | null): { model: WorkspaceModel; applied: PlannedChange[][] } {
@@ -96,9 +97,18 @@ describe('PendingBar', () => {
     expect(one(panel, byAttr('data-action', 'apply-settings')).props['disabled']).toBe(true);
   });
 
-  it('a read-only board gets no bar', () => {
-    setDraft('xsn', 3);
+  it('a read-only board with leftover pending changes gets the bar with Discard only, no Review (review finding 4)', () => {
     expect(bar(boardView({ dialectId: 'tinyg-449-stock', fb: 449.01, readOnly: true, settings: BOARD }))).toBeNull();
+    setDraft('xsn', 3);
+    const el = bar(boardView({ dialectId: 'tinyg-449-stock', fb: 449.01, readOnly: true, settings: BOARD })) as El;
+    expect(text(one(el, byAttr('data-pending-count')))).toBe('1 change pending');
+    expect(text(one(el, byAttr('data-pending-readonly')))).toBe("Run can't apply it on this board. Discard it.");
+    expect(all(el, byAttr('data-action', 'review-apply'))).toEqual([]);
+    expect(all(el, byAttr('data-pending-one'))).toEqual([]);
+    reviewOpen.value = true;
+    expect(() => rootUntil(h(ReviewPanel, { model: fakeModel(boardView({ ...OWNER_449_VIEW, settings: BOARD })).model }), [ApplyConfirm])).toThrow();
+    click(el, 'discard-pending');
+    expect(draftStore.value.value).toEqual({});
   });
 
   it('Discard clears every pending change', () => {

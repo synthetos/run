@@ -34,6 +34,10 @@ interface Ctx {
   readonly current: number | undefined;
   /** Lengths read in inches: labelled so, never edited (writes are millimetres only, H60). */
   readonly inches: boolean;
+  /** The key may be made pending on this board now. */
+  readonly canEdit: boolean;
+  /** The pending value, only where it can still be written. */
+  readonly draft: number | undefined;
 }
 
 const SEGMENT_MAX = 5;
@@ -153,20 +157,22 @@ function body(kind: ControlKind, c: Ctx): ComponentChild {
   }
 }
 
-function contextOf(k: string, view: LiveView | null, draft: number | undefined): Ctx {
+function contextOf(k: string, view: LiveView | null): Ctx {
   const meta = settingMeta(k, view?.readout.dialectId ?? null, boardBuild(view));
   const board = view?.readout.settings[k];
-  const current = draft ?? (typeof board === 'number' ? board : undefined);
   const inches = boardInches(view) && meta.def?.convert === true;
-  return { k, meta, board, current, inches };
+  const canEdit = !inches && writableKey(k, view?.readout.dialectId ?? null) && editBlocked(view) === null;
+  // A pending change shows only where it can still be written; elsewhere the board's own value (review finding 4).
+  const draft = canEdit ? draftStore.value.value[k] : undefined;
+  const current = draft ?? (typeof board === 'number' ? board : undefined);
+  return { k, meta, board, current, inches, canEdit, draft };
 }
 
 /** One setting's control. `locked` forces the locked rendering (a tab that never edits it). */
 export function SettingControl({ k, view, locked = false }: { readonly k: string; readonly view: LiveView | null; readonly locked?: boolean }): ComponentChild {
-  const draft = draftStore.value.value[k];
-  const c = contextOf(k, view, draft);
-  const editable = !locked && !c.inches && writableKey(k, view?.readout.dialectId ?? null) && editBlocked(view) === null;
-  const kind = controlKind(c.meta, editable, c.inches);
+  const c = contextOf(k, view);
+  const draft = c.draft;
+  const kind = controlKind(c.meta, !locked && c.canEdit, c.inches);
   const board = c.board;
   return h(
     'span',

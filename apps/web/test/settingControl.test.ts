@@ -5,7 +5,7 @@
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import { h } from 'preact';
-import { clearDraft, draftStore } from '../src/workspace/boardFacts.ts';
+import { clearDraft, draftStore, setDraft } from '../src/workspace/boardFacts.ts';
 import { SettingControl } from '../src/workspace/settings/SettingControl.ts';
 import { all, byAttr, one, root, text, type El } from './tree.ts';
 import { boardView, OWNER_449 } from './boardViews.ts';
@@ -103,5 +103,15 @@ describe('SettingControl', () => {
     const el = render('xjd', boardView({ unit: 0 }));
     expect(el.props['data-control-kind']).toBe('locked');
     expect(text(el)).toBe('0.05 in');
+  });
+});
+
+describe('SettingControl when a pending change can no longer be written', () => {
+  it('a locked control on a read-only board shows the board\'s value, not a leftover pending change (review finding 4)', () => {
+    setDraft('xsn', 3);
+    const el = render('xsn', boardView({ ...OWNER_449, settings: { xsn: 1 } }));
+    expect(segments(el).filter((s) => s.props['aria-current'] === 'true').map(text)).toEqual(['Homing']);
+    expect(el.props['data-pending']).toBeUndefined();
+    expect(all(el, byAttr('data-was'))).toEqual([]);
   });
 });
