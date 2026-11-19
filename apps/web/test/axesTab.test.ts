@@ -67,8 +67,9 @@ describe('AxesTab', () => {
     expect(text(el)).not.toContain('Axis modes (read only)');
   });
 
-  it('a read-only board renders every value as text or locked, with no enabled control', () => {
+  it('a read-only board renders every value as text or locked, with no enabled control, and does not repeat why per row', () => {
     const el = render(boardView({ ...OWNER_449, settings: OWNER_157 }));
+    expect(text(one(el, byAttr('data-region', 'all-axes')))).not.toMatch(/Read only on this firmware|Not changed by Run yet/);
     expect(all(el, (e) => ['input', 'select', 'button'].includes(e.tag) && e.props['disabled'] !== true)).toEqual([]);
     expect(all(el, byAttr('data-control-kind')).every((e) => e.props['data-control-kind'] === 'text' || e.props['data-control-kind'] === 'locked')).toBe(true);
   });

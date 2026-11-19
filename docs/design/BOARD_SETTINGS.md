@@ -1,0 +1,125 @@
+# Board settings: walkthrough
+
+Built from the design `docs/superpowers/specs/2026-11-18-board-config-design.md` and the owner's answers in
+`docs/ops/owner-decisions.md` OD-44. Pictures are 1280 px wide, dark and light, from the fake-serial build:
+
+- **approved:** the plain simulator (build 450.02, approved, settings writes on);
+- **read-only:** the edge-next simulator reporting 449.01 (READ_ONLY). The test kit has no stock-449 simulator, so the
+  owner's exact 449 file (fixed probe contact, no `prbp`) is covered by unit tests instead.
+
+Retake them with:
+
+```
+pnpm build:fake-serial
+cd tools/e2e && BOARD_CONFIG_SHOTS=$PWD/../../docs/design/screenshots/board-config/built RUN_E2E_FAKE_SERIAL=1 RUN_E2E_PORT=8795 pnpm exec playwright test --config playwright.fake-serial.config.ts specs/board-config-shots.fake-serial.ts
+```
+
+The simulator reports 0 for jerk, junction deviation and junction acceleration, so those rows read 0 in the pictures.
+
+## A first-time user's path
+
+1. Connect a board and open **Board**. Every tab names each setting in plain words and spells out its value with its
+   unit. The words come from the board's settings file (`packages/schema/settings/tinyg-*.json`), not from code.
+2. On a board Run may not change, one notice above the tabs says why, with **Back up settings** and **Update
+   firmware**. Every option is still shown, locked, with the current one marked.
+3. On an approved board, controls sit in place. There is no Edit values toggle. Choosing a value makes it a pending
+   change: the row is outlined and says "was …". Choosing the board's value again removes it.
+4. The bar at the bottom counts pending changes and high-risk ones. **Review and apply…** opens the diff. **Apply**
+   asks C5 (each consequence ticked, WRITE typed for high-risk changes).
+5. Run backs up every setting first and downloads the file. It writes one setting at a time and reads each back.
+   **Revert to the backup** writes the backed-up values back the same way.
+6. **Backups** lists every backup on this computer. **Add a backup file…** adds one to the list. **Restore…** on a row
+   stages its differences as pending changes and opens the tab of the first one. Nothing is written until Apply.
+
+## Inputs (owner picture 153)
+
+Owner, on 449: "Done editing" over a table of raw numbers. Built: switch contact once at the top, one five-way choice
+per input, a homing summary that links to Axes, and a line for each consequence.
+
+| Owner | Built, read-only, dark | Built, read-only, light |
+|---|---|---|
+| ![153](screenshots/board-config/owner/153.png) | ![](screenshots/board-config/built/readonly-inputs-dark.png) | ![](screenshots/board-config/built/readonly-inputs-light.png) |
+
+| Built, approved, one pending change, dark | Built, approved, one pending change, light |
+|---|---|
+| ![](screenshots/board-config/built/approved-inputs-pending-dark.png) | ![](screenshots/board-config/built/approved-inputs-pending-light.png) |
+
+Test switches (the live Pressed / Released column) is not built yet. It waits for the safety review and bench checks
+BC-1 to BC-4.
+
+## Review and apply
+
+| Dark | Light |
+|---|---|
+| ![](screenshots/board-config/built/approved-review-dark.png) | ![](screenshots/board-config/built/approved-review-light.png) |
+
+## Motors (owner picture 154)
+
+Owner: "1mi 2" should be spelled out. Built: one card per motor; "Microsteps: Half step (2)"; steps per mm, shown board
+→ new while a change is pending; motor idle time in one line above the cards.
+
+| Owner | Built, read-only, dark | Built, approved, light |
+|---|---|---|
+| ![154](screenshots/board-config/owner/154.png) | ![](screenshots/board-config/built/readonly-motors-dark.png) | ![](screenshots/board-config/built/approved-motors-light.png) |
+
+## Axes (owner picture 157)
+
+Owner: "axes doesnt look like there is a good way to set anything either it looks confusing and terrible too".
+Built: an All axes card (soft limits, junction acceleration, chordal tolerance), one card per axis with Mode, Travel
+(and what the board does with it, in words), Speed and Homing. Unused axes that are Off collapse to one line. Switch
+modes are set on Inputs only.
+
+| Owner | Built, approved, dark | Built, read-only, light |
+|---|---|---|
+| ![157](screenshots/board-config/owner/157.png) | ![](screenshots/board-config/built/approved-axes-dark.png) | ![](screenshots/board-config/built/readonly-axes-light.png) |
+
+## All settings at Simple and Advanced (owner picture 155)
+
+Owner: Simple showed 22 guided fields with raw values. Built: every reported setting at both levels, grouped from the
+settings file, with the same control as the tabs. Simple shows the plain name and the value. Advanced adds the raw token
+beside them (OD-44).
+
+| Owner | Built, Simple, dark | Built, Advanced, dark |
+|---|---|---|
+| ![155](screenshots/board-config/owner/155.png) | ![](screenshots/board-config/built/approved-settings-dark.png) | ![](screenshots/board-config/built/approved-settings-advanced-dark.png) |
+
+| Built, Simple, light | Built, Advanced, light |
+|---|---|
+| ![](screenshots/board-config/built/approved-settings-light.png) | ![](screenshots/board-config/built/approved-settings-advanced-light.png) |
+
+## Backups (owner picture 156)
+
+Owner: the primary button floated mid-page, and two file actions meant different things. Built: Back up settings beside
+the heading, one **Add a backup file…**, a zebra list with Why, Firmware, Board and Settings, Compare in words, Restore…,
+Download and a quiet Delete.
+
+| Owner | Built, after one backup, dark | Built, after one backup, light |
+|---|---|---|
+| ![156](screenshots/board-config/owner/156.png) | ![](screenshots/board-config/built/approved-backups-after-one-dark.png) | ![](screenshots/board-config/built/approved-backups-after-one-light.png) |
+
+## Spindle and coolant (owner picture 152)
+
+Owner: the coolant row said "Reserved on this firmware" on 449, where that setting does not exist. Built: each output's
+polarity from the settings file ("No setting on this firmware" where the firmware has none), and what is wired to the
+coolant output from the machine record.
+
+| Owner | Built, read-only, dark | Built, approved, light |
+|---|---|---|
+| ![152](screenshots/board-config/owner/152.png) | ![](screenshots/board-config/built/readonly-io-dark.png) | ![](screenshots/board-config/built/approved-io-light.png) |
+
+## The read-only 449 state
+
+| Overview, dark | Overview, light |
+|---|---|
+| ![](screenshots/board-config/built/readonly-overview-dark.png) | ![](screenshots/board-config/built/readonly-overview-light.png) |
+
+Every other tab of both boards, both themes, is in `screenshots/board-config/built/` as
+`<approved|readonly>-<tab>-<dark|light>.png`.
+
+## Not in this change
+
+- **Test switches** (spec §5.4): waits for the safety review and bench checks BC-1 to BC-4.
+- **Account copies of backups** (OD-44 Q5): a later slice.
+- **Bench checks** BC-1 to BC-10 belong to the TG Firmware session. The data marks the labels they confirm with
+  `verify` (BC-1 input states, BC-7 power modes, BC-8 rotary values in radius mode, BC-10 junction acceleration unit;
+  BC-5 and BC-9 are cited on `probeAllowed` and `homingTravel`).

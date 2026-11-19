@@ -10,6 +10,7 @@ import { draftStore, settingMeta, settingsOf } from '../../boardFacts.ts';
 import { selectedMachine } from '../../library.ts';
 import type { LiveView } from '../../model.ts';
 import { defsFor } from '../../settings/defs.ts';
+import { readOnlyNotice } from '../../settings/editGate.ts';
 import { guidedAxes } from '../../settings/GuidedSettings.ts';
 import { SettingControl } from '../../settings/SettingControl.ts';
 import { axisCards } from './axesModel.ts';
@@ -23,6 +24,8 @@ const AXIS_TOKEN = /^[xyzabc](am|vm|fr|tn|tm|jm|jd|ra|sv|lv|lb|zb|jh)$/;
 
 function AllAxes({ view }: { readonly view: LiveView | null }): ComponentChild {
   const dialect = view?.readout.dialectId ?? null;
+  // A read-only board says why once, above the tabs (spec §5.3); rows do not repeat it.
+  const tags = readOnlyNotice(view) === null;
   return h(
     'section',
     { class: 'board-card', 'data-region': 'all-axes' },
@@ -32,7 +35,7 @@ function AllAxes({ view }: { readonly view: LiveView | null }): ComponentChild {
       { class: 'cfg-table axis-table' },
       h('tbody', null, ['sl', 'ja', 'ct'].map((k) => {
         const m = settingMeta(k, dialect);
-        return h('tr', { key: k, 'data-axis-row': k }, h('th', { scope: 'row' }, m.short), h('td', null, h(SettingControl, { k, view }), m.access === 'read' && m.reason !== null ? h('span', { class: 'tag' }, m.reason) : null));
+        return h('tr', { key: k, 'data-axis-row': k }, h('th', { scope: 'row' }, m.short), h('td', null, h(SettingControl, { k, view }), tags && m.access === 'read' && m.reason !== null ? h('span', { class: 'tag' }, m.reason) : null));
       })),
     ),
   );
