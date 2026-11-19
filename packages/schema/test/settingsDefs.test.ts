@@ -3,8 +3,18 @@
  * schema, the loader's cross-field rules, family expansion and the registry.
  */
 import { describe, expect, it } from 'vitest';
-import { expandSettingsFile, settingsDefsFor } from '../src/index.ts';
+import { expandSettingsFile, SETTINGS_FILE_SCHEMA, settingsDefsFor } from '../src/index.ts';
+import tinyg440 from '../settings/tinyg-440.json' with { type: 'json' };
+import tinyg449 from '../settings/tinyg-449.json' with { type: 'json' };
+import tinyg450 from '../settings/tinyg-450.json' with { type: 'json' };
 import miniJson from './fixtures/settings/mini.json' with { type: 'json' };
+
+describe('what reaches the bundle', () => {
+  it('the schema and the settings files carry no URL: the format is the plain string synthetos-settings@1 (bundle scan origin-literal)', () => {
+    for (const json of [SETTINGS_FILE_SCHEMA, tinyg450, tinyg449, tinyg440]) expect(JSON.stringify(json)).not.toMatch(/[a-z]+:\/\//i);
+    for (const f of [tinyg450, tinyg449, tinyg440]) expect(f.format).toBe('synthetos-settings@1');
+  });
+});
 
 type Raw = Record<string, unknown>;
 

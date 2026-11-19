@@ -1,6 +1,6 @@
 {
   "$comment": "Setting definitions per firmware family (Board settings spec §4). Uses only the keywords src/jsonSchema.ts implements; cross-field rules (access write iff write, readOnly files carry no write, values iff unit enum, placeholders resolved) are the loader's (src/settingsDefs/expand.ts). CODEOWNERS: the owner reviews every change.",
-  "$id": "https://synthetos.com/schemas/synthetos-settings@1",
+  "$id": "synthetos-settings@1",
   "type": "object",
   "additionalProperties": false,
   "required": ["format", "dialect", "firmware", "mode", "groups", "inputs", "tokens"],
