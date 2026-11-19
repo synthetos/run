@@ -362,6 +362,9 @@ export const selectedMachine = computed<MachineProfile | null>(() => {
   return machineStore.value.value.find((m) => m.id === id) ?? null;
 });
 
+/** What the selected machine says is wired to the coolant output, or null (no machine, or no choice yet). */
+export const selectedCoolant = computed<NonNullable<MachineProfile['coolant']> | null>(() => selectedMachine.value?.coolant ?? null);
+
 /** A profile's revision (records from before revisions read as 1). */
 export function machineRevision(m: MachineProfile): number {
   return m.revision ?? 1;

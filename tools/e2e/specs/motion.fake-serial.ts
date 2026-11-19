@@ -202,12 +202,14 @@ test('spindle on asks C24 and sends M3 S; Off sends M5; coolant mist M7 and off 
   await expect.poll(async () => (await board(worker)).spindle).toBe('cw');
   await page.getByRole('button', { name: 'Off', exact: true }).click();
   await expect.poll(async () => (await board(worker)).spindle).toBe('off');
-  await page.getByRole('button', { name: 'Mist' }).click();
-  await expect.poll(async () => (await board(worker)).coolant.mist).toBe(true);
-  await expect(page.getByRole('button', { name: 'Mist' })).toHaveAttribute('aria-pressed', 'true', { timeout: 5000 });
-  await page.getByRole('button', { name: 'Mist' }).click();
-  await expect.poll(async () => (await board(worker)).coolant.mist).toBe(false);
-  expect(await motionWrites(worker, from)).toEqual(['M3 S10000\n', 'M5\n', 'M7\n', 'M9\n']);
+  // One coolant toggle (owner 2026-11-18, 151/152): no machine chosen here, so it reads "Coolant" and sends M8, then M9.
+  const coolant = page.getByRole('button', { name: 'Coolant', exact: true });
+  await coolant.click();
+  await expect.poll(async () => (await board(worker)).coolant.flood).toBe(true);
+  await expect(coolant).toHaveAttribute('aria-pressed', 'true', { timeout: 5000 });
+  await coolant.click();
+  await expect.poll(async () => (await board(worker)).coolant.flood).toBe(false);
+  expect(await motionWrites(worker, from)).toEqual(['M3 S10000\n', 'M5\n', 'M8\n', 'M9\n']);
   await expect(page.locator('.sec-spindle .tag')).toHaveText('Commanded');
 });
 

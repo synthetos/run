@@ -76,7 +76,7 @@ describe('machine strip status', () => {
     const value = (s: ReturnType<typeof stripStatus>, label: string) => s.readouts.find((r) => r.label === label)?.value;
     const on = strip({ srList: ['stat', 'spe', 'spc', 'spd', 'sps', 'cof', 'com'], spe: 1, spc: 1, spd: 0, sps: 18000, cof: 1, com: 0 });
     expect(value(on, 'Spindle')).toBe('On · CW · 18 000 rpm commanded');
-    expect(value(on, 'Coolant')).toBe('Flood');
+    expect(value(on, 'Coolant')).toBe('Coolant on');
     expect(on.spindleOn).toBe(true);
     expect(spindleText(live({ spe: 1, spc: 2, sps: 7000 }))).toBe('On · CCW · 7 000 rpm commanded');
     expect(spindleText(live({ spe: 0, spc: 0, spd: 1, sps: 0 }))).toBe('Off');
@@ -119,10 +119,10 @@ describe('machine strip status', () => {
     };
     const on = card({ spe: 1, spc: 1, spd: 0, sps: 18000, cof: 0, com: 1 });
     expect(on.spindle).toBe('On · CW · 18 000 rpm commanded');
-    expect(on.coolant).toBe('Coolant: Mist');
+    expect(on.coolant).toBe('Coolant on');
     expect(text(on.el)).not.toMatch(/J6\.|polarity|share it/);
     expect(text(on.el)).toContain('never a measured one');
-    expect(card({ spe: 0, spc: 0, sps: 0, cof: 0, com: 0 })).toMatchObject({ spindle: 'Off', coolant: 'Coolant: off' });
+    expect(card({ spe: 0, spc: 0, sps: 0, cof: 0, com: 0 })).toMatchObject({ spindle: 'Off', coolant: 'Coolant off' });
     expect(card({ srList: ['stat'] })).toMatchObject({ spindle: NOT_REPORTED, coolant: `Coolant: ${NOT_REPORTED}` });
     expect(card(null)).toMatchObject({ spindle: 'Not connected', coolant: 'Coolant: not connected' });
     // Display only: every spindle and coolant control stays disabled whatever the board reports.

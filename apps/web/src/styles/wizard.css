@@ -46,6 +46,11 @@ li[data-mark="done"] .wizard-step-mark { border-color: var(--ok); color: var(--o
 .wizard-pick-title { font-size: 13.5px; line-height: 20px; color: var(--ink); }
 .wizard-pick-text { font-size: 12.5px; line-height: 1.5; color: var(--muted); }
 .wizard-pick .wizard-field { margin-top: 8px; }
+/* Step 4's coolant question (owner 152): compact, the radios at the left of their words, at most 440 px wide. */
+.wizard-coolant { border: 0; padding: 0; margin: 16px 0 0; display: flex; flex-wrap: wrap; gap: 6px 18px; max-width: 440px; min-width: 0; }
+.wizard-question { padding: 0; margin: 0 0 6px; font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.wizard-choice { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink); cursor: pointer; }
+.wizard-choice-radio { margin: 0; }
 .wizard-embed { border: 1px solid var(--rule); border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
 /* Step 5's catalog page (owner 147): the catalog's own layout at the full viewport, above the frame and below the
    catalog's own dialogs (`.wizard .dialog-wrap`). */

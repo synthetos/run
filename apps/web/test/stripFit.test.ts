@@ -20,7 +20,7 @@ const STATUS: StripStatus = {
   readouts: [
     { label: 'Feed', value: '800 / 900', unit: 'mm/min', title: 'Actual / commanded feed reported by the controller.' },
     { label: 'Spindle', value: 'On · CW · 16 000 rpm commanded', title: 'Spindle' },
-    { label: 'Coolant', value: 'Off', title: 'Coolant' },
+    { label: 'Coolant', value: 'Flood off', title: 'Coolant', quiet: true },
     { label: 'Job', value: 'line 6', title: 'The line the controller reports executing.' },
   ],
 };
@@ -35,10 +35,10 @@ describe('strip readouts (S1)', () => {
 });
 
 describe('the Coolant readout (owner 2026-11-08)', () => {
-  it('is marked off only when the board reports it off', () => {
+  it('is marked off only when it is quiet (reported off, or the machine says nothing is wired)', () => {
     const off = renderToString(h(MachineStrip, { status: STATUS, stop: null, previousSession: false }));
     expect(off).toContain('readout ro-coolant is-off');
-    const on = renderToString(h(MachineStrip, { status: { ...STATUS, readouts: STATUS.readouts.map((r) => (r.label === 'Coolant' ? { ...r, value: 'Flood' } : r)) }, stop: null, previousSession: false }));
+    const on = renderToString(h(MachineStrip, { status: { ...STATUS, readouts: STATUS.readouts.map((r) => (r.label === 'Coolant' ? { label: r.label, title: r.title, value: 'Flood on' } : r)) }, stop: null, previousSession: false }));
     expect(on).toContain('class="readout ro-coolant"');
   });
 });

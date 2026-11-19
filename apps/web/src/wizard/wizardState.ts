@@ -14,14 +14,14 @@ export const STEPS: readonly StepDef[] = Object.freeze([
   { id: 1, label: 'Welcome', skippable: false },
   { id: 2, label: 'Machine', skippable: true },
   { id: 3, label: 'Firmware', skippable: true },
-  { id: 4, label: 'Homing', skippable: true },
+  { id: 4, label: 'Homing and coolant', skippable: true },
   { id: 5, label: 'Tools', skippable: true },
   { id: 6, label: 'Project', skippable: true },
   { id: 7, label: 'Done', skippable: false },
 ]);
 
 export const NEXT_LABEL: Readonly<Record<StepId, string>> = Object.freeze({
-  1: 'Set up my machine', 2: 'Next: firmware', 3: 'Next: homing', 4: 'Next: tools', 5: 'Next: project', 6: 'Open project', 7: 'Go to the Job page',
+  1: 'Set up my machine', 2: 'Next: firmware', 3: 'Next: homing and coolant', 4: 'Next: tools', 5: 'Next: project', 6: 'Open project', 7: 'Go to the Job page',
 });
 
 /**

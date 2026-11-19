@@ -1,20 +1,24 @@
 /**
- * Step 4 (spec §6.3; owner 2026-11-17: choice only). Two radio cards decide how the machine finds its zero; the
- * choice goes on the setup record, never on the board. Homing itself moves the machine, and Pause and Stop sit in
- * the machine strip under the wizard's lock (SAFETY §4.1: never a modal over the stop controls), so the wizard
- * never offers "Home": with switches it points to the Job page. Without switches it shows the existing
- * "Set machine zero" control (workspace/homing.ts HomeQuick, G28.3: no motion), its own confirmation included;
- * wizard.css hides HomeQuick's Home button beside it. Needs a connected board.
+ * Step 4 (spec §6.3; owner 2026-11-17: choice only; owner 2026-11-18, picture 152: and the coolant output). Two radio
+ * cards decide how the machine finds its zero; the choice goes on the setup record, never on the board. Homing
+ * itself moves the machine, and Pause and Stop sit in the machine strip under the wizard's lock (SAFETY §4.1: never
+ * a modal over the stop controls), so the wizard never offers "Home": with switches it points to the Job page.
+ * Without switches it shows the existing "Set machine zero" control (workspace/homing.ts HomeQuick, G28.3: no
+ * motion), its own confirmation included; wizard.css hides HomeQuick's Home button beside it. The homing controls
+ * need a connected board. Below them, one compact question (CoolantQuestion.ts): what is wired to the coolant
+ * output, saved on the machine record; no board needed.
  */
 import { h, type ComponentChild } from 'preact';
 import type { HomingChoice } from '@synthetos/library';
 import { HomeQuick } from '../../workspace/homing.ts';
 import { connected, type WorkspaceModel } from '../../workspace/model.ts';
 import { ConnectNotice } from '../../workspace/views/run/connect.ts';
+import { CoolantQuestion, type CoolantQuestionProps } from '../CoolantQuestion.ts';
 import { PickCard } from '../PickCard.ts';
 
-export const HOMING_TITLE = 'Homing';
-export const HOMING_LEAD = 'How this machine finds its zero.';
+export { COOLANT_NEEDS_MACHINE, COOLANT_QUESTION } from '../CoolantQuestion.ts';
+export const HOMING_TITLE = 'Homing and coolant';
+export const HOMING_LEAD = 'How this machine finds its zero, and what its coolant output drives.';
 export const CONNECT_FOR_HOMING = 'Connect the machine to home it.';
 export const HOME_LATER = 'Home from the Job page once setup is done. Pause and Stop are beside it there.';
 
@@ -23,7 +27,7 @@ const CARDS: readonly { readonly value: HomingChoice; readonly title: string; re
   { value: 'none', title: 'No limit switches', text: 'You set the home position by hand. Run remembers it for this machine.' },
 ];
 
-export interface HomingProps {
+export interface HomingProps extends Partial<CoolantQuestionProps> {
   readonly model: WorkspaceModel | null;
   readonly choice: HomingChoice | null;
   readonly onChoice: (c: HomingChoice) => void;
@@ -46,5 +50,6 @@ export function Homing(p: HomingProps): ComponentChild {
     { class: 'wizard-homing', 'data-choice': p.choice ?? 'switches' },
     CARDS.map((c) => h(PickCard, { key: c.value, name: 'wizard-homing', value: c.value, title: c.title, text: c.text, checked: p.choice === c.value, onChange: () => p.onChoice(c.value) })),
     on ? controls(p) : h('div', null, h('p', { class: 'wizard-line' }, CONNECT_FOR_HOMING), h(ConnectNotice, { model: p.model })),
+    h(CoolantQuestion, { coolant: p.coolant ?? null, onCoolant: p.onCoolant ?? null }),
   );
 }

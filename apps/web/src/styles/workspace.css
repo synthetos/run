@@ -1789,8 +1789,18 @@ button.tool-legend-entry[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--rule
 .dialog-discard { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 .sec-spindle .inline-field { grid-template-columns: auto 1fr; }
-.coolant-label { display: inline-flex; align-items: center; gap: 6px; }
 .sec-spindle .inline-field .seg { justify-self: start; }
+/* The coolant row (owner 2026-11-18, picture 151): one toggle sized to its word, its "?" and, while the machine has
+   no choice, the link to Board, on one line under the spindle row. */
+.spindle-controls > .coolant-row { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.coolant-row .seg { width: auto; margin: 0; }
+.coolant-row .link { font-size: 12px; }
+.sec-spindle.compact .coolant-row { flex-basis: 100%; display: flex; align-items: center; gap: 8px; }
+/* Board → the coolant pin, "Wired to" (picture 152): the radios at the left of their words, one per line. */
+.coolant-wiring { border: 0; padding: 0; margin: 12px 0 0; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.coolant-wiring legend { padding: 0; margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--ink); }
+.coolant-choice { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.coolant-wiring .fine { margin: 6px 0 0; }
 .bed-grid { margin-top: 16px; }
 .bed-grid > p { margin: 10px 0; }
 .bed-grid > .field-grid { margin-top: 12px; }

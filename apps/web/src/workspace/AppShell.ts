@@ -36,7 +36,7 @@ import { THEME_TOGGLE_ATTR } from '../shell/SiteHeader.ts';
 import type { TabRole } from '../live/tabStop.ts';
 import { Icon, type IconName } from './icons.ts';
 import { AccountMenu, accountMenuProps } from './AccountMenu.ts';
-import { selectedMachine } from './library.ts';
+import { selectedCoolant, selectedMachine } from './library.ts';
 import { MachineStrip } from './MachineStrip.ts';
 import { INITIAL_LIVE_VIEW, portOpen, type WorkspaceModel } from './model.ts';
 import { stripStatus } from './status.ts';
@@ -99,7 +99,7 @@ export interface AppShellProps {
 function Strip(props: AppShellProps): ComponentChild {
   const view = props.model?.live.value ?? INITIAL_LIVE_VIEW;
   const resume = resumeAction(props.model);
-  const status = stripStatus(view, selectedMachine.value?.name ?? null);
+  const status = stripStatus(view, selectedMachine.value?.name ?? null, selectedCoolant.value);
   const actions = props.model?.actions.value ?? null;
   const connection = actions !== null && portOpen(view) ? { onDisconnect: actions.disconnect, refused: view.disconnectRefused } : null;
   return h(MachineStrip, {

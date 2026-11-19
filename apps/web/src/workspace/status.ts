@@ -7,7 +7,9 @@
  */
 import { STOP_TEXT, w48, w50, w6Strip } from '@synthetos/safety';
 import { boardText } from '@synthetos/safety';
+import type { MachineCoolant } from '@synthetos/library';
 import type { LiveView } from './model.ts';
+import { coolantReadout } from './coolant.ts';
 import { readOnlyPill, readOnlyStrip, updateFixes } from './readOnlyState.ts';
 import { readOnlyWhy } from './readOnlyWhy.ts';
 
@@ -20,6 +22,8 @@ export interface Readout {
   readonly value: string;
   readonly unit?: string;
   readonly title: string;
+  /** Nothing to watch (coolant off, or nothing wired): the strip drops it first (strip-fit.css `is-off`). */
+  readonly quiet?: boolean;
 }
 
 export interface StripStatus {
@@ -160,7 +164,13 @@ function units(view: LiveView): string {
   return u === 'in' ? 'in/min' : u === 'mm' ? 'mm/min' : 'units/min';
 }
 
-function readouts(view: LiveView): readonly Readout[] {
+/** The Coolant readout, named by what the machine says is wired (owner 2026-11-18, 152; coolant.ts). */
+function coolantReadoutOf(live: Live | undefined, kind: MachineCoolant | null | undefined): Readout {
+  const value = coolantReadout(live, kind ?? null);
+  return { label: 'Coolant', value, title: COOLANT_TITLE, ...(kind === 'none' || value.endsWith(' off') ? { quiet: true } : {}) };
+}
+
+function readouts(view: LiveView, coolant: MachineCoolant | null | undefined): readonly Readout[] {
   const live = displayReadouts(view.message?.snapshot);
   const feed = typeof live?.feed === 'number' ? live.feed : null;
   const vel = typeof live?.vel === 'number' ? live.vel : null;
@@ -174,7 +184,7 @@ function readouts(view: LiveView): readonly Readout[] {
       title: 'Actual / commanded feed reported by the controller.',
     },
     { label: 'Spindle', value: spindleText(live), title: SPINDLE_TITLE },
-    { label: 'Coolant', value: coolantText(live), title: COOLANT_TITLE },
+    coolantReadoutOf(live, coolant),
     jobReadout(view, line),
   ];
 }
@@ -197,7 +207,8 @@ function jobReadout(view: LiveView, boardLine: number | null): Readout {
   return at === null ? { label: 'Job', value: 'Starting', title: 'The board has not reported a job line yet.' } : { label: 'Job', value: `file line ${num(at.line)}`, title: 'The file line the board reports executing.' };
 }
 
-export function stripStatus(view: LiveView, machineName: string | null): StripStatus {
+/** `coolant`: what the chosen machine says is wired to the coolant output (names the readout), null when unset. */
+export function stripStatus(view: LiveView, machineName: string | null, coolant?: MachineCoolant | null): StripStatus {
   const s = view.message?.snapshot ?? null;
   const name = `${machineName ?? 'No machine profile'} · ${boardLabel(view)}`;
   const entry = view.entry.step;
@@ -211,7 +222,7 @@ export function stripStatus(view: LiveView, machineName: string | null): StripSt
     const title = entry === 'checking' ? 'Checking before connect' : entry === 'opening' ? 'Choosing the port' : entry === 'c1' ? 'Confirm to connect' : 'Not connected';
     return { connected: false, title, name: machineName ?? 'No board connected', tone: 'off', pill: null, text: null, readouts: [], spindleOn: false };
   }
-  const base = { connected: true, name, readouts: readouts(view), spindleOn: spindleReportedOn(view) };
+  const base = { connected: true, name, readouts: readouts(view, coolant), spindleOn: spindleReportedOn(view) };
   const o = s.overlays;
   if (o.includes('LOST')) return { ...base, title: 'Connection lost', tone: 'alarm', pill: { text: 'Lost', tone: 'danger' }, text: 'The machine may still be moving. Use your E-stop if anything is unsafe.' };
   if (o.includes('FAULT')) return { ...base, title: 'Fault', tone: 'alarm', pill: { text: 'Fault', tone: 'danger' }, text: s.fault?.detail ?? 'The session stopped trusting the link.' };

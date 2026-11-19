@@ -76,6 +76,9 @@ test('walks all seven steps with the fake board, saves the setup record as it go
   await expect(homeQuick).toBeVisible();
   await expect(homeQuick.getByRole('button', { name: /Set machine zero/ })).toBeVisible();
   await expect(homeQuick.getByRole('button', { name: /^Home all/ })).toBeHidden();
+  // And what is wired to the coolant output (owner 152): saved on the machine from step 2.
+  await page.locator('input[name="wizard-coolant"][value="flood"]').check();
+  await expect.poll(() => (account.ofKind('machine')[0]?.content as { coolant?: string }).coolant, { timeout: 10_000 }).toBe('flood');
   await shot(page, 'step-4-light-1280');
   await next(page).click();
   // 5 Tools (OD-42: no stock): the catalog opens as a whole page, a tool added there brings the step back with it;

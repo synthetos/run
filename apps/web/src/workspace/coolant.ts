@@ -7,7 +7,6 @@
  */
 import type { MachineCoolant } from '@synthetos/library';
 import type { MotionCommand, SnapshotMessage } from '../machine-worker/rpc.ts';
-import { coolantText } from './status.ts';
 
 type Live = SnapshotMessage['snapshot']['live'];
 
@@ -47,9 +46,10 @@ export function coolantReadout(live: Live | undefined, kind: MachineCoolant | nu
   return `${coolantLabel(kind)} ${coolantIsOn(live) ? 'on' : 'off'}`;
 }
 
-/** Neither readout known: "Unknown", or "Not reported" when the board's status list lacks both (status.ts). */
+/** Neither readout known: "Unknown", or "Not reported" when the board's status list lacks both (as status.ts says it). */
 function unreported(live: Live | undefined): string {
-  return live === undefined ? 'Unknown' : coolantText(live);
+  const list = live?.srList;
+  return list !== undefined && !list.includes('cof') && !list.includes('com') ? 'Not reported' : 'Unknown';
 }
 
 /** The "?" beside the toggle: what it sends, and that Run cannot tell what is wired. */

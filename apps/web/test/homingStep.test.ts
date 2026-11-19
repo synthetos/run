@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
 import { boardMismatch } from '../src/wizard/homingStep.ts';
-import { CONNECT_FOR_HOMING, HOME_LATER, Homing, HOMING_LEAD, HOMING_TITLE } from '../src/wizard/steps/Homing.ts';
+import { CONNECT_FOR_HOMING, COOLANT_NEEDS_MACHINE, COOLANT_QUESTION, HOME_LATER, Homing, HOMING_LEAD, HOMING_TITLE } from '../src/wizard/steps/Homing.ts';
+import { all, root, text } from './tree.ts';
 import { createWorkspaceModel, type LiveActions, type LiveView } from '../src/workspace/model.ts';
 import type { MachineProfile } from '../src/workspace/library.ts';
 import { snap, view } from './runMotionHarness.ts';
@@ -32,8 +33,8 @@ describe('boardMismatch (Review Focus 3)', () => {
 describe('step 4 Homing (render)', () => {
   const base = { choice: null, onChoice: () => undefined, mismatch: null };
   it('two radio cards, the checked one following the choice, and the existing Home controls when connected', () => {
-    expect(HOMING_TITLE).toBe('Homing');
-    expect(HOMING_LEAD).toBe('How this machine finds its zero.');
+    expect(HOMING_TITLE).toBe('Homing and coolant');
+    expect(HOMING_LEAD).toBe('How this machine finds its zero, and what its coolant output drives.');
     const html = renderToString(h(Homing, { ...base, model: connectedModel(), choice: 'none' }));
     expect(html.match(/type="radio"/g)).toHaveLength(2);
     expect(html).toMatch(/value="none"[^>]*checked/);
@@ -57,6 +58,22 @@ describe('step 4 Homing (render)', () => {
     expect(html).toContain(CONNECT_FOR_HOMING);
     expect(html).toContain('data-region="connect"');
     expect(html).not.toContain('data-region="home-quick"');
+  });
+  it('owner 152: one compact question, what is wired to the coolant output, saved on the step-2 machine; no board needed', () => {
+    const chosen: string[] = [];
+    const el = root(h('div', null, h(Homing, { ...base, model: null, coolant: 'mist', onCoolant: (c) => chosen.push(c) })));
+    expect(text(el)).toContain(COOLANT_QUESTION);
+    expect(COOLANT_QUESTION).toBe('What is wired to the coolant output?');
+    const radios = all(el, (e) => e.tag === 'input' && e.props['name'] === 'wizard-coolant');
+    expect(radios.map((r) => r.props['value'])).toEqual(['none', 'flood', 'mist', 'air']);
+    expect(radios.filter((r) => r.props['checked'] === true).map((r) => r.props['value'])).toEqual(['mist']);
+    expect(radios.every((r) => r.props['class'] === 'wizard-choice-radio')).toBe(true);
+    (radios[1]?.props['onChange'] as () => void)();
+    expect(chosen).toEqual(['flood']);
+    // Step 2 was skipped: no machine to save it on.
+    const none = renderToString(h(Homing, { ...base, model: null, coolant: null, onCoolant: null }));
+    expect(none).toContain(COOLANT_NEEDS_MACHINE);
+    expect(none).not.toContain('name="wizard-coolant"');
   });
   it('a mismatched board: the reason as an alert and no Home controls', () => {
     const html = renderToString(h(Homing, { ...base, model: connectedModel(), mismatch: 'This is board OTHER-99, not the board.' }));

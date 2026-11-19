@@ -10,10 +10,10 @@ import { useEffect } from 'preact/hooks';
 import { pageGate } from '../gate/SignInGate.ts';
 import { setupView } from '../workspace/cloud/setupSync.ts';
 import type { WorkspaceModel } from '../workspace/model.ts';
-import type { MachineProfile } from '@synthetos/library';
+import type { MachineCoolant, MachineProfile } from '@synthetos/library';
 import { projectsState } from '../projects/store.ts';
 import { saveSetup } from '../workspace/cloud/setupSync.ts';
-import { machineStore, selectedMachineStore, toolStore, type ToolEntry } from '../workspace/library.ts';
+import { machineStore, selectedMachineStore, toolStore, updateMachine, type ToolEntry } from '../workspace/library.ts';
 import { connected } from '../workspace/model.ts';
 import { boardLabel } from '../workspace/status.ts';
 import { CATALOGUE, type MachineTemplate } from '../workspace/machineDrawings.ts';
@@ -88,11 +88,15 @@ function firmwareStepView(ctx: WizardContext): StepView {
   return { title: FIRMWARE_TITLE, lead: FIRMWARE_LEAD, body, nextDisabled: !gate.nextEnabled || mismatch !== null, skippable: gate.skippable };
 }
 
-/** Step 4: the choice is written as it is made (R3); the step refuses another board than the machine's. */
+/**
+ * Step 4: the homing choice is written as it is made (R3); the step refuses another board than the machine's. The
+ * coolant answer goes on the step-2 machine record (owner 152), so the Job page's toggle is named by it.
+ */
 function homingStepView(ctx: WizardContext): StepView {
   const record = setupView.value.record;
   const machine = machineStore.value.value.find((m) => m.id === record?.machineId) ?? null;
-  const body = h(Homing, { model: ctx.model, choice: record?.homing ?? null, onChoice: (c) => saveSetup({ homing: c }), mismatch: boardMismatch(liveBoardId(ctx.model), machine) });
+  const coolant = { coolant: machine?.coolant ?? null, onCoolant: machine === null ? null : (c: MachineCoolant) => { updateMachine(machine.id, { coolant: c }); } };
+  const body = h(Homing, { model: ctx.model, choice: record?.homing ?? null, onChoice: (c) => saveSetup({ homing: c }), mismatch: boardMismatch(liveBoardId(ctx.model), machine), ...coolant });
   return { title: HOMING_TITLE, lead: HOMING_LEAD, body, nextDisabled: (record?.homing ?? null) === null };
 }
 

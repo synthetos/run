@@ -163,7 +163,7 @@ describe('Phase 1 control allowlist', () => {
     /^action:(open-notes|note-link)$/,
     // The × on an informational notice (workspace/notes/Dismissable.ts, owner polish 2026-11-10): presentation only.
     /^action:dismiss-notice-x$/,
-    /^action:context-help$/,
+    /^action:context-help$/, /^action:coolant-set-wiring$/, // "Set what is wired" (owner 152) opens Board → the coolant pin.
     /^action:preview-detail$/,
     /^action:cutting-row-(add|edit|remove|copy|apply|cancel|direct|rpm)$/,
     /^action:bed-grid-(mm|in|measured|save)$/,
