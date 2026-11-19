@@ -28,6 +28,7 @@
  */
 import { REMOVED_HOLD_KEYS, REMOVED_HOLD_REASON } from './firmware45005.ts';
 import { forbiddenWriteReason, isForbiddenKey } from './forbiddenWrites.ts';
+import { settingsDefsFor } from './settingsDefs/load.ts';
 import type { SettingValue } from './settingsRead.ts';
 import { settingsSchemaFor, type SettingDef } from './settingsSchema.ts';
 import { setterClass } from './tables/accessors.ts';
@@ -116,9 +117,10 @@ export function valueWords(def: SettingDef | undefined, value: SettingValue | nu
   return unit === undefined || unit === 'enum' || unit === 'microsteps' ? shown : `${shown} ${unit}`;
 }
 
-function switchName(key: string): string {
-  const axis = key[0]?.toUpperCase() ?? '?';
-  return `${axis}-${key.endsWith('sn') ? 'min' : 'max'}`;
+/** The switch input's one name, from the settings file's inputs (review finding 10): "X min switch". */
+function switchName(dialectId: string, key: string): string {
+  const named = settingsDefsFor(dialectId)?.inputs.find((i) => i.function === key)?.label;
+  return named ?? `${key[0]?.toUpperCase() ?? '?'} ${key.endsWith('sn') ? 'min' : 'max'} switch`;
 }
 
 /** What a switch mode does (TinyG {a}sn/{a}sx: 0 Off, 1 Homing, 2 Limit, 3 Homing and limit, 4 Probe). */
@@ -140,8 +142,17 @@ function switchEffects(from: SettingValue | undefined, to: number): string {
   return parts.length === 0 ? generic : parts.join(', and ');
 }
 
+interface ChangeAt {
+  readonly dialectId: string;
+  readonly category: RiskCategory;
+  readonly key: string;
+  readonly def: SettingDef | undefined;
+  readonly from: SettingValue | undefined;
+  readonly to: number;
+}
+
 /** The consequence text for a high-risk change (SAFETY H57-H63). */
-function consequenceFor(category: RiskCategory, key: string, def: SettingDef | undefined, from: SettingValue | undefined, to: number): string {
+function consequenceFor({ dialectId, category, key, def, from, to }: ChangeAt): string {
   const was = valueWords(def, from);
   const now = valueWords(def, to);
   switch (category) {
@@ -149,7 +160,7 @@ function consequenceFor(category: RiskCategory, key: string, def: SettingDef | u
       if (key === 'st') {
         return `Changing the switch type from ${was} to ${now} when the switches are wired the other way means every switch reads as always pressed or never pressed: limits may not stop the machine and homing may not find its switch. Test each switch after applying.`;
       }
-      return `Changing the ${switchName(key)} switch from ${was} to ${now}: ${switchEffects(from, to)}. Test this switch after applying.`;
+      return `Changing the ${switchName(dialectId, key)} from ${was} to ${now}: ${switchEffects(from, to)}. Test this switch after applying.`;
     case 'homing':
       return `${label(def, key)} changes from ${was} to ${now}. Homing uses it: a wrong value can drive the axis hard into its switch or end stop, or back off too far. Home with your hand on the E-stop after applying.`;
     case 'motor': {
@@ -189,7 +200,7 @@ export function changeRisk(dialectId: string, key: string, from: SettingValue | 
   return Object.freeze({
     category,
     highRisk,
-    consequence: highRisk ? consequenceFor(category, key, def, from, to) : null,
+    consequence: highRisk ? consequenceFor({ dialectId, category, key, def, from, to }) : null,
     afterWrite: o?.afterWrite ?? null,
   });
 }

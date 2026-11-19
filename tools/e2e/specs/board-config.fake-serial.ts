@@ -77,7 +77,7 @@ test('an approved board: X min to "Homing and limit", review, C5, backup first, 
   await panel.locator('[data-action="apply-settings"]').click();
 
   const dialog = page.locator('[data-dialog="apply-confirm"]');
-  await expect(dialog.locator('[data-risk-key="xsn"]')).toContainText('Changing the X-min switch');
+  await expect(dialog.locator('[data-risk-key="xsn"]')).toContainText('Changing the X min switch');
   await expect(dialog.locator('[data-action="confirm-apply"]')).toBeDisabled();
   for (const box of await dialog.locator('input[type="checkbox"]').all()) await box.check();
   const typed = dialog.locator('#apply-typed');

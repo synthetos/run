@@ -25,8 +25,9 @@ describe('homingSummary', () => {
 
 describe('inputConsequences', () => {
   it('a limit turned off', () => {
-    expect(inputConsequences(d450, { ...s, xsx: 2 }, { ...s, xsx: 0 })).toContain('X max has no limit. Only soft limits stop X at the far end.');
-    expect(inputConsequences(d450, { ...s, ysn: 3 }, { ...s, ysn: 1 })).toContain('Y min has no limit. Only soft limits stop Y at the near end.');
+    // The input's one name from the data file (review finding 10).
+    expect(inputConsequences(d450, { ...s, xsx: 2 }, { ...s, xsx: 0 })).toContain('X max switch is no longer a limit. Only soft limits stop X at the far end.');
+    expect(inputConsequences(d450, { ...s, ysn: 3 }, { ...s, ysn: 1 })).toContain('Y min switch is no longer a limit. Only soft limits stop Y at the near end.');
   });
 
   it('homing on both ends', () => {

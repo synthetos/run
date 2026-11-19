@@ -73,7 +73,7 @@ function limitLines(defs: SettingsFile, board: Settings, planned: Settings): str
     const sw = switchOf(i.function);
     if (sw === null || !isLimit(num(board, i.function)) || isLimit(num(planned, i.function))) return [];
     const A = sw.axis.toUpperCase();
-    return [`${A} ${sw.end} has no limit. Only soft limits stop ${A} at the ${sw.end === 'max' ? 'far' : 'near'} end.`];
+    return [`${i.label} is no longer a limit. Only soft limits stop ${A} at the ${sw.end === 'max' ? 'far' : 'near'} end.`];
   });
 }
 

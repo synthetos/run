@@ -45,17 +45,17 @@ describe('changeRisk', () => {
     const r = changeRisk('tinyg-en', 'st', 0, 1);
     expect(r.consequence).toMatch(/always pressed or never pressed/);
     expect(r.consequence).toMatch(/Test each switch after applying/);
-    expect(changeRisk('tinyg-en', 'xsn', 3, 0).consequence).toMatch(/X-min switch/);
+    expect(changeRisk('tinyg-en', 'xsn', 3, 0).consequence).toMatch(/X min switch/);
     expect(changeRisk('tinyg-en', '1po', 0, 1).consequence).toMatch(/turn the other way/);
   });
 
   it('a switch consequence follows the direction of the change (review finding 10)', () => {
     const on = changeRisk('tinyg-en', 'xsn', 0, 3).consequence ?? '';
-    expect(on).toBe('Changing the X-min switch from Off to Homing and limit: it will now stop the machine at the end of travel, and homing will use it. Test this switch after applying.');
+    expect(on).toBe('Changing the X min switch from Off to Homing and limit: it will now stop the machine at the end of travel, and homing will use it. Test this switch after applying.');
     expect(on).not.toMatch(/turned off/);
-    expect(changeRisk('tinyg-en', 'xsn', 3, 1).consequence).toBe('Changing the X-min switch from Homing and limit to Homing: it will no longer stop the machine at the end of travel. Test this switch after applying.');
-    expect(changeRisk('tinyg-en', 'xsn', 1, 0).consequence).toBe('Changing the X-min switch from Homing to Off: homing will no longer use it. Test this switch after applying.');
-    expect(changeRisk('tinyg-en', 'xsx', 0, 4).consequence).toBe('Changing the X-max switch from Off to Probe: it will now be read as the probe input. Test this switch after applying.');
+    expect(changeRisk('tinyg-en', 'xsn', 3, 1).consequence).toBe('Changing the X min switch from Homing and limit to Homing: it will no longer stop the machine at the end of travel. Test this switch after applying.');
+    expect(changeRisk('tinyg-en', 'xsn', 1, 0).consequence).toBe('Changing the X min switch from Homing to Off: homing will no longer use it. Test this switch after applying.');
+    expect(changeRisk('tinyg-en', 'xsx', 0, 4).consequence).toBe('Changing the X max switch from Off to Probe: it will now be read as the probe input. Test this switch after applying.');
     expect(changeRisk('tinyg-en', 'xsn', undefined, 3).consequence).toContain('not read to Homing and limit: this changes whether it stops the machine at the end of travel or is used for homing.');
   });
 

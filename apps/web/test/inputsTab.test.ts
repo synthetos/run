@@ -55,7 +55,7 @@ describe('InputsTab', () => {
   it('a pending change shows its consequence under the homing summary', () => {
     setDraft('xsx', 0);
     const el = render();
-    expect(text(one(el, byAttr('data-region', 'input-consequences')))).toContain('X max has no limit. Only soft limits stop X at the far end.');
+    expect(text(one(el, byAttr('data-region', 'input-consequences')))).toContain('X max switch is no longer a limit. Only soft limits stop X at the far end.');
     expect(one(el, byAttr('data-setting-control', 'xsx')).props['data-pending']).toBe('true');
   });
 

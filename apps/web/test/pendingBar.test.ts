@@ -55,7 +55,7 @@ describe('PendingBar', () => {
     const el = bar(boardView({ settings: BOARD })) as El;
     expect(text(one(el, byAttr('data-pending-count')))).toBe('1 change pending');
     expect(text(el)).toContain('1 high risk');
-    expect(text(one(el, byAttr('data-pending-one')))).toContain('Changing the X-min switch from Homing to Homing and limit');
+    expect(text(one(el, byAttr('data-pending-one')))).toContain('Changing the X min switch from Homing to Homing and limit');
     click(el, 'review-apply');
     expect(reviewOpen.value).toBe(true);
     const panel = rootUntil(h(ReviewPanel, { model: fakeModel(boardView({ settings: BOARD })).model }), [ApplyConfirm]);

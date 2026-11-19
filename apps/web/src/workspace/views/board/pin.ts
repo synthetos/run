@@ -8,6 +8,7 @@ import {
   type PinInfo
 } from '../../boardFacts.ts';
 import { connected, type LiveView } from '../../model.ts';
+import { defsFor } from '../../settings/defs.ts';
 import { coolantText, displayReadouts, spindleText } from '../../status.ts';
 import { CoolantWiringPanel } from './CoolantWiring.ts';
 
@@ -47,7 +48,8 @@ export function PinCard({ pin, view, onClose }: { readonly pin: PinInfo; readonl
     'section',
     { class: 'insp pin-card', 'data-pin-card': pin.ref, 'aria-labelledby': 'pin-title' },
     h('header', null, h('h2', { id: 'pin-title' }, h('span', { class: 'pin-ref big' }, pin.ref), ` ${pin.label}`), h('button', { type: 'button', class: 'icon-button quiet', 'data-action': 'clear-pin', 'aria-label': 'Close the pin', onClick: onClose }, '×')),
-    h('p', { class: 'pin-function' }, pin.function, pin.mcu === undefined ? null : h('small', { class: 'raw-key' }, ` ${pin.mcu}`)),
+    // A switch input goes by its one name from the settings file (review finding 10); other pins by the board's words.
+    h('p', { class: 'pin-function' }, defsFor(view)?.inputs.find((i) => i.pin === pin.ref)?.label ?? pin.function, pin.mcu === undefined ? null : h('small', { class: 'raw-key' }, ` ${pin.mcu}`)),
     h('p', { class: 'fine' }, connectorLabel(pin.connector)),
     pin.keys.length === 0 || pin.role === 'motor' ? null : h(PinSettings, { pin, view }),
     // What is wired to the coolant output is the machine's (owner 152), saved with it, never written to the board.

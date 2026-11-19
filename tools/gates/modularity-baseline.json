@@ -984,8 +984,7 @@
     "packages/schema/src/settingsWrite.ts": {
       "complexity $/FunctionDeclaration:categoryOf#1": 31,
       "complexity $/FunctionDeclaration:changeRisk#1": 17,
-      "complexity $/FunctionDeclaration:restoreChanges#1": 20,
-      "max-params $/FunctionDeclaration:consequenceFor#1": 5
+      "complexity $/FunctionDeclaration:restoreChanges#1": 20
     },
     "packages/schema/src/travel.ts": {
       "complexity $/FunctionDeclaration:confirmSoftLimits#1": 19
