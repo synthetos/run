@@ -39,6 +39,7 @@
     "groups": { "type": "array", "items": { "$ref": "#/$defs/group" } },
     "inputs": { "type": "array", "items": { "$ref": "#/$defs/input" } },
     "probeAllowed": { "type": "array", "uniqueItems": true, "items": { "enum": ["x", "y", "z", "a", "b", "c"] } },
+    "probeAllowedSrc": { "type": "string", "minLength": 1 },
     "homingTravel": {
       "type": "object",
       "additionalProperties": false,
@@ -93,7 +94,7 @@
       }
     },
     "unit": {
-      "enum": ["mm", "mm/min", "mm/rev", "deg", "deg/min", "deg/step", "Mmm/min3", "Mdeg/min3", "microsteps", "s", "enum", "none", "text", "Hz", "mm/min2", "ratio"]
+      "enum": ["mm", "mm/min", "mm/rev", "deg", "deg/min", "deg/step", "Mmm/min3", "Mdeg/min3", "microsteps", "s", "enum", "none", "text", "Hz", "mm/min2", "ratio", "rpm", "ms"]
     },
     "access": { "enum": ["write", "read", "forbidden", "readout", "reserved"] },
     "range": {

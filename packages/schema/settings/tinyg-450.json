@@ -22,17 +22,29 @@
     { "id": "axis-c", "title": "C axis (rotary)", "explanation": "How the rotary C axis moves: its mode, radius, travel, speeds and jerk." },
     { "id": "inputs", "title": "Inputs", "explanation": "What each switch input does, and whether the switches and the probe are normally open or normally closed." },
     { "id": "spindle-coolant", "title": "Spindle and coolant", "explanation": "The spindle and coolant outputs: their polarity, and the PWM output that sets spindle speed." },
-    { "id": "offsets", "title": "Offsets", "explanation": "The stored G54 to G59 work offsets and the G28 and G30 positions. Set them from the Job view's zero tools." }
+    { "id": "offsets", "title": "Offsets", "explanation": "The stored G54 to G59 work offsets and the G28 and G30 positions. Set them from the Job view's zero tools." },
+    { "id": "overrides", "title": "Overrides", "explanation": "Feed and spindle override values the board holds in memory. They reset at power-up." }
   ],
-  "inputs": [],
+  "inputs": [
+    { "id": "xmin", "label": "X min switch", "pin": "J7.3", "function": "xsn", "contact": "st", "state": "in1" },
+    { "id": "xmax", "label": "X max switch", "pin": "J7.4", "function": "xsx", "contact": "st", "state": "in2" },
+    { "id": "ymin", "label": "Y min switch", "pin": "J7.5", "function": "ysn", "contact": "st", "state": "in3" },
+    { "id": "ymax", "label": "Y max switch", "pin": "J7.6", "function": "ysx", "contact": "st", "state": "in4" },
+    { "id": "zmin", "label": "Z min switch", "pin": "J8.3", "function": "zsn", "contact": "st", "state": "in5" },
+    { "id": "zmax", "label": "Z max switch", "pin": "J8.4", "function": "zsx", "contact": "st", "state": "in6" },
+    { "id": "amin", "label": "A min switch", "pin": "J8.5", "function": "asn", "contact": "st", "state": "in7" },
+    { "id": "amax", "label": "A max switch", "pin": "J8.6", "function": "asx", "contact": "st", "state": "in8" }
+  ],
+  "probeAllowed": ["x", "y", "z"],
+  "probeAllowedSrc": "EN switch.c:285-322 find_probe_switch (a probe on A refused, -3; two probe inputs refused, -2); bench check BC-5",
   "families": [
     {
       "pattern": "{m}ma", "for": { "m": ["1", "2", "3", "4"] }, "rows": { "1": 211, "2": 221, "3": 232, "4": 243 }, "src": "EN config_app.c:{row}",
       "label": "Motor {m} axis", "short": "Drives", "description": "The axis motor {m} drives.",
       "unit": "enum", "group": "motor-{m}", "tab": "motors", "access": "write",
       "values": [
-        { "value": 0, "label": "X" }, { "value": 1, "label": "Y" }, { "value": 2, "label": "Z" },
-        { "value": 3, "label": "A" }, { "value": 4, "label": "B" }, { "value": 5, "label": "C" }
+        { "value": 0, "label": "X axis" }, { "value": 1, "label": "Y axis" }, { "value": 2, "label": "Z axis" },
+        { "value": 3, "label": "A axis" }, { "value": 4, "label": "B axis" }, { "value": 5, "label": "C axis" }
       ],
       "labelSrc": "EN stepper.c:1650 fmt_0ma",
       "write": {
@@ -72,6 +84,13 @@
       "pattern": "{m}mi", "for": { "m": ["1", "2", "3", "4"] }, "rows": { "1": 214, "2": 224, "3": 235, "4": 246 }, "src": "EN config_app.c:{row}",
       "label": "Motor {m} microsteps", "short": "Microsteps", "description": "Microstep setting of the motor {m} driver.",
       "unit": "microsteps", "group": "motor-{m}", "tab": "motors", "access": "write",
+      "values": [
+        { "value": 1, "label": "Full step (1)", "help": "200 steps per turn on a 1.8° motor." },
+        { "value": 2, "label": "Half step (2)" },
+        { "value": 4, "label": "Quarter step (4)" },
+        { "value": 8, "label": "Eighth step (8)", "help": "The TinyG driver's finest setting." }
+      ],
+      "labelSrc": "EN stepper.c:1653 fmt_0mi [1,2,4,8]",
       "write": {
         "valueType": "integer", "range": { "min": 1, "max": 8 },
         "rangeSource": "EN stepper.c:1511-1530 (0 refused with 108, E158; from 450.02 any value other than 1, 2, 4, 8 is refused with a range error and nothing changes)",
@@ -84,7 +103,7 @@
       "pattern": "{m}po", "for": { "m": ["1", "2", "3", "4"] }, "rows": { "1": 215, "2": 225, "3": 236, "4": 247 }, "src": "EN config_app.c:{row}",
       "label": "Motor {m} polarity", "short": "Direction", "description": "Direction of motor {m}: 0 normal, 1 reversed.",
       "unit": "enum", "group": "motor-{m}", "tab": "motors", "access": "write",
-      "values": [{ "value": 0, "label": "normal" }, { "value": 1, "label": "reversed" }],
+      "values": [{ "value": 0, "label": "Normal" }, { "value": 1, "label": "Reversed" }],
       "labelSrc": "EN stepper.c:1654 fmt_0po [0=normal,1=reverse]",
       "write": {
         "valueType": "integer", "range": { "min": 0, "max": 1 },
@@ -99,10 +118,13 @@
       "label": "Motor {m} power management", "short": "Power", "description": "When motor {m} is energized.",
       "unit": "enum", "group": "motor-{m}", "tab": "motors", "access": "write",
       "values": [
-        { "value": 0, "label": "disabled" }, { "value": 1, "label": "always on" },
-        { "value": 2, "label": "on in cycle" }, { "value": 3, "label": "on when moving" }
+        { "value": 0, "label": "Off", "help": "Never powered." },
+        { "value": 1, "label": "Always on", "help": "Holds its position all the time." },
+        { "value": 2, "label": "On during a job, off after the idle time", "help": "Powered while a job runs, then off once the motor idle time has passed." },
+        { "value": 3, "label": "Only while moving", "help": "Powered while it moves, then off once the motor idle time has passed." }
       ],
-      "labelSrc": "EN stepper.c:1655 fmt_0pm",
+      "labelSrc": "EN stepper.c:1655 fmt_0pm; stepper.h:266-272",
+      "verify": "BC-7",
       "write": {
         "valueType": "integer", "range": { "min": 0, "max": 3 },
         "rangeSource": "EN stepper.c:1535-1541 (st_set_pm refuses MOTOR_POWER_MODE_MAX_VALUE = 4 or more, stepper.h:266-272)",
@@ -116,7 +138,11 @@
       "pattern": "{a}am", "for": { "a": ["x", "y", "z"] }, "rows": { "x": 276, "y": 291, "z": 306 }, "src": "EN config_app.c:{row}",
       "label": "{A} axis mode", "short": "Mode", "description": "How the {A} axis takes part in motion.",
       "unit": "enum", "group": "axis-{a}", "tab": "axes", "access": "write",
-      "values": [{ "value": 0, "label": "disabled" }, { "value": 1, "label": "standard" }, { "value": 2, "label": "inhibited" }],
+      "values": [
+        { "value": 0, "label": "Off", "help": "The board ignores moves on this axis." },
+        { "value": 1, "label": "Standard", "help": "The axis moves as programmed." },
+        { "value": 2, "label": "Inhibited", "help": "The position follows the program, but the motor is held at step 0." }
+      ],
       "labelSrc": "EN canonical_machine.c:2356-2360 msg_am",
       "write": {
         "valueType": "integer", "range": { "min": 0, "max": 2 },
@@ -287,7 +313,12 @@
       "pattern": "{a}am", "for": { "a": ["a", "b", "c"] }, "rows": { "a": 321, "b": 337, "c": 356 }, "src": "EN config_app.c:{row}",
       "label": "{A} axis mode", "short": "Mode", "description": "How the {A} axis takes part in motion.",
       "unit": "enum", "group": "axis-{a}", "tab": "axes", "access": "write",
-      "values": [{ "value": 0, "label": "disabled" }, { "value": 1, "label": "standard" }, { "value": 2, "label": "inhibited" }, { "value": 3, "label": "radius" }],
+      "values": [
+        { "value": 0, "label": "Off", "help": "The board ignores moves on this axis." },
+        { "value": 1, "label": "Standard", "help": "The axis turns as programmed, in degrees." },
+        { "value": 2, "label": "Inhibited", "help": "The position follows the program, but the motor is held at step 0." },
+        { "value": 3, "label": "Radius mode", "help": "Moves are read as lengths and turned into degrees with the radius." }
+      ],
       "labelSrc": "EN canonical_machine.c:2356-2360 msg_am",
       "write": {
         "valueType": "integer", "range": { "min": 0, "max": 3 },
@@ -440,14 +471,58 @@
         "invalidates": ["homing.{a}", "job.*.preflight"],
         "whatGoesWrong": "Zero stays on the switch: a limit switch can then trip during the first move of a job."
       }
+    },
+
+    {
+      "pattern": "g{w}{a}", "for": { "w": ["54", "55", "56", "57", "58", "59"], "a": ["x", "y", "z"] },
+      "rows": { "54x": 388, "54y": 389, "54z": 390, "55x": 395, "55y": 396, "55z": 397, "56x": 402, "56y": 403, "56z": 404, "57x": 409, "57y": 410, "57z": 411, "58x": 416, "58y": 417, "58z": 418, "59x": 423, "59y": 424, "59z": 425 },
+      "src": "EN config_app.c:{row}",
+      "label": "G{w} {A} offset", "short": "G{w} {A}", "description": "Where G{w} puts {A} zero, measured from machine zero.",
+      "unit": "mm", "display": 3, "group": "offsets", "tab": "settings", "access": "read", "reason": "Set from the Job view's zero tools.",
+      "labelSrc": "EN canonical_machine.c:3180 fmt_cofs"
+    },
+    {
+      "pattern": "g{w}{a}", "for": { "w": ["54", "55", "56", "57", "58", "59"], "a": ["a", "b", "c"] },
+      "rows": { "54a": 391, "54b": 392, "54c": 393, "55a": 398, "55b": 399, "55c": 400, "56a": 405, "56b": 406, "56c": 407, "57a": 412, "57b": 413, "57c": 414, "58a": 419, "58b": 420, "58c": 421, "59a": 426, "59b": 427, "59c": 428 },
+      "src": "EN config_app.c:{row}",
+      "label": "G{w} {A} offset", "short": "G{w} {A}", "description": "Where G{w} puts {A} zero, measured from machine zero.",
+      "unit": "deg", "display": 3, "group": "offsets", "tab": "settings", "access": "read", "reason": "Set from the Job view's zero tools.",
+      "labelSrc": "EN canonical_machine.c:3180 fmt_cofs"
+    },
+    {
+      "pattern": "g{w}{a}", "for": { "w": ["28", "30"], "a": ["x", "y", "z"] },
+      "rows": { "28x": 438, "28y": 439, "28z": 440, "30x": 445, "30y": 446, "30z": 447 },
+      "src": "EN config_app.c:{row}",
+      "label": "G{w} {A} position", "short": "G{w} {A}", "description": "The {A} position that G{w} moves to.",
+      "unit": "mm", "display": 3, "group": "offsets", "tab": "settings", "access": "read", "reason": "Stored by G{w}.1, not here."
+    },
+    {
+      "pattern": "g{w}{a}", "for": { "w": ["28", "30"], "a": ["a", "b", "c"] },
+      "rows": { "28a": 441, "28b": 442, "28c": 443, "30a": 448, "30b": 449, "30c": 450 },
+      "src": "EN config_app.c:{row}",
+      "label": "G{w} {A} position", "short": "G{w} {A}", "description": "The {A} position that G{w} moves to.",
+      "unit": "deg", "display": 3, "group": "offsets", "tab": "settings", "access": "read", "reason": "Stored by G{w}.1, not here."
     }
   ],
   "enums": {
+    "offOn": { "values": [{ "value": 0, "label": "Off" }, { "value": 1, "label": "On" }] },
+    "noYes": { "values": [{ "value": 0, "label": "No" }, { "value": 1, "label": "Yes" }] },
+    "inputState": {
+      "labelSrc": "EN switch.c:390 fmt_in; switch.h:55-57 swState (-1 disabled, 0 inactive, 1 active)",
+      "values": [
+        { "value": -1, "label": "Off", "help": "The input is set to Off, so the board does not read it." },
+        { "value": 0, "label": "Released" },
+        { "value": 1, "label": "Pressed" }
+      ]
+    },
     "switchMode": {
       "labelSrc": "EN canonical_machine.c:3174 fmt_Xsn; switch.h:42-47",
       "values": [
-        { "value": 0, "label": "off" }, { "value": 1, "label": "homing" }, { "value": 2, "label": "limit" },
-        { "value": 3, "label": "limit + homing" }, { "value": 4, "label": "probe" }
+        { "value": 0, "label": "Off", "help": "The input is ignored." },
+        { "value": 1, "label": "Homing", "help": "Used only to find home. Pressing it at other times does nothing." },
+        { "value": 2, "label": "Limit", "help": "Stops the machine with an alarm when pressed." },
+        { "value": 3, "label": "Homing and limit", "help": "Finds home, and stops the machine at other times." },
+        { "value": 4, "label": "Probe", "help": "The touch plate input. One per board." }
       ]
     }
   },
@@ -456,7 +531,10 @@
       "label": "Switch type", "short": "Switch contact",
       "description": "Whether every homing and limit switch is normally open (0) or normally closed (1).",
       "unit": "enum", "group": "inputs", "tab": "inputs", "access": "write", "src": "EN config_app.c:461",
-      "values": [{ "value": 0, "label": "normally open" }, { "value": 1, "label": "normally closed" }],
+      "values": [
+        { "value": 0, "label": "Normally open", "help": "The switch closes when pressed." },
+        { "value": 1, "label": "Normally closed", "help": "The switch opens when pressed." }
+      ],
       "labelSrc": "EN switch.c:387 fmt_st [0=NO,1=NC]",
       "write": {
         "valueType": "integer", "range": { "min": 0, "max": 1 },
@@ -470,7 +548,10 @@
       "label": "Soft limits", "short": "Soft limits",
       "description": "Refuse moves outside the travel range once the axes are homed.",
       "unit": "enum", "group": "all-axes", "tab": "axes", "access": "write", "src": "EN config_app.c:460",
-      "values": [{ "value": 0, "label": "off" }, { "value": 1, "label": "on" }],
+      "values": [
+        { "value": 0, "label": "Off", "help": "Moves outside the travel are not refused." },
+        { "value": 1, "label": "On", "help": "Once homed, the board refuses moves outside each axis's travel." }
+      ],
       "write": {
         "valueType": "integer", "range": { "min": 0, "max": 1 },
         "rangeSource": "host: 0 or 1 (set_ui8 does not check)",
@@ -483,7 +564,7 @@
       "label": "Default units", "short": "Units at power-up",
       "description": "Units mode at power-up and after a program end: 0 inches (G20), 1 millimetres (G21).",
       "unit": "enum", "group": "system", "tab": "settings", "access": "write", "src": "EN config_app.c:520",
-      "values": [{ "value": 0, "label": "inches (G20)" }, { "value": 1, "label": "millimetres (G21)" }],
+      "values": [{ "value": 0, "label": "Inches (G20)" }, { "value": 1, "label": "Millimetres (G21)" }],
       "labelSrc": "EN canonical_machine.c:3099 [0=G20,1=G21]",
       "write": {
         "valueType": "integer", "range": { "min": 0, "max": 1 },
@@ -497,7 +578,7 @@
       "label": "Default distance mode", "short": "Distance mode at power-up",
       "description": "Distance mode at power-up and after a program end: 0 absolute (G90), 1 incremental (G91).",
       "unit": "enum", "group": "system", "tab": "settings", "access": "write", "src": "EN config_app.c:523",
-      "values": [{ "value": 0, "label": "absolute (G90)" }, { "value": 1, "label": "incremental (G91)" }],
+      "values": [{ "value": 0, "label": "Absolute (G90)" }, { "value": 1, "label": "Incremental (G91)" }],
       "labelSrc": "EN canonical_machine.c:3102 [0=G90,1=G91]",
       "write": {
         "valueType": "integer", "range": { "min": 0, "max": 1 },
@@ -523,7 +604,8 @@
       "label": "Spindle enable polarity", "short": "Spindle enable polarity",
       "description": "Level of the spindle enable output for ON: 0 active low, 1 active high (the factory default).",
       "unit": "enum", "group": "spindle-coolant", "tab": "io", "access": "write", "src": "EN config_app.c:649",
-      "values": [{ "value": 0, "label": "active low" }, { "value": 1, "label": "active high" }],
+      "values": [{ "value": 0, "label": "Active low" }, { "value": 1, "label": "Active high" }],
+      "labelSrc": "EN config_app.c:1117 fmt_spep [0=active_low,1=active_high]",
       "write": {
         "valueType": "integer", "range": { "min": 0, "max": 1 },
         "rangeSource": "EN spindle.c:62-81 (more than 1 refused; refused while the spindle is on or the planner is busy); config_app.c:1117",
@@ -536,7 +618,8 @@
       "label": "Spindle direction polarity", "short": "Spindle direction polarity",
       "description": "Level of the spindle direction output for clockwise: 0 low, 1 high.",
       "unit": "enum", "group": "spindle-coolant", "tab": "io", "access": "write", "src": "EN config_app.c:650",
-      "values": [{ "value": 0, "label": "CW low" }, { "value": 1, "label": "CW high" }],
+      "values": [{ "value": 0, "label": "Clockwise when low" }, { "value": 1, "label": "Clockwise when high" }],
+      "labelSrc": "EN config_app.c:1118 fmt_spdp [0=CW_low,1=CW_high]",
       "write": {
         "valueType": "integer", "range": { "min": 0, "max": 1 },
         "rangeSource": "EN spindle.c:62-81 (more than 1 refused; refused while the spindle is on or the planner is busy); config_app.c:1118",
@@ -549,7 +632,10 @@
       "label": "Probe input polarity", "short": "Probe contact",
       "description": "Whether the probe input is normally open (0) or normally closed (1), independent of the switch type.",
       "unit": "enum", "group": "inputs", "tab": "inputs", "access": "write", "src": "EN config_app.c:656",
-      "values": [{ "value": 0, "label": "normally open" }, { "value": 1, "label": "normally closed" }],
+      "values": [
+        { "value": 0, "label": "Normally open", "help": "The probe circuit closes on contact." },
+        { "value": 1, "label": "Normally closed", "help": "The probe circuit opens on contact." }
+      ],
       "write": {
         "valueType": "integer", "range": { "min": 0, "max": 1 },
         "rangeSource": "EN switch.c:334-348 (more than 1 refused; refused while a cycle runs); config_app.c:1119",
@@ -562,7 +648,7 @@
       "label": "Optional stop (M1)", "short": "Optional stop (M1)",
       "description": "Whether M1 pauses the program. Session only: not saved, off after a reset.",
       "unit": "enum", "group": "system", "tab": "settings", "access": "write", "src": "EN config_app.c:667",
-      "values": [{ "value": 0, "label": "off" }, { "value": 1, "label": "on" }],
+      "values": [{ "value": 0, "label": "Off" }, { "value": 1, "label": "On" }],
       "write": {
         "valueType": "integer", "range": { "min": 0, "max": 1 },
         "rangeSource": "EN config_app.c:668 (set_01); config_app.c:1120",
@@ -570,6 +656,136 @@
         "invalidates": ["job.*.preflight"],
         "whatGoesWrong": "With optional stop off, an M1 placed for a tool check or a clamp move does not pause the job."
       }
-    }
+    },
+
+    "fb": { "label": "Firmware build", "short": "Firmware build", "description": "The build number of the firmware on the board.", "unit": "none", "display": 2, "group": "identity", "tab": "overview", "access": "read", "reason": "Reported by the firmware.", "src": "EN config_app.c:139", "labelSrc": "EN hardware.c:245 fmt_fb" },
+    "fv": { "label": "Firmware version", "short": "Firmware version", "description": "The firmware version the build belongs to.", "unit": "none", "display": 2, "group": "identity", "tab": "overview", "access": "read", "reason": "Reported by the firmware.", "src": "EN config_app.c:140", "labelSrc": "EN hardware.c:246 fmt_fv" },
+    "hp": { "label": "Hardware platform", "short": "Hardware platform", "description": "The board family the firmware was built for.", "unit": "none", "group": "identity", "tab": "overview", "access": "read", "reason": "Not changed by Run.", "src": "EN config_app.c:141", "labelSrc": "EN hardware.c:247 fmt_hp" },
+    "hv": { "label": "Hardware version", "short": "Hardware version", "description": "The board revision. It decides which pins the firmware drives.", "unit": "none", "group": "identity", "tab": "overview", "access": "forbidden", "reason": "A wrong value changes the pins the firmware drives, so Run never writes it.", "src": "EN config_app.c:142", "labelSrc": "EN hardware.c:248 fmt_hv" },
+    "id": { "label": "Board ID", "short": "Board ID", "description": "The serial number the board reports.", "unit": "text", "group": "identity", "tab": "overview", "access": "read", "reason": "Reported by the firmware.", "src": "EN config_app.c:143", "labelSrc": "EN hardware.c:249 fmt_id" },
+
+    "ja": { "label": "Junction acceleration", "short": "Junction acceleration", "description": "How hard the machine may accelerate through a corner. Larger is faster.", "unit": "mm/min2", "display": 0, "group": "all-axes", "tab": "axes", "access": "read", "reason": "Not changed by Run yet.", "src": "EN config_app.c:459", "labelSrc": "EN canonical_machine.c:3131 fmt_ja (prints only the length unit)", "verify": "BC-10" },
+    "ct": { "label": "Chordal tolerance", "short": "Chordal tolerance", "description": "How closely arcs follow the true curve. Smaller is more accurate and slower.", "unit": "mm", "display": 4, "group": "all-axes", "tab": "axes", "access": "read", "reason": "Not changed by Run yet.", "src": "EN config_app.c:460", "labelSrc": "EN canonical_machine.c:3132 fmt_ct" },
+
+    "gco": {
+      "label": "Default work offset", "short": "Work offset at power-up", "description": "The work coordinate system selected at power-up and after a program end.",
+      "unit": "enum", "group": "system", "tab": "settings", "access": "read", "reason": "Not changed by Run yet.", "src": "EN config_app.c:522",
+      "values": [{ "value": 1, "label": "G54" }, { "value": 2, "label": "G55" }, { "value": 3, "label": "G56" }, { "value": 4, "label": "G57" }, { "value": 5, "label": "G58" }, { "value": 6, "label": "G59" }],
+      "labelSrc": "EN canonical_machine.c:3100 fmt_gco [1-6 (G54-G59)]"
+    },
+    "gpa": {
+      "label": "Default path control", "short": "Path control at power-up", "description": "How the board joins moves at power-up and after a program end.",
+      "unit": "enum", "group": "system", "tab": "settings", "access": "read", "reason": "Not changed by Run yet.", "src": "EN config_app.c:523",
+      "values": [{ "value": 0, "label": "Exact stop (G61)" }, { "value": 1, "label": "Exact path (G61.1)" }, { "value": 2, "label": "Continuous (G64)" }],
+      "labelSrc": "EN canonical_machine.c:3101 fmt_gpa [0=G61,1=G61.1,2=G64]"
+    },
+    "gpl": {
+      "label": "Default plane", "short": "Plane at power-up", "description": "The arc plane at power-up and after a program end.",
+      "unit": "enum", "group": "system", "tab": "settings", "access": "read", "reason": "Not changed by Run yet.", "src": "EN config_app.c:520",
+      "values": [{ "value": 0, "label": "XY (G17)" }, { "value": 1, "label": "XZ (G18)" }, { "value": 2, "label": "YZ (G19)" }],
+      "labelSrc": "EN canonical_machine.c:3098 fmt_gpl [0=G17,1=G18,2=G19]"
+    },
+
+    "baud": {
+      "label": "USB baud rate", "short": "Baud rate", "description": "The speed of the serial link to Run.",
+      "unit": "enum", "group": "communications", "tab": "comms", "access": "forbidden", "reason": "Changing it drops the connection, so Run never writes it.", "src": "EN config_app.c:479",
+      "values": [{ "value": 1, "label": "9 600 baud" }, { "value": 2, "label": "19 200 baud" }, { "value": 3, "label": "38 400 baud" }, { "value": 4, "label": "57 600 baud" }, { "value": 5, "label": "115 200 baud" }, { "value": 6, "label": "230 400 baud" }],
+      "labelSrc": "EN config_app.c:1121 fmt_baud"
+    },
+    "ex": {
+      "label": "Flow control", "short": "Flow control", "description": "How the board tells Run to pause sending.",
+      "unit": "enum", "group": "communications", "tab": "comms", "access": "forbidden", "reason": "Run's sending depends on it, so Run never writes it.", "src": "EN config_app.c:477",
+      "values": [{ "value": 0, "label": "Off" }, { "value": 1, "label": "XON/XOFF" }, { "value": 2, "label": "RTS/CTS" }],
+      "labelSrc": "EN config_app.c:1115 fmt_ex [0=off,1=XON/XOFF,2=RTS/CTS]"
+    },
+    "rxm": {
+      "label": "Receive mode", "short": "Receive mode", "description": "Whether the board takes commands a character or a line at a time.",
+      "unit": "enum", "group": "communications", "tab": "comms", "access": "forbidden", "reason": "Run's sending depends on it, so Run never writes it.", "src": "EN config_app.c:478",
+      "values": [{ "value": 0, "label": "Character mode" }, { "value": 1, "label": "Line mode" }],
+      "labelSrc": "EN config_app.c:1116 fmt_rxm [0=char_mode,1=line_mode]"
+    },
+    "ec": { "label": "CR LF line endings", "short": "CR LF line endings", "description": "Whether the board ends each line it sends with CR LF instead of LF.", "unit": "enum", "enum": "offOn", "group": "communications", "tab": "comms", "access": "read", "reason": "Not changed by Run.", "src": "EN config_app.c:475", "labelSrc": "EN config_app.c:1113 fmt_ec [0=off,1=on]" },
+    "ee": { "label": "Echo", "short": "Echo", "description": "Whether the board sends back what it receives.", "unit": "enum", "enum": "offOn", "group": "communications", "tab": "comms", "access": "read", "reason": "Not changed by Run.", "src": "EN config_app.c:476", "labelSrc": "EN config_app.c:1114 fmt_ee [0=off,1=on]" },
+    "ej": {
+      "label": "JSON mode", "short": "JSON mode", "description": "Whether the board talks JSON or text.",
+      "unit": "enum", "group": "communications", "tab": "comms", "access": "forbidden", "reason": "Run speaks JSON only, so Run never writes it.", "src": "EN config_app.c:467",
+      "values": [{ "value": 0, "label": "Text" }, { "value": 1, "label": "JSON" }],
+      "labelSrc": "EN json_parser.c:1102 fmt_ej [0=text,1=JSON]"
+    },
+    "jv": {
+      "label": "JSON verbosity", "short": "JSON verbosity", "description": "How much the board puts in each JSON reply.",
+      "unit": "enum", "group": "communications", "tab": "comms", "access": "forbidden", "reason": "Run changes it only during a check you agree to, and puts it back.", "src": "EN config_app.c:468",
+      "values": [{ "value": 0, "label": "Silent" }, { "value": 1, "label": "Footer only" }, { "value": 2, "label": "Messages" }, { "value": 3, "label": "Configs" }, { "value": 4, "label": "Line numbers" }, { "value": 5, "label": "Verbose" }],
+      "labelSrc": "EN json_parser.c:1103 fmt_jv [0=silent,1=footer,2=messages,3=configs,4=linenum,5=verbose]"
+    },
+    "js": {
+      "label": "JSON style", "short": "JSON style", "description": "Whether the board's JSON is relaxed or strict.",
+      "unit": "enum", "group": "communications", "tab": "comms", "access": "forbidden", "reason": "Run reads strict JSON only, so Run never writes it.", "src": "EN config_app.c:469",
+      "values": [{ "value": 0, "label": "Relaxed" }, { "value": 1, "label": "Strict" }],
+      "labelSrc": "EN json_parser.c:1104 fmt_js [0=relaxed,1=strict]"
+    },
+    "tv": {
+      "label": "Text verbosity", "short": "Text verbosity", "description": "How much the board says in text mode.",
+      "unit": "enum", "group": "communications", "tab": "comms", "access": "read", "reason": "Not changed by Run.", "src": "EN config_app.c:470",
+      "values": [{ "value": 0, "label": "Silent" }, { "value": 1, "label": "Verbose" }],
+      "labelSrc": "EN text_parser.c:347 fmt_tv [0=silent,1=verbose]"
+    },
+
+    "qv": {
+      "label": "Queue report verbosity", "short": "Queue reports", "description": "How the board reports free space in its planner queue.",
+      "unit": "enum", "group": "status-report", "tab": "comms", "access": "forbidden", "reason": "Run changes it only during a check you agree to, and puts it back.", "src": "EN config_app.c:471",
+      "values": [{ "value": 0, "label": "Off" }, { "value": 1, "label": "Single" }, { "value": 2, "label": "Triple" }],
+      "labelSrc": "EN report.c:873 fmt_qv [0=off,1=single,2=triple]"
+    },
+    "sv": {
+      "label": "Status report verbosity", "short": "Status reports", "description": "Whether the board sends status reports, and whether each one holds only what changed.",
+      "unit": "enum", "group": "status-report", "tab": "comms", "access": "read", "reason": "Not changed by Run.", "src": "EN config_app.c:472",
+      "values": [{ "value": 0, "label": "Off" }, { "value": 1, "label": "Only what changed" }, { "value": 2, "label": "Everything" }],
+      "labelSrc": "EN report.c:719 fmt_sv [0=off,1=filtered,2=verbose]"
+    },
+    "si": { "label": "Status report interval", "short": "Report interval", "description": "How often the board reports its state while it moves.", "unit": "ms", "display": 0, "group": "status-report", "tab": "comms", "access": "read", "reason": "Not changed by Run.", "src": "EN config_app.c:473", "labelSrc": "EN report.c:718 fmt_si (ms)" },
+
+    "spph": { "label": "Spindle pause on hold", "short": "Spindle pause on hold", "description": "Whether a feed hold also stops the spindle.", "unit": "none", "group": "spindle-coolant", "tab": "io", "access": "reserved", "reason": "Reserved on this firmware: the board keeps it and does nothing with it.", "until": 450.05, "src": "EN config_app.c:653" },
+    "spde": { "label": "Spindle restart delay", "short": "Spindle restart delay", "description": "How long the board waits after the spindle restarts.", "unit": "s", "group": "spindle-coolant", "tab": "io", "access": "reserved", "reason": "Reserved on this firmware: the board keeps it and does nothing with it.", "until": 450.05, "src": "EN config_app.c:654" },
+    "coph": { "label": "Coolant pause on hold", "short": "Coolant pause on hold", "description": "Whether a feed hold also stops the coolant.", "unit": "none", "group": "spindle-coolant", "tab": "io", "access": "reserved", "reason": "Reserved on this firmware: the board keeps it and does nothing with it.", "until": 450.05, "src": "EN config_app.c:655" },
+
+    "p1frq": { "label": "Spindle PWM frequency", "short": "PWM frequency", "description": "The frequency of the spindle speed output.", "unit": "Hz", "display": 0, "group": "spindle-coolant", "tab": "io", "access": "read", "reason": "Not changed by Run yet.", "src": "EN config_app.c:376", "labelSrc": "EN pwm.c:256 fmt_p1frq" },
+    "p1csl": { "label": "Clockwise lowest speed", "short": "Clockwise lowest speed", "description": "The clockwise spindle speed that the lowest duty cycle gives.", "unit": "rpm", "display": 0, "group": "spindle-coolant", "tab": "io", "access": "read", "reason": "Not changed by Run yet.", "src": "EN config_app.c:377", "labelSrc": "EN pwm.c:257 fmt_p1csl" },
+    "p1csh": { "label": "Clockwise highest speed", "short": "Clockwise highest speed", "description": "The clockwise spindle speed that the highest duty cycle gives.", "unit": "rpm", "display": 0, "group": "spindle-coolant", "tab": "io", "access": "read", "reason": "Not changed by Run yet.", "src": "EN config_app.c:378", "labelSrc": "EN pwm.c:258 fmt_p1csh" },
+    "p1cpl": { "label": "Clockwise lowest duty", "short": "Clockwise lowest duty", "description": "The duty cycle, 0 to 1, at the lowest clockwise speed.", "unit": "ratio", "display": 3, "group": "spindle-coolant", "tab": "io", "access": "read", "reason": "Not changed by Run yet.", "src": "EN config_app.c:379", "labelSrc": "EN pwm.c:259 fmt_p1cpl" },
+    "p1cph": { "label": "Clockwise highest duty", "short": "Clockwise highest duty", "description": "The duty cycle, 0 to 1, at the highest clockwise speed.", "unit": "ratio", "display": 3, "group": "spindle-coolant", "tab": "io", "access": "read", "reason": "Not changed by Run yet.", "src": "EN config_app.c:380", "labelSrc": "EN pwm.c:260 fmt_p1cph" },
+    "p1wsl": { "label": "Counter-clockwise lowest speed", "short": "Counter-clockwise lowest speed", "description": "The counter-clockwise spindle speed that the lowest duty cycle gives.", "unit": "rpm", "display": 0, "group": "spindle-coolant", "tab": "io", "access": "read", "reason": "Not changed by Run yet.", "src": "EN config_app.c:381", "labelSrc": "EN pwm.c:261 fmt_p1wsl" },
+    "p1wsh": { "label": "Counter-clockwise highest speed", "short": "Counter-clockwise highest speed", "description": "The counter-clockwise spindle speed that the highest duty cycle gives.", "unit": "rpm", "display": 0, "group": "spindle-coolant", "tab": "io", "access": "read", "reason": "Not changed by Run yet.", "src": "EN config_app.c:382", "labelSrc": "EN pwm.c:262 fmt_p1wsh" },
+    "p1wpl": { "label": "Counter-clockwise lowest duty", "short": "Counter-clockwise lowest duty", "description": "The duty cycle, 0 to 1, at the lowest counter-clockwise speed.", "unit": "ratio", "display": 3, "group": "spindle-coolant", "tab": "io", "access": "read", "reason": "Not changed by Run yet.", "src": "EN config_app.c:383", "labelSrc": "EN pwm.c:263 fmt_p1wpl" },
+    "p1wph": { "label": "Counter-clockwise highest duty", "short": "Counter-clockwise highest duty", "description": "The duty cycle, 0 to 1, at the highest counter-clockwise speed.", "unit": "ratio", "display": 3, "group": "spindle-coolant", "tab": "io", "access": "read", "reason": "Not changed by Run yet.", "src": "EN config_app.c:384", "labelSrc": "EN pwm.c:264 fmt_p1wph" },
+    "p1pof": { "label": "Duty cycle when off", "short": "Duty when off", "description": "The duty cycle, 0 to 1, while the spindle is off.", "unit": "ratio", "display": 3, "group": "spindle-coolant", "tab": "io", "access": "read", "reason": "Not changed by Run yet.", "src": "EN config_app.c:385", "labelSrc": "EN pwm.c:265 fmt_p1pof" },
+
+    "spe": { "label": "Spindle on", "short": "Spindle on", "description": "Whether the spindle output is on now.", "unit": "enum", "enum": "offOn", "group": "spindle-coolant", "tab": "io", "access": "readout", "src": "EN config_app.c:693" },
+    "spd": { "label": "Spindle direction now", "short": "Direction now", "description": "The direction the spindle output is set to now.", "unit": "enum", "group": "spindle-coolant", "tab": "io", "access": "readout", "src": "EN config_app.c:694", "values": [{ "value": 0, "label": "Clockwise" }, { "value": 1, "label": "Counter-clockwise" }] },
+    "spc": { "label": "Spindle state", "short": "Spindle state", "description": "Off, or which way the spindle is turning.", "unit": "enum", "group": "spindle-coolant", "tab": "io", "access": "readout", "src": "EN config_app.c:695", "values": [{ "value": 0, "label": "Off" }, { "value": 1, "label": "Clockwise" }, { "value": 2, "label": "Counter-clockwise" }], "labelSrc": "EN canonical_machine.h:269-271 SPINDLE_OFF, SPINDLE_CW, SPINDLE_CCW" },
+    "sps": { "label": "Spindle speed now", "short": "Speed now", "description": "The spindle speed the board is asking for now.", "unit": "rpm", "display": 0, "group": "spindle-coolant", "tab": "io", "access": "readout", "src": "EN config_app.c:696" },
+    "cof": { "label": "Flood coolant", "short": "Flood coolant", "description": "Whether the flood coolant output is on now.", "unit": "enum", "enum": "offOn", "group": "spindle-coolant", "tab": "io", "access": "readout", "src": "EN config_app.c:697" },
+    "com": { "label": "Mist coolant", "short": "Mist coolant", "description": "Whether the mist coolant output is on now.", "unit": "enum", "enum": "offOn", "group": "spindle-coolant", "tab": "io", "access": "readout", "src": "EN config_app.c:698" },
+
+    "in1": { "label": "X min switch state", "short": "Now", "description": "Whether the X min switch is pressed now.", "unit": "enum", "enum": "inputState", "group": "inputs", "tab": "inputs", "access": "readout", "src": "EN config_app.c:510", "verify": "BC-1" },
+    "in2": { "label": "X max switch state", "short": "Now", "description": "Whether the X max switch is pressed now.", "unit": "enum", "enum": "inputState", "group": "inputs", "tab": "inputs", "access": "readout", "src": "EN config_app.c:511", "verify": "BC-1" },
+    "in3": { "label": "Y min switch state", "short": "Now", "description": "Whether the Y min switch is pressed now.", "unit": "enum", "enum": "inputState", "group": "inputs", "tab": "inputs", "access": "readout", "src": "EN config_app.c:512", "verify": "BC-1" },
+    "in4": { "label": "Y max switch state", "short": "Now", "description": "Whether the Y max switch is pressed now.", "unit": "enum", "enum": "inputState", "group": "inputs", "tab": "inputs", "access": "readout", "src": "EN config_app.c:513", "verify": "BC-1" },
+    "in5": { "label": "Z min switch state", "short": "Now", "description": "Whether the Z min switch is pressed now.", "unit": "enum", "enum": "inputState", "group": "inputs", "tab": "inputs", "access": "readout", "src": "EN config_app.c:514", "verify": "BC-1" },
+    "in6": { "label": "Z max switch state", "short": "Now", "description": "Whether the Z max switch is pressed now.", "unit": "enum", "enum": "inputState", "group": "inputs", "tab": "inputs", "access": "readout", "src": "EN config_app.c:515", "verify": "BC-1" },
+    "in7": { "label": "A min switch state", "short": "Now", "description": "Whether the A min switch is pressed now.", "unit": "enum", "enum": "inputState", "group": "inputs", "tab": "inputs", "access": "readout", "src": "EN config_app.c:516", "verify": "BC-1" },
+    "in8": { "label": "A max switch state", "short": "Now", "description": "Whether the A max switch is pressed now.", "unit": "enum", "enum": "inputState", "group": "inputs", "tab": "inputs", "access": "readout", "src": "EN config_app.c:517", "verify": "BC-1" },
+
+    "mfo": { "label": "Feed override", "short": "Feed override", "description": "The feed override factor asked for. 1 is 100 %.", "unit": "ratio", "display": 2, "group": "overrides", "tab": "settings", "access": "read", "reason": "Changed from the Job view's feed override.", "since": 450.05, "src": "EN45005 config_app.c:701" },
+    "mfoe": { "label": "Feed override switch", "short": "Feed override switch", "description": "Whether feed override is turned on.", "unit": "enum", "enum": "offOn", "group": "overrides", "tab": "settings", "access": "read", "reason": "Changed from the Job view's feed override.", "since": 450.05, "src": "EN45005 config_app.c:711" },
+    "m48e": { "label": "Overrides allowed (M48)", "short": "Overrides allowed (M48)", "description": "Whether overrides may act at all. M48 turns them on and M49 off.", "unit": "enum", "enum": "offOn", "group": "overrides", "tab": "settings", "access": "read", "reason": "Changed by M48 and M49 in a program.", "since": 450.05, "src": "EN45005 config_app.c:712" },
+    "mfc": { "label": "Feed override in effect", "short": "Feed override in effect", "description": "The feed factor the board applies now.", "unit": "ratio", "display": 2, "group": "overrides", "tab": "settings", "access": "readout", "since": 450.05, "src": "EN45005 config_app.c:703" },
+    "mcp": { "label": "Feed capped", "short": "Feed capped", "description": "Whether the board is holding the overridden feed at an axis limit.", "unit": "enum", "enum": "noYes", "group": "overrides", "tab": "settings", "access": "readout", "since": 450.05, "src": "EN45005 config_app.c:709" },
+    "mfe": { "label": "Feed override acting", "short": "Feed override acting", "description": "Whether feed override acts now: turned on and allowed by M48.", "unit": "enum", "enum": "noYes", "group": "overrides", "tab": "settings", "access": "readout", "since": 450.05, "src": "EN45005 config_app.c:710" },
+    "sso": { "label": "Spindle override", "short": "Spindle override", "description": "The spindle speed override factor asked for. 1 is 100 %.", "unit": "ratio", "display": 2, "group": "overrides", "tab": "settings", "access": "read", "reason": "Not changed by Run yet.", "since": 450.06, "src": "EN45006 config_app.c:702" },
+    "ssoe": { "label": "Spindle override switch", "short": "Spindle override switch", "description": "Whether spindle override is turned on.", "unit": "enum", "enum": "offOn", "group": "overrides", "tab": "settings", "access": "read", "reason": "Not changed by Run yet.", "since": 450.06, "src": "EN45006 config_app.c:713" },
+    "ssc": { "label": "Spindle override in effect", "short": "Spindle override in effect", "description": "The spindle factor the board applies now.", "unit": "ratio", "display": 2, "group": "overrides", "tab": "settings", "access": "readout", "since": 450.06, "src": "EN45006 config_app.c:704" },
+    "scp": { "label": "Spindle speed capped", "short": "Spindle speed capped", "description": "Whether the board is holding the overridden spindle speed at its limit.", "unit": "enum", "enum": "noYes", "group": "overrides", "tab": "settings", "access": "readout", "since": 450.06, "src": "EN45006 config_app.c:715" },
+    "sse": { "label": "Spindle override acting", "short": "Spindle override acting", "description": "Whether spindle override acts now: turned on and allowed by M48.", "unit": "enum", "enum": "noYes", "group": "overrides", "tab": "settings", "access": "readout", "since": 450.06, "src": "EN45006 config_app.c:714" }
   }
 }

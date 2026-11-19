@@ -9,7 +9,7 @@ import type { OverlayEntry, SourceRef, Unit } from '../overlays/types.ts';
 import type { SettingDefinition, SettingsFile } from './types.ts';
 
 /** Units only a describe-only token may carry. */
-const NOT_WRITTEN_UNITS: ReadonlySet<string> = new Set(['none', 'text', 'Hz', 'mm/min2', 'ratio']);
+const NOT_WRITTEN_UNITS: ReadonlySet<string> = new Set(['none', 'text', 'Hz', 'mm/min2', 'ratio', 'rpm', 'ms']);
 
 function sourceRef(key: string, src: string): SourceRef {
   const m = /^EN ([a-z_]+\.[ch]):([0-9]+)$/.exec(src);

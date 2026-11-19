@@ -16,7 +16,7 @@ import type { FactPattern, Range, Risk, TypedConfirm, Unit } from '../overlays/t
 export type SettingAccess = 'write' | 'read' | 'forbidden' | 'readout' | 'reserved';
 
 /** Units a definition may carry: the overlay's units plus the describe-only ones. */
-export type DefinitionUnit = Unit | 'none' | 'text' | 'Hz' | 'mm/min2' | 'ratio';
+export type DefinitionUnit = Unit | 'none' | 'text' | 'Hz' | 'mm/min2' | 'ratio' | 'rpm' | 'ms';
 
 export interface ValueDef {
   readonly value: number;
@@ -102,6 +102,7 @@ export interface SettingsFile {
   readonly inputs: readonly InputDefinition[];
   /** Axes a probe input may be on (449 switch.c:258-280). */
   readonly probeAllowed?: readonly string[];
+  readonly probeAllowedSrc?: string;
   /** How far homing searches when an axis's ends are equal. */
   readonly homingTravel?: { readonly rule: 'radiusFullTurn' | 'backoffOnly'; readonly src: string };
   readonly tokens: ReadonlyMap<string, SettingDefinition>;
