@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import { h } from 'preact';
 import { signal } from '@preact/signals';
+import { boardTab } from '../src/workspace/boardNavigation.ts';
 import { INITIAL_LIVE_VIEW, type LiveView, type WorkspaceModel } from '../src/workspace/model.ts';
 import { BoardNotices } from '../src/workspace/settings/BoardNotices.ts';
 import { editBlocked, readOnlyNotice } from '../src/workspace/settings/editGate.ts';
@@ -80,6 +81,15 @@ describe('the read-only notice\'s Back up settings (review finding 11)', () => {
     const busy = { ...v, message: { ...m, snapshot: { ...m.snapshot, base: 'RUNNING' } } } as LiveView;
     expect(notice(busy).props).toMatchObject({ disabled: true, title: 'Wait until the board is identified, read and at rest.' });
     expect(notice(v).props['disabled']).toBe(false);
+  });
+
+  it('is left out on the Backups tab, which has its own Back up settings (lead review, doubled control)', () => {
+    const notices = (): El => root(h(BoardNotices, { model: { live: signal(boardView(OWNER_449)), actions: signal({ backup: () => undefined }) } as unknown as WorkspaceModel, onUpdate: () => undefined }));
+    boardTab.value = 'backups';
+    expect(all(notices(), byAttr('data-action', 'notice-backup'))).toEqual([]);
+    expect(all(notices(), byAttr('data-action', 'notice-update'))).toHaveLength(1);
+    boardTab.value = 'overview';
+    expect(all(notices(), byAttr('data-action', 'notice-backup'))).toHaveLength(1);
   });
 });
 

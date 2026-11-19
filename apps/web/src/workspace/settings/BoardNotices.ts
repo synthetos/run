@@ -6,6 +6,7 @@
  */
 import { h, type ComponentChild } from 'preact';
 import { backupBlocked } from '../../live/backup.ts';
+import { boardTab } from '../boardNavigation.ts';
 import type { WorkspaceModel } from '../model.ts';
 import { discardNotice } from './boardChange.ts';
 import { editBlocked, READING_BOARD, readOnlyNotice } from './editGate.ts';
@@ -34,7 +35,8 @@ export function BoardNotices({ model, onUpdate }: { readonly model: WorkspaceMod
           'div',
           { class: 'board-notice', role: 'note', 'data-region': 'read-only-notice' },
           h('p', null, notice.text),
-          h(NoticeBackup, { model }),
+          // The Backups tab has its own Back up settings beside its heading: never two on one screen.
+          boardTab.value === 'backups' ? null : h(NoticeBackup, { model }),
           notice.update ? h('button', { type: 'button', class: 'small primary', 'data-action': 'notice-update', onClick: onUpdate }, 'Update firmware') : null,
         ),
     discarded === null
