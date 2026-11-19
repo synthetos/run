@@ -266,6 +266,15 @@ describe('firmware hub: settings backups (Board settings spec §5.8)', () => {
     expect(draftStore.value.value).toEqual({ xvm: 12000, '1mi': 4 });
   });
 
+  it('restore refuses at the source when the board may not be edited (review finding 7)', async () => {
+    const h = await mounted();
+    await h.actions.importSettings(file());
+    await settle();
+    h.onSnapshot(boardView({ readOnly: true, settings: BOARD }).message as SnapshotMessage, true, 2);
+    expect(await h.actions.stageSettings(h.view().settings[0]?.id as string)).toBe("Run can't change settings on firmware 450.06.");
+    expect(draftStore.value.value).toEqual({});
+  });
+
   it('restore refuses a backup from another dialect; adding a file that is not a backup says so', async () => {
     const h = await mounted();
     expect(await h.actions.importSettings('not json')).toBe('This is not a Run settings backup.');

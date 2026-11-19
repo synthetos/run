@@ -23,21 +23,28 @@ function firmwareText(m: Message): string {
 }
 
 /** The board is classified read-only, is not fully approved, or its dialect file is describe-only. */
-function readOnlyBoard(view: LiveView, m: Message): boolean {
+function readOnlyBoard(m: Message, readDialect: string | null): boolean {
   const s = m.snapshot;
   if (s.overlays.includes('READ_ONLY') || s.classification?.mode !== 'full') return true;
-  const dialect = view.readout.dialectId ?? s.classification.dialectId;
+  const dialect = readDialect ?? s.classification.dialectId;
   return dialect !== null && settingsDefsFor(dialect, numberOf(s.identity?.fb) ?? undefined)?.mode === 'readOnly';
+}
+
+/**
+ * Why settings cannot be made pending now, or null, from the last snapshot and the settings read: the one gate for
+ * the controls and for every path that stages pending changes (Restore).
+ */
+export function editBlockedFor(m: Message | null, settings: Readonly<Record<string, unknown>>, readDialect: string | null): string | null {
+  if (m === null || m.snapshot.base === 'NOT_CONNECTED') return 'Connect a board to change its settings.';
+  if (m.settingsWrites !== true) return SETTINGS_WRITES_UNAVAILABLE;
+  if (readOnlyBoard(m, readDialect)) return `Run can't change settings on ${firmwareText(m)}.`;
+  if (Object.keys(settings).length === 0) return 'Wait for the settings read to finish.';
+  return null;
 }
 
 /** Why settings cannot be made pending now, or null. */
 export function editBlocked(view: LiveView | null): string | null {
-  const m = view?.message ?? null;
-  if (view === null || m === null || m.snapshot.base === 'NOT_CONNECTED') return 'Connect a board to change its settings.';
-  if (m.settingsWrites !== true) return SETTINGS_WRITES_UNAVAILABLE;
-  if (readOnlyBoard(view, m)) return `Run can't change settings on ${firmwareText(m)}.`;
-  if (Object.keys(view.readout.settings).length === 0) return 'Wait for the settings read to finish.';
-  return null;
+  return view === null ? editBlockedFor(null, {}, null) : editBlockedFor(view.message, view.readout.settings, view.readout.dialectId);
 }
 
 function updateTarget(view: LiveView, m: Message): string | null {
@@ -54,7 +61,7 @@ export function readOnlyNotice(view: LiveView | null): { readonly text: string; 
   const m = view?.message ?? null;
   if (view === null || m === null || m.snapshot.base === 'NOT_CONNECTED') return null;
   if (m.settingsWrites !== true) return { text: 'Changing settings is not turned on here.', update: false };
-  if (!readOnlyBoard(view, m)) return null;
+  if (!readOnlyBoard(m, view.readout.dialectId)) return null;
   const head = `Run can't change settings on ${firmwareText(m)}. You can see every setting and back them up.`;
   if (!updateHelps(m)) return { text: head, update: false };
   const target = updateTarget(view, m);

@@ -16,6 +16,7 @@ import { approvalEnvironment } from '../machine-worker/approval.ts';
 import type { FlashBackupsPost, FlashCommand, SnapshotMessage } from '../machine-worker/rpc.ts';
 import type { FirmwareActions, FirmwareDownload, FirmwareHubView } from '../workspace/model.ts';
 import { setDraft } from '../workspace/boardFacts.ts';
+import { editBlockedFor } from '../workspace/settings/editGate.ts';
 import type { BackupFile } from './backup.ts';
 import type { DeviceSafetyStore } from './deviceSafety.ts';
 import { downloadTranscript } from './transcriptDownload.ts';
@@ -214,7 +215,8 @@ export async function mountFirmware(deps: FirmwareHubDeps): Promise<FirmwareHub>
     stageSettings: async (id) => {
       const r = (await repo.listSettings()).find((x) => x.id === id);
       const dialect = message?.snapshot.classification?.dialectId ?? null;
-      const refused = restoreRefusal(r, dialect);
+      // The edit gate at the source: a board Run can't change gets no pending changes (review finding 7).
+      const refused = editBlockedFor(message, deps.boardSettings(), dialect) ?? restoreRefusal(r, dialect);
       if (refused !== null || r === undefined || dialect === null) return refused;
       const result = restoreChanges(dialect, r.file.tokens, deps.boardSettings(), message?.snapshot.identity?.fb);
       for (const c of result.changes) setDraft(c.key, c.value);
