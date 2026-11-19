@@ -24,3 +24,14 @@ it('both release views escape GitHub notes, label prereleases and unknown contro
     expect(html).toContain('GitHub did not provide a SHA-256 digest.');
   }
 });
+
+it('an older release Run reads only as read-only still carries the downgrade note (safety text) in the compact rows', async () => {
+  const older = { ...row, tag: '440.21', file: 'tinyg-440.21.hex', notes: 'older build', sha256: 'a'.repeat(64), unavailable: null };
+  const verdict = await verifyFirmwareReleases({ format: 'synthetos-run/github-releases@1', releases: [older] }, { environment: 'staging', now: new Date() });
+  if (!verdict.ok) throw Error('bad fixture');
+  const hub = { releases: { ok: true as const, list: verdict.releases } } as Parameters<typeof FirmwareReleaseList>[0]['hub'];
+  const pick = () => undefined;
+  const html = renderToString(h(FirmwareReleaseList, { hub, shown: { fb: 450.02, hv: 8, kind: 'live' }, advanced: false, focusRelease: null, blocked: null, running: false, fetching: false, enabled: true, pick, pickLocal: pick }));
+  expect(html).toContain('data-release-note="downgrade"');
+  expect(html).toContain('Run will connect read-only to this version until Run is updated.');
+});

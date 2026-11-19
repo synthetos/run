@@ -101,7 +101,7 @@
 .release-list .pager { padding: 0 18px; }
 /* One fixed-height row per release (FirmwareReleaseList.ts ROW_PX), so a page of them fits. */
 .release-list .releases li { grid-template-columns: 120px minmax(0, 1fr) auto; gap: 16px; height: 76px; padding: 8px 0; align-items: center; overflow: hidden; }
-.release-list .releases.adv li { height: 104px; }
+.release-list .releases.adv li { height: 112px; }
 .release-list .rel-ver { display: flex; flex-wrap: wrap; gap: 2px 6px; align-items: baseline; align-self: center; }
 .release-list .rel-ver strong { flex-basis: 100%; }
 .release-list .rel-ver .tag { margin-top: 2px; }

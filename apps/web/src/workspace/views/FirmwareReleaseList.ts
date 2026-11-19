@@ -13,7 +13,7 @@ export const DOWNGRADE_NOTE = 'An older build starts with every setting at its d
 const fbText = (fb: number): string => fb.toFixed(2);
 const shortSha = (sha: string): string => `${sha.slice(0, 4)}…${sha.slice(-4)}`;
 /** Row heights (CSS `.releases li`, `.releases.adv li`): Advanced shows two more lines. */
-const ROW_PX = { simple: 76, advanced: 104 } as const;
+const ROW_PX = { simple: 76, advanced: 112 } as const;
 interface Props {
   readonly hub: FirmwareHubView | null;
   readonly shown: { readonly fb: number | null; readonly hv: number | null; readonly kind: string };
@@ -52,12 +52,14 @@ function RowActions({ r, blocked, running, fetching, enabled, installed, older, 
         input.value = '';
       } })));
 }
-/** The one line under the title that matters most for this release. */
+/** The lines under the title: why it can't be fetched, the downgrade note (safety text, always shown), read-only, installed. */
 function Detail({ r, installed, older }: RowProps): ComponentChild {
-  if (r.unavailable) return h('p', { role: 'status' }, r.unavailable);
-  if (!supportsFirmware(r.dialect, r.fb) && !r.simulatorOnly) return h('p', null, 'Run will connect read-only to this version until Run is updated.');
-  if (older) return h('p', { class: 'fine', 'data-release-note': 'downgrade', title: DOWNGRADE_NOTE }, DOWNGRADE_NOTE);
-  return installed ? h('p', { class: 'installed' }, 'Installed on this board') : null;
+  return [
+    r.unavailable ? h('p', { key: 'unavailable', role: 'status' }, r.unavailable) : null,
+    older ? h('p', { key: 'downgrade', class: 'fine', 'data-release-note': 'downgrade', title: DOWNGRADE_NOTE }, DOWNGRADE_NOTE) : null,
+    !supportsFirmware(r.dialect, r.fb) && !r.simulatorOnly ? h('p', { key: 'read-only' }, 'Run will connect read-only to this version until Run is updated.') : null,
+    installed ? h('p', { key: 'installed', class: 'installed' }, 'Installed on this board') : null,
+  ];
 }
 function Notes(props: RowProps): ComponentChild {
   const { r, advanced } = props;
