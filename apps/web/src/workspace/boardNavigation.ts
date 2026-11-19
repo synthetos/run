@@ -19,5 +19,20 @@ export const viewRequest = signal<string | null>(null);
 /** A release Board → Firmware should bring into view and mark (the update offer's "Go to update"); the view clears it. */
 export const releaseRequest = signal<string | null>(null);
 
+/**
+ * A release whose update flow Board → Firmware → Update should start, as its row's own button does (owner 169): the
+ * image is fetched and checked, then C6 asks. Nothing is written before C6. The view takes it once and clears it;
+ * when the row could not start right now, nothing happens and the rows stay on screen.
+ */
+export const updateRequest = signal<string | null>(null);
+
+/** Opens Board → Firmware → Update and starts that release's flow (the site-wide Update firmware buttons). */
+export function startFirmwareUpdate(file: string): void {
+  openFirmwareUpdate();
+  releaseRequest.value = file;
+  updateRequest.value = file;
+  viewRequest.value = 'board';
+}
+
 /** A pin Board → This board should open (the coolant toggle's "Set what is wired"); the Overview tab clears it. */
 export const pinRequest = signal<string | null>(null);

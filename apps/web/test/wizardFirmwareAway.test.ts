@@ -5,8 +5,9 @@ import { EMPTY_SETUP_RECORD } from '@synthetos/library';
 import { AppShell } from '../src/workspace/AppShell.ts';
 import { accountState, CHECKING } from '../src/live/account.ts';
 import { setupView } from '../src/workspace/cloud/setupSync.ts';
-import { boardTab, firmwareSubTab, releaseRequest } from '../src/workspace/boardNavigation.ts';
+import { boardTab, firmwareSubTab, releaseRequest, updateRequest, viewRequest } from '../src/workspace/boardNavigation.ts';
 import { backToSetup, leaveSetupForFirmware, restartSetup, setupAway } from '../src/wizard/setupActions.ts';
+import { BackToSetup, FLASHING_TITLE } from '../src/wizard/BackToSetup.ts';
 
 const build = { version: '1.2.3', sha: '0123456789abcdef0123456789abcdef01234567' };
 const signedIn = (): void => {
@@ -25,6 +26,8 @@ describe('the firmware step leaves the wizard for Board → Firmware → Update 
     boardTab.value = 'overview';
     firmwareSubTab.value = null;
     releaseRequest.value = null;
+    updateRequest.value = null;
+    viewRequest.value = null;
     accountState.value = CHECKING;
     setupView.value = { record: null, machines: 0, refreshed: false, account: false };
     vi.unstubAllGlobals();
@@ -39,10 +42,26 @@ describe('the firmware step leaves the wizard for Board → Firmware → Update 
     expect(boardTab.value).toBe('firmware');
     expect(firmwareSubTab.value).toBe('update');
     expect(releaseRequest.value).toBe('tinyg-450.06.hex');
+    // Owner 169: it starts that release's flow (C6), as the release row's own button does.
+    expect(updateRequest.value).toBe('tinyg-450.06.hex');
     const html = renderToString(h(AppShell, { build }));
     expect(html).not.toContain('data-wizard-step');
     expect(html).not.toContain(' inert');
-    expect(html).toMatch(/data-action="back-to-setup"[^>]*>Back to setup</);
+    // A quiet action at the right end of the Firmware sub-tab row, not a bordered box (owner 169).
+    expect(html).toMatch(/class="subtabs-bar"[\s\S]*?role="tablist"[\s\S]*?data-action="back-to-setup"[^>]*>← Back to setup</);
+    expect(html).not.toContain('setup-return');
+  });
+
+  it('Back to setup is disabled while the flash writes, with why, so the wizard never covers a running update', () => {
+    signedIn();
+    onStep3();
+    setupAway.value = true;
+    const idle = renderToString(h(BackToSetup, { flashing: false }));
+    expect(idle).not.toContain('disabled');
+    const flashing = renderToString(h(BackToSetup, { flashing: true }));
+    expect(flashing).toMatch(/data-action="back-to-setup"[^>]*disabled/);
+    expect(flashing).toContain(`title="${FLASHING_TITLE}"`);
+    expect(FLASHING_TITLE).toBe('Wait until the update finishes.');
   });
 
   it('Back to setup returns to the same step; without a pending setup the Firmware page has no such button', () => {

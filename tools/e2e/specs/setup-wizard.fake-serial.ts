@@ -166,8 +166,8 @@ test('firmware needed (simulated): no skip, Next held, Update firmware opens Boa
   await shot(page, 'step-3-needed-light-1280');
   await page.locator('[data-action="wizard-update"]').click();
   await expect(page.locator('[data-wizard-step]')).toHaveCount(0);
-  const w29 = page.locator('[data-action="dismiss-w29"]');
-  await w29.waitFor({ timeout: 3_000 }).then(() => w29.click(), () => undefined);
+  // Out of the wizard the app is live again: W29 (the port was opened from the worker) can come up at any time.
+  await page.addLocatorHandler(page.locator('[data-action="dismiss-w29"]'), async (ok) => { await ok.click(); });
   const row = page.locator('[data-screen="board"] [data-release="tinyg-450.06.hex"]');
   await expect(row).toHaveAttribute('data-release-focus', '');
   // The flash closes the session: back in setup, the step offers no Connect and holds Next and Skip.

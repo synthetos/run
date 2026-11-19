@@ -73,7 +73,7 @@ function identifying(): LiveView {
 }
 
 describe('the read-only notice\'s Back up settings (review finding 11)', () => {
-  const notice = (v: LiveView): El => one(root(h(BoardNotices, { model: { live: signal(v), actions: signal({ backup: () => undefined }) } as unknown as WorkspaceModel, onUpdate: () => undefined })), byAttr('data-action', 'notice-backup'));
+  const notice = (v: LiveView): El => one(root(h(BoardNotices, { model: { live: signal(v), actions: signal({ backup: () => undefined }) } as unknown as WorkspaceModel })), byAttr('data-action', 'notice-backup'));
 
   it('follows backupBlocked: disabled with its reason when the board cannot be read now', () => {
     const v = boardView(OWNER_449);
@@ -84,10 +84,11 @@ describe('the read-only notice\'s Back up settings (review finding 11)', () => {
   });
 
   it('is left out on the Backups tab, which has its own Back up settings (lead review, doubled control)', () => {
-    const notices = (): El => root(h(BoardNotices, { model: { live: signal(boardView(OWNER_449)), actions: signal({ backup: () => undefined }) } as unknown as WorkspaceModel, onUpdate: () => undefined }));
+    const notices = (): El => root(h(BoardNotices, { model: { live: signal(boardView(OWNER_449)), actions: signal({ backup: () => undefined }) } as unknown as WorkspaceModel }));
     boardTab.value = 'backups';
     expect(all(notices(), byAttr('data-action', 'notice-backup'))).toEqual([]);
-    expect(all(notices(), byAttr('data-action', 'notice-update'))).toHaveLength(1);
+    // No updater and no release list in this view: no Update firmware that could not act (owner 169, updateStart.test.ts).
+    expect(all(notices(), byAttr('data-action', 'notice-update'))).toEqual([]);
     boardTab.value = 'overview';
     expect(all(notices(), byAttr('data-action', 'notice-backup'))).toHaveLength(1);
   });
@@ -101,7 +102,7 @@ describe('classification not known yet (review finding 8)', () => {
 
   it('the Board notices say "Reading the board…" with no buttons', () => {
     const model = { live: signal(identifying()), actions: signal(null) } as unknown as WorkspaceModel;
-    const el = root(h(BoardNotices, { model, onUpdate: () => undefined }));
+    const el = root(h(BoardNotices, { model }));
     const line = one(el, byAttr('data-region', 'board-reading'));
     expect(text(line)).toBe('Reading the board…');
     expect(all(el, (e) => e.tag === 'button')).toEqual([]);

@@ -5,7 +5,7 @@
  */
 import { signal } from '@preact/signals';
 import { EMPTY_SETUP_RECORD } from '@synthetos/library';
-import { openFirmwareUpdate, releaseRequest, viewRequest } from '../workspace/boardNavigation.ts';
+import { openFirmwareUpdate, releaseRequest, startFirmwareUpdate, viewRequest } from '../workspace/boardNavigation.ts';
 import { saveSetup, setupView, type SetupPatch } from '../workspace/cloud/setupSync.ts';
 import { markDone, skip, type StepId } from './wizardState.ts';
 
@@ -15,11 +15,15 @@ import { markDone, skip, type StepId } from './wizardState.ts';
  */
 export const setupAway = signal(false);
 
-/** Step 3's Update firmware: the full Firmware page, the offered release marked when there is one. */
+/**
+ * Step 3's Update firmware: the full Firmware page with that release's flow started (owner 169: C6 opens when the row
+ * could start it; otherwise the rows show, the release marked). Without a release, the page alone.
+ */
 export function leaveSetupForFirmware(release: string | null): void {
   setupAway.value = true;
+  if (release !== null) return startFirmwareUpdate(release);
   openFirmwareUpdate();
-  releaseRequest.value = release;
+  releaseRequest.value = null;
   viewRequest.value = 'board';
 }
 

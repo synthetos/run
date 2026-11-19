@@ -8,6 +8,7 @@ import { h, type ComponentChild } from 'preact';
 import { useState } from 'preact/hooks';
 import { c13 } from '@synthetos/safety';
 import { boardTab, openFirmwareUpdate, viewRequest } from './boardNavigation.ts';
+import { goToUpdate } from './updateStart.ts';
 import { NotesPill } from './notes/NotesPill.ts';
 import { usePublishNotes } from './notes/usePublishNotes.ts';
 import { controlBlock, type BlockActionId, type ControlBlock } from './controlBlock.ts';
@@ -31,9 +32,12 @@ export function currentBlock(model: WorkspaceModel | null | undefined): ControlB
 export function blockAction(id: BlockActionId, model: WorkspaceModel | null): 'ask-clear-alarm' | null {
   switch (id) {
     case 'trust':
-    case 'update':
       openFirmwareUpdate();
       viewRequest.value = 'board';
+      return null;
+    case 'update':
+      // Owner 169: straight to the recommended release's flow (C6) when it can start, else the Update page.
+      goToUpdate(model?.live.value ?? null);
       return null;
     case 'review':
       boardTab.value = 'settings';

@@ -11,7 +11,7 @@ import { useRef, useState } from 'preact/hooks';
 import { offerText, fbText, updateOffer } from '../firmware/updateOffer.ts';
 import { dismissOffer, offerDismissed } from '../firmware/offerMemory.ts';
 import { setupAway } from '../wizard/setupActions.ts';
-import { openFirmwareUpdate, releaseRequest, viewRequest } from './boardNavigation.ts';
+import { startFirmwareUpdate } from './boardNavigation.ts';
 import { jobStep } from './jobWorkflow.ts';
 import { currentFile } from './fileBridge.ts';
 import type { WorkspaceModel } from './model.ts';
@@ -96,11 +96,10 @@ export function FirmwareOffer({ model, role, live }: FirmwareOfferProps): Compon
             type: 'button',
             class: 'small primary',
             'data-action': 'firmware-offer-go',
+            // Owner 169: straight to that release's flow on Board → Firmware → Update (C6 asks before anything is written).
             onClick: () => {
               close();
-              openFirmwareUpdate();
-              releaseRequest.value = offer.release.file;
-              viewRequest.value = 'board';
+              startFirmwareUpdate(offer.release.file);
             },
           },
           'Go to update',

@@ -6,8 +6,9 @@
  */
 import { h, type ComponentChild } from 'preact';
 import { backupBlocked } from '../../live/backup.ts';
-import { boardTab } from '../boardNavigation.ts';
-import type { WorkspaceModel } from '../model.ts';
+import { boardTab, startFirmwareUpdate } from '../boardNavigation.ts';
+import type { LiveView, WorkspaceModel } from '../model.ts';
+import { updateStart } from '../updateStart.ts';
 import { discardNotice } from './boardChange.ts';
 import { editBlocked, READING_BOARD, readOnlyNotice } from './editGate.ts';
 
@@ -19,7 +20,14 @@ function NoticeBackup({ model }: { readonly model: WorkspaceModel | null }): Com
   return h('button', { type: 'button', class: 'small', 'data-action': 'notice-backup', 'data-machine-control': 'read', disabled: blocked !== null || reading || model === null, title: blocked ?? undefined, onClick: () => model?.actions.value?.backup() }, 'Back up settings');
 }
 
-export function BoardNotices({ model, onUpdate }: { readonly model: WorkspaceModel | null; readonly onUpdate: () => void }): ComponentChild {
+/** Update firmware: starts the recommended release's flow (C6); not drawn when it could not act now (owner 169). */
+function NoticeUpdate({ view }: { readonly view: LiveView | null }): ComponentChild {
+  const release = updateStart(view);
+  if (release === null) return null;
+  return h('button', { type: 'button', class: 'small primary', 'data-action': 'notice-update', onClick: () => startFirmwareUpdate(release.file) }, 'Update firmware');
+}
+
+export function BoardNotices({ model }: { readonly model: WorkspaceModel | null }): ComponentChild {
   const view = model?.live.value ?? null;
   const notice = readOnlyNotice(view);
   const reading = editBlocked(view) === READING_BOARD;
@@ -37,7 +45,7 @@ export function BoardNotices({ model, onUpdate }: { readonly model: WorkspaceMod
           h('p', null, notice.text),
           // The Backups tab has its own Back up settings beside its heading: never two on one screen.
           boardTab.value === 'backups' ? null : h(NoticeBackup, { model }),
-          notice.update ? h('button', { type: 'button', class: 'small primary', 'data-action': 'notice-update', onClick: onUpdate }, 'Update firmware') : null,
+          notice.update ? h(NoticeUpdate, { view }) : null,
         ),
     discarded === null
       ? null

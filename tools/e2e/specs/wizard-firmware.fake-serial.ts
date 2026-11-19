@@ -104,15 +104,22 @@ async function updateFromTheStep(page: Page, theme: 'light' | 'dark'): Promise<v
   await expect(page.locator('#board-pane-firmware [data-subtab="update"]')).toHaveAttribute('aria-selected', 'true');
   // Already on the update: the offer modal does not cover the page.
   await expect(page.locator('[data-region="firmware-offer"]')).toHaveCount(0);
-  await expect(page.locator('[data-action="back-to-setup"]')).toBeVisible();
+  // Owner 169: Back to setup is a quiet action at the right end of the sub-tab row, level with the tabs.
+  const back = page.locator('#board-pane-firmware .subtabs-bar [data-action="back-to-setup"]');
+  await expect(back).toBeVisible();
+  expect(await backBesideTabs(page)).toBe(true);
+  // Owner 169: Update firmware starts the release's flow; C6 opens without a second press on the row.
+  const confirm = page.locator('[data-region="flash-confirm"]');
+  await expect(confirm.locator('[data-safety="W11"]')).toBeVisible({ timeout: 20_000 });
+  await expect(back).toBeEnabled();
+  await confirm.locator('[data-action="cancel-flash"]').click();
   const release = page.locator(RELEASE);
   await expect(release).toHaveAttribute('data-release-focus', '', { timeout: 20_000 });
   await expect(release.locator('[data-action="update-release"]')).toBeEnabled({ timeout: 20_000 });
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollHeight > window.innerHeight)).toBe(false);
   await shotIn(page, SHOT_DIR, `firmware-page-${theme}-1280`);
   await release.locator('[data-action="update-release"]').click();
-  // The click answers in view with the C6 confirm.
-  const confirm = page.locator('[data-region="flash-confirm"]');
+  // The row's button answers in view with the C6 confirm too.
   await expect(confirm.locator('[data-safety="W11"]')).toBeVisible({ timeout: 20_000 });
   // It opens at its head, with Cancel focused: W11 stays wholly in view (the focus used to scroll the column to Cancel).
   await expect(confirm.locator('[data-action="cancel-flash"]')).toBeFocused();
@@ -131,7 +138,22 @@ async function updateFromTheStep(page: Page, theme: 'light' | 'dark'): Promise<v
   await expect(page.locator('[data-region="firmware-update"]')).toBeVisible({ timeout: 60_000 });
   // Backups first: the board's settings and current firmware are read before anything is written.
   await expect(page.locator('[data-flash-phase="backup"], [data-flash-phase="saving"], [data-flash-phase="write"]')).toBeVisible({ timeout: 60_000 });
+  // While the flash runs, Back to setup stays in view but cannot cover the update: disabled, with why.
+  await expect(back).toBeDisabled();
+  await expect(back).toHaveAttribute('title', 'Wait until the update finishes.');
   await shotIn(page, SHOT_DIR, `update-started-${theme}-1280`);
+}
+
+/** Back to setup sits at the right end of the Firmware sub-tab row, vertically level with the tabs. */
+function backBesideTabs(page: Page): Promise<boolean> {
+  return page.evaluate(() => {
+    const bar = document.querySelector('#board-pane-firmware .subtabs-bar')?.getBoundingClientRect();
+    const tab = document.querySelector('#board-pane-firmware [data-subtab="update"]')?.getBoundingClientRect();
+    const back = document.querySelector('#board-pane-firmware [data-action="back-to-setup"]')?.getBoundingClientRect();
+    if (bar === undefined || tab === undefined || back === undefined) return false;
+    const level = Math.abs((tab.top + tab.bottom) / 2 - (back.top + back.bottom) / 2) <= 2;
+    return level && back.right >= bar.right - 2 && back.left > tab.right;
+  });
 }
 
 test('the step shows the standing and Update firmware; the full Firmware page runs the update; Back to setup re-checks and offers Next (light)', async ({ page }) => {
@@ -142,6 +164,8 @@ test('the step shows the standing and Update firmware; the full Firmware page ru
   await expect(page.locator('[data-version-check="ok"]')).toBeVisible({ timeout: 30_000 });
   const status = (await request(worker, { v: 3, kind: 'status' })) as { status: { session: { identity: { fb?: number } | null } } };
   expect(status.status.session.identity?.fb).toBe(451);
+  // After the update it is enabled again.
+  await expect(page.locator('[data-action="back-to-setup"]')).toBeEnabled();
   await page.locator('[data-action="back-to-setup"]').click();
   await expect(step(page, 3)).toBeVisible();
   await expect(page.locator('[data-firmware-step="current"]')).toHaveText('Firmware 451.00 is current.', { timeout: 20_000 });

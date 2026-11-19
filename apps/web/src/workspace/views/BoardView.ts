@@ -67,7 +67,7 @@ export function BoardView({ model }: { readonly model: WorkspaceModel | null }):
     'div',
     { class: 'board-view' },
     h('div', { class: 'view-head' }, h('div', { class: 'title-block' }, h('h1', null, 'Board')), h('div', { class: 'view-actions board-tabs' }, h(TabBar<Tab>, { label: 'Board', prefix: 'board', attr: 'data-board-tab', current: tab, onSelect: setTab, tabs }))),
-    h(BoardNotices, { model, onUpdate: openFirmwareUpdate }),
+    h(BoardNotices, { model }),
     pane('overview', h(OverviewTab, { view })),
     pane('motors', h(MotorsTab, { view })),
     pane('axes', h(AxesTab, { view })),

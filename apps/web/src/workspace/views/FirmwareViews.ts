@@ -19,7 +19,6 @@ import { useEffect, useState } from 'preact/hooks';
 import { bootloaderHardwareVersions } from '../../firmware/bootloaderHardware.ts';
 import { releaseRequest } from '../boardNavigation.ts';
 import { boardText, c38, w11, w28, w45, w46, w48, w49, w50 } from '@synthetos/safety';
-import { type FirmwareRelease } from '@synthetos/protocol';
 import { signalText } from '../../shell/signal.ts';
 import { uiLevel } from '../jobWorkflow.ts';
 import { reviewOpen } from '../settings/reviewState.ts';
@@ -30,6 +29,7 @@ import type { FlashView } from '../../machine-worker/flashService.ts';
 import { shownBoard } from './firmwareBoard.ts';
 import { Dismissable } from '../notes/Dismissable.ts';
 import { FirmwareReleaseList } from './FirmwareReleaseList.ts';
+import { useReleasePick } from './releasePick.ts';
 import type { MotionCommand } from '../../machine-worker/rpc.ts';
 
 /** Next to an older release's button (first-time walk C8): what a downgrade does to the board's settings. */
@@ -236,19 +236,7 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
   };
   const download = hub?.download ?? null;
   const fetching = download !== null && (download.phase === 'fetching' || download.phase === 'checking');
-  /** Fetch the listed image from this site (the Worker's proxy for a GitHub release), check it, then ask C6. */
-  const pick = (r: FirmwareRelease): void => {
-    const fw = actions?.firmware;
-    if (fw === undefined) return;
-    setMsg(null);
-    void fw.downloadRelease(r).then((got) => (got.ok ? setTarget({ kind: 'release', image: got.image }) : setMsg(got.message)));
-  };
-  const pickLocal = (r: FirmwareRelease, text: string): void => {
-    const fw = actions?.firmware;
-    if (fw === undefined) return;
-    setMsg(null);
-    void fw.checkLocalCopy(r, text).then((got) => (got.ok ? setTarget({ kind: 'release', image: got.image }) : setMsg(got.message)));
-  };
+  const { pick, pickLocal } = useReleasePick({ actions, hub, setMsg, setTarget, blocked, running, fetching });
   // C6 takes the Update part's whole area while it is open, the releases and the side column set aside, so every
   // warning, box and button fits without scrolling (owner 167).
   if (view !== null && target !== null) return h(ConfirmFlash, { view, target, wide: true, onCancel: () => setTarget(null), onConfirm: start });

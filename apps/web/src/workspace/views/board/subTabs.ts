@@ -29,13 +29,17 @@ export function chosen(choice: Signal<string | null>, tabs: readonly SubTab[]): 
   return tabs.some((t) => t.id === id) ? (id as string) : (tabs[0]?.id ?? '');
 }
 
-/** The sub-tab bar and the chosen part. `name` labels the bar for assistive technology. */
-export function SubTabs({ name, prefix, tabs, choice, render }: { readonly name: string; readonly prefix: string; readonly tabs: readonly SubTab[]; readonly choice: Signal<string | null>; readonly render: (id: string) => ComponentChild }): ComponentChild {
+/**
+ * The sub-tab bar and the chosen part. `name` labels the bar for assistive technology. `end` is an action at the
+ * right end of the bar, level with the tabs (Firmware's Back to setup, owner 169); the bar is unchanged without it.
+ */
+export function SubTabs({ name, prefix, tabs, choice, render, end }: { readonly name: string; readonly prefix: string; readonly tabs: readonly SubTab[]; readonly choice: Signal<string | null>; readonly render: (id: string) => ComponentChild; readonly end?: ComponentChild }): ComponentChild {
   const current = chosen(choice, tabs);
+  const bar = h(TabBar<string>, { label: name, prefix, attr: 'data-subtab', variant: 'underline', tabs, current, onSelect: (id) => { choice.value = id; } });
   return h(
     'div',
     { class: 'subtabs', 'data-subtabs': prefix },
-    h(TabBar<string>, { label: name, prefix, attr: 'data-subtab', variant: 'underline', tabs, current, onSelect: (id) => { choice.value = id; } }),
+    end === undefined || end === null ? bar : h('div', { class: 'subtabs-bar' }, bar, end),
     h('div', { role: 'tabpanel', id: `${prefix}-pane-${current}`, 'aria-labelledby': `${prefix}-tab-${current}`, class: 'subtab-pane', 'data-subtab-pane': current }, render(current)),
   );
 }

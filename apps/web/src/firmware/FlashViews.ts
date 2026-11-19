@@ -1,4 +1,5 @@
 /** Shared flash checklist and progress views. No workspace controls. */
+import { signal } from '@preact/signals';
 import { h, type ComponentChild, type RefObject } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { boardText, c37, c6Boxes, c6Question, w11, w28, w47 } from '@synthetos/safety';
@@ -42,15 +43,21 @@ export function useConfirmInView<T extends HTMLElement>(open: boolean): RefObjec
   return ref;
 }
 
+/** How many C6 confirms are on screen: a site-wide Update firmware has nothing to start while one is (owner 169). */
+export const confirmsOpen = signal(0);
+
 /**
  * Cancel takes the focus as the confirm opens, without scrolling to it (owner 167). A plain `autofocus` made the
  * browser scroll the column down to Cancel, the last line, which pushed W11, W28 and the first boxes out of view:
- * inside the setup wizard's nested scroll boxes the click on "Update to …" looked dead.
+ * inside the setup wizard's nested scroll boxes the click on "Update to …" looked dead. The confirm also counts
+ * itself in `confirmsOpen` while it is mounted.
  */
 function useQuietFocus(): RefObject<HTMLButtonElement | null> {
   const ref = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     ref.current?.focus({ preventScroll: true });
+    confirmsOpen.value += 1;
+    return () => { confirmsOpen.value -= 1; };
   }, []);
   return ref;
 }
