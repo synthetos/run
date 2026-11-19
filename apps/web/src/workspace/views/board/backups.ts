@@ -16,12 +16,16 @@ import type { FirmwareActions, FirmwareHubView, LiveView, WorkspaceModel } from 
 import { defsFor } from '../../settings/defs.ts';
 import { editBlocked } from '../../settings/editGate.ts';
 import { boardInches, valueWordsOf } from '../../settings/meta.ts';
+import { ConfirmCard } from '../../ui.ts';
 
 type Row = FirmwareHubView['settings'][number];
 type Compare = NonNullable<FirmwareHubView['compare']>;
 
 /** The last message from a backup action (a refusal, a result), shown under the heading. */
 export const backupMessage = signal<string | null>(null);
+
+/** The backup whose Delete is waiting for its confirmation, or null. */
+export const deleting = signal<string | null>(null);
 
 const WHY: Readonly<Record<string, string>> = { manual: 'Manual', 'before-apply': 'Before an apply', 'before-update': 'Before a firmware update', import: 'Added from a file' };
 const IMPORT_ID = 'board-backup-import';
@@ -94,7 +98,7 @@ function BackupRow({ b, view, fw, thisBoard, canRestore }: { readonly b: Row; re
         h('button', { type: 'button', class: 'small', 'data-action': 'backup-compare', disabled: fw === undefined, onClick: () => fw !== undefined && say(fw.compareSettings(b.id)) }, 'Compare'),
         canRestore && fw !== undefined ? h('button', { type: 'button', class: 'small', 'data-machine-control': 'settings-write', 'data-action': 'backup-restore', onClick: () => restore(fw, b.id, view) }, 'Restore…') : null,
         h('button', { type: 'button', class: 'small', 'data-action': 'backup-export', disabled: fw === undefined, onClick: () => void fw?.exportSettings(b.id) }, 'Download'),
-        h('button', { type: 'button', class: 'small quiet', 'data-action': 'backup-delete', disabled: fw === undefined, onClick: () => void fw?.deleteSettings(b.id) }, 'Delete'),
+        h('button', { type: 'button', class: 'small quiet', 'data-action': 'backup-delete', disabled: fw === undefined, onClick: () => { deleting.value = b.id; } }, 'Delete'),
       ),
     ),
     compare?.id === b.id ? h('tr', { key: `${b.id}-compare`, class: 'compare-row' }, h('td', { colSpan: 6, 'data-compare': b.id }, h(CompareRows, { c: compare, view }))) : null,
@@ -147,6 +151,22 @@ function Head({ model, view, fw }: { readonly model: WorkspaceModel | null; read
   ];
 }
 
+/** Delete asks first (review finding 12): the backup leaves this computer for good. */
+function DeleteConfirm({ view, fw }: { readonly view: LiveView | null; readonly fw: FirmwareActions | undefined }): ComponentChild {
+  const b = (view?.firmware?.settings ?? []).find((x) => x.id === deleting.value);
+  if (b === undefined || fw === undefined) return null;
+  return h(ConfirmCard, {
+    text: `Delete the backup taken ${dateText(b.takenAt)}? It is removed from this computer. Download it first to keep a copy.`,
+    confirm: 'Delete backup',
+    safety: 'backup-delete',
+    onCancel: () => { deleting.value = null; },
+    onConfirm: () => {
+      deleting.value = null;
+      void fw.deleteSettings(b.id);
+    },
+  });
+}
+
 export function BackupsSection({ model }: { readonly model: WorkspaceModel | null }): ComponentChild {
   const view = model?.live.value ?? null;
   const fw = model?.actions.value?.firmware;
@@ -154,5 +174,6 @@ export function BackupsSection({ model }: { readonly model: WorkspaceModel | nul
     'div',
     { tabindex: 0, class: 'hub', 'data-region': 'backups-hub' },
     h('section', { class: 'hub-section', 'aria-labelledby': 'hub-settings' }, h(Head, { model, view, fw }), h(Status, { view }), h(List, { view, fw })),
+    h(DeleteConfirm, { view, fw }),
   );
 }

@@ -9,8 +9,9 @@ import { signal } from '@preact/signals';
 import { clearDraft, setDraft } from '../src/workspace/boardFacts.ts';
 import { boardTab } from '../src/workspace/boardNavigation.ts';
 import type { FirmwareActions, FirmwareHubView, LiveView, WorkspaceModel } from '../src/workspace/model.ts';
-import { BackupsSection } from '../src/workspace/views/board/backups.ts';
-import { all, byAttr, one, root, text, type El } from './tree.ts';
+import { ConfirmCard } from '../src/workspace/ui.ts';
+import { BackupsSection, deleting } from '../src/workspace/views/board/backups.ts';
+import { all, byAttr, one, root, rootUntil, text, type El } from './tree.ts';
 import { boardView, OWNER_449 } from './boardViews.ts';
 
 type Rows = FirmwareHubView['settings'];
@@ -38,6 +39,7 @@ const withHub = (hub: FirmwareHubView, o: Parameters<typeof boardView>[0] = {}):
 beforeEach(() => {
   clearDraft();
   boardTab.value = 'backups';
+  deleting.value = null;
 });
 
 describe('BackupsSection', () => {
@@ -87,6 +89,27 @@ describe('BackupsSection', () => {
     await Promise.resolve();
     expect(staged).toEqual(['b1']);
     expect(boardTab.value).toBe('motors');
+  });
+
+  it('Delete asks first with the ConfirmCard; only Confirm deletes, Cancel keeps it (review finding 12)', () => {
+    const deleted: string[] = [];
+    const m = model(withHub(HUB([ROW()])), []);
+    (m.actions.value?.firmware as unknown as { deleteSettings: (id: string) => Promise<void> }).deleteSettings = (id) => {
+      deleted.push(id);
+      return Promise.resolve();
+    };
+    const view = (): El => rootUntil(h(BackupsSection, { model: m }), [ConfirmCard]);
+    (one(view(), byAttr('data-action', 'backup-delete')).props['onClick'] as () => void)();
+    expect(deleted).toEqual([]);
+    const card = one(view(), (e) => e.tag === 'ConfirmCard');
+    expect(card.props['confirm']).toBe('Delete backup');
+    expect(card.props['text']).toContain('removed from this computer');
+    (card.props['onCancel'] as () => void)();
+    expect(all(view(), (e) => e.tag === 'ConfirmCard')).toEqual([]);
+    (one(view(), byAttr('data-action', 'backup-delete')).props['onClick'] as () => void)();
+    (one(view(), (e) => e.tag === 'ConfirmCard').props['onConfirm'] as () => void)();
+    expect(deleted).toEqual(['b1']);
+    expect(all(view(), (e) => e.tag === 'ConfirmCard')).toEqual([]);
   });
 
   it('Restore is absent on a read-only board; Compare and Download stay', () => {
