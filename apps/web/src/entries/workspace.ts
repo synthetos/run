@@ -78,10 +78,13 @@ watchBoardChange(model.live);
 // cross-tab requests are never gated, and a rendering failure cannot remove them (SAFETY §4.3).
 const timers: Timers = { setTimeout: (fn, ms) => setTimeout(fn, ms), clearTimeout: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>) };
 let worker: Worker | null = null;
+// This page load's token: its machine worker carries it in its name and in an owner lock (ownerLock.ts).
+const tabToken = crypto.randomUUID();
 const { stopControls, watcher } = startStopPaths({
   target: { addEventListener: (type, listener, options) => addEventListener(type, listener, options) },
   channel: openStopChannel(),
   locks: browserLocks(),
+  owner: tabToken,
   timers,
   newId: () => crypto.randomUUID(),
   pauseOwnWorker: () => {
@@ -131,7 +134,7 @@ if (channel.kind === 'bench') {
     clearInterval: (h) => window.clearInterval(h as number),
   });
 }
-worker = startMachineWorker(trustedTypes);
+worker = startMachineWorker(trustedTypes, tabToken);
 if (worker !== null) serveFirmwareCatalog(worker);
 
 // LIVE entry (P1-05): the D1 sign-in gate, the signed advisory, C1, W6. UI/auth layer only.

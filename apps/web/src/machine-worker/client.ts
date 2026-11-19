@@ -17,12 +17,17 @@ import machineWorkerUrl from './machine.worker.ts?worker&url';
 /** The worker's name, as `self.name` inside it and in browser tooling. */
 export const MACHINE_WORKER_NAME = 'machine';
 
-export function startMachineWorker(tt: RunTrustedTypes | null): Worker | null {
+/** `machine`, or `machine:<tab token>`: the worker reads the token back (ownerLock.ts). */
+export function machineWorkerName(owner: string | null): string {
+  return owner === null ? MACHINE_WORKER_NAME : `${MACHINE_WORKER_NAME}:${owner}`;
+}
+
+export function startMachineWorker(tt: RunTrustedTypes | null, owner: string | null = null): Worker | null {
   if (tt === null) return null;
   // A TrustedScriptURL is what the Worker constructor needs under the CSP;
   // the DOM typings know only strings and URLs.
   const url = tt.workerScriptUrl(machineWorkerUrl) as unknown as string;
-  return new Worker(url, { type: 'module', name: MACHINE_WORKER_NAME });
+  return new Worker(url, { type: 'module', name: machineWorkerName(owner) });
 }
 
 export { callMachineWorker, type WorkerLike } from './call.ts';

@@ -11,7 +11,7 @@ import type { Page, Worker } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 import { afterRunningFirmwarePrecheck, isReportConfig } from './helpers.ts';
 import { STOP_TEXT, w29 } from '../../../packages/safety/src/strings.ts';
-import { machineWorker, request } from './machineWorker.ts';
+import { heldLocks, machineWorker, request } from './machineWorker.ts';
 
 const PORT = { usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0 } as const;
 const BOARD = 'SIM-EN-0001';
@@ -54,8 +54,9 @@ function stopClassOnly(list: readonly string[]): void {
 
 test('an observer tab sees the lock, its request reaches the worker while tab A is frozen (T-S29), and W29 follows tab A closing (T-S73)', async ({ page }) => {
   const workerA = await connectedTab(page);
-  // The lock is held under the board id, in this browser.
-  await expect.poll(() => page.evaluate(async () => (await navigator.locks.query()).held?.map((l) => l.name))).toEqual([`synthetos-machine:${BOARD}`]);
+  // The lock is held under the board id, in this browser, wrapped by tab A's owner lock.
+  await expect.poll(() => heldLocks(page, 'synthetos-machine:')).toEqual([`synthetos-machine:${BOARD}`]);
+  expect(await heldLocks(page, 'synthetos-tab:')).toEqual([expect.stringMatching(new RegExp(`^synthetos-tab:[0-9a-f-]{36}:synthetos-machine:${BOARD}$`))]);
 
   const tabB = await page.context().newPage();
   await tabB.goto('/');

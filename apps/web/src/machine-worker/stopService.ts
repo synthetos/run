@@ -42,6 +42,8 @@ export interface StopServiceOptions {
    * while the board is in its bootloader, so no other tab takes it or shows W29 then. Null when none.
    */
   readonly flashing?: () => { readonly boardId: string | null } | null;
+  /** This worker's tab token (ownerLock.ts), or null. */
+  readonly owner?: string | null;
 }
 
 export class MachineStopService {

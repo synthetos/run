@@ -1,6 +1,7 @@
 /** The shared machine lock survives the firmware handoff; it sends no controller commands. */
 import type { SessionSnapshot } from '@synthetos/machine';
 import { machineLockName, type LockManagerLike } from './stopChannel.ts';
+import { ownerLockName } from './ownerLock.ts';
 export interface LockSession {
   readonly snapshot: SessionSnapshot;
   subscribe(listener: () => void): unknown;
@@ -10,6 +11,8 @@ export interface MachineLockOptions {
   readonly locks: LockManagerLike | null;
   readonly instance: string;
   readonly flashing?: () => { readonly boardId: string | null } | null;
+  /** The tab token: when set, the owner lock wraps every machine lock (ownerLock.ts). */
+  readonly owner?: string | null;
 }
 export type LockState =
   | { readonly kind: 'none' }
@@ -23,6 +26,7 @@ export class MachineLock {
   readonly #locks: LockManagerLike | null;
   readonly #instance: string;
   readonly #flashing: () => { readonly boardId: string | null } | null;
+  readonly #owner: string | null;
   #lock: LockState = { kind: 'none' };
   /** Ends the current lock request's hold (resolves the promise the lock callback returned). */
   #release: (() => void) | null = null;
@@ -34,6 +38,7 @@ export class MachineLock {
     this.#locks = options.locks;
     this.#instance = options.instance;
     this.#flashing = options.flashing ?? (() => null);
+    this.#owner = options.owner ?? null;
     this.#session.subscribe(() => this.#syncLock());
     this.#syncLock();
   }
@@ -92,7 +97,11 @@ export class MachineLock {
         this.#release = resolve;
       });
     };
-    locks.request(name, { ifAvailable: true }, granted).catch(() => {
+    const machine = (): Promise<void> => locks.request(name, { ifAvailable: true }, granted);
+    const owner = this.#owner;
+    // The owner lock is held for as long as the machine request runs: taken first, let go after.
+    const request = owner === null ? machine() : locks.request(ownerLockName(owner, name), { ifAvailable: true }, (held) => (held === null ? granted(null) : machine()));
+    request.catch(() => {
       if (generation === this.#generation) this.#lock = { kind: 'unavailable', name };
     });
   }

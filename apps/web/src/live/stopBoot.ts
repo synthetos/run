@@ -7,6 +7,7 @@
  * every LIVE machine.
  */
 import type { BroadcastChannelLike, LockManagerLike } from '../machine-worker/stopChannel.ts';
+import { othersOnly } from '../machine-worker/ownerLock.ts';
 import { StopControls } from './stopControls.ts';
 import { installEscapeStop, LockWatcher, TabStop, type KeyTarget, type Timers } from './tabStop.ts';
 
@@ -14,6 +15,8 @@ export interface StopBootDeps {
   readonly target: KeyTarget;
   readonly channel: BroadcastChannelLike | null;
   readonly locks: LockManagerLike | null;
+  /** This tab's token: the lock watcher leaves out its own worker's machine locks (ownerLock.ts). */
+  readonly owner?: string | null;
   readonly timers: Timers;
   readonly newId: () => string;
   /** Feedhold this tab's own machine worker (none until it starts). */
@@ -32,7 +35,8 @@ export function startStopPaths(deps: StopBootDeps): StopPaths {
   const tabStop = new TabStop({ channel: deps.channel, locks: deps.locks, timers: deps.timers, newId: deps.newId });
   const stopControls = new StopControls({ broadcast: (action) => tabStop.request(action), pauseOwnWorker: deps.pauseOwnWorker, ...(deps.stopJobOwnWorker === undefined ? {} : { stopJobOwnWorker: deps.stopJobOwnWorker }), timers: deps.timers });
   installEscapeStop(deps.target, () => stopControls.pause());
-  const watcher = new LockWatcher(deps.locks, () => stopControls.live, deps.timers, (role) => stopControls.setRole(role));
+  // The tab whose worker holds a lock controls that machine, LIVE or not: never an observer of it.
+  const watcher = new LockWatcher(othersOnly(deps.locks, deps.owner ?? null), () => stopControls.live, deps.timers, (role) => stopControls.setRole(role));
   watcher.start();
   return { tabStop, stopControls, watcher };
 }

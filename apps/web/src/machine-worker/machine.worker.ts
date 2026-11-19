@@ -23,6 +23,7 @@ import { releaseSource } from './releaseSource.ts';
 import { MachineWorkerHost, realClock, workerPlatform } from './host.ts';
 import { releaseFor } from './motionFlag.ts';
 import { browserLocks, openStopChannel } from './stopChannel.ts';
+import { workerOwner } from './ownerLock.ts';
 import { MachineStopService } from './stopService.ts';
 import { createTransportSource } from './transport.ts';
 
@@ -42,6 +43,7 @@ const stops = new MachineStopService({
   locks: browserLocks(),
   instance: crypto.randomUUID(),
   flashing: () => (host.flash.busy ? { boardId: host.flash.view?.boardId ?? null } : null),
+  owner: workerOwner((globalThis as unknown as { name?: string }).name),
 });
 host.flashListener = () => stops.sync();
 

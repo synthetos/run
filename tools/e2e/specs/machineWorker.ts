@@ -24,6 +24,12 @@ export async function machineWorker(page: Page): Promise<Worker> {
   return worker;
 }
 
+/** The names of the Web Locks held in this browser that start with `prefix`. */
+export async function heldLocks(page: Page, prefix: string): Promise<string[]> {
+  const names = await page.evaluate(async () => (await navigator.locks.query()).held?.map((l) => l.name ?? '') ?? []);
+  return names.filter((n) => n.startsWith(prefix));
+}
+
 /** Sends one request (`{ v: 3, kind }`, or any raw value) and returns the worker's reply. */
 export function request(worker: Worker, message: unknown): Promise<unknown> {
   return worker.evaluate(

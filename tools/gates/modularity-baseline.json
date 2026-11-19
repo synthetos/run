@@ -1225,9 +1225,6 @@
     "tools/e2e/specs/safety-bar.e2e.ts": {
       "max-nested-callbacks $/ArrowFunctionExpression:test.describe()[1]#1/ArrowFunctionExpression:test()[1]#1/ArrowFunctionExpression:axe.violations.map()[0]#1/ArrowFunctionExpression:v.nodes.map()[0]#1": 4
     },
-    "tools/e2e/specs/tab-stop.fake-serial.ts": {
-      "max-nested-callbacks $/ArrowFunctionExpression:test('an observer tab sees the lock, its request reaches the worker while tab A is frozen (T-S29), and W29 follows tab A closing (T-S73)')[1]#1/ArrowFunctionExpression:expect.poll()[0]#1/ArrowFunctionExpression:page.evaluate()[0]#1/ArrowFunctionExpression:(await navigator.locks.query()).held?.map()[0]#1": 4
-    },
     "tools/e2e/specs/tool-library.e2e.ts": {
       "max-lines-per-function $/ArrowFunctionExpression:test()[1]#3": 120
     },
