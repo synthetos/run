@@ -4,8 +4,9 @@
  */
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { FORBIDDEN_WRITES, SETTINGS_SCHEMAS, TINYG_EN_OVERLAY, isForbiddenKey, screenWritePlan } from '../src/index.ts';
+import { FORBIDDEN_WRITES, SETTINGS_SCHEMAS, isForbiddenKey, screenWritePlan } from '../src/index.ts';
 import type { ProposedWrite, SettingsSchema, TinyGDialectId } from '../src/index.ts';
+import { TINYG_EN_OVERLAY } from './enOverlay.ts';
 
 const EN = SETTINGS_SCHEMAS['tinyg-en'];
 const IDS = Object.keys(SETTINGS_SCHEMAS) as TinyGDialectId[];

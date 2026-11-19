@@ -5,8 +5,9 @@
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { FACT_ROOTS, SETTINGS_SCHEMAS, TINYG_EN_OVERLAY, isForbiddenKey, setterClass, sourceUrl } from '../src/index.ts';
+import { FACT_ROOTS, SETTINGS_SCHEMAS, isForbiddenKey, setterClass, sourceUrl } from '../src/index.ts';
 import type { OverlayEntry } from '../src/index.ts';
+import { TINYG_EN_OVERLAY } from './enOverlay.ts';
 
 const REPO = resolve(import.meta.dirname, '../../..');
 const pins = (JSON.parse(readFileSync(join(REPO, 'vendor/firmware-pins.json'), 'utf8')) as { pins: Record<string, { commit: string; repo: string }> }).pins;

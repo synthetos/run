@@ -3,7 +3,6 @@ import {
   connectorLabel,
   dialectOf,
   plainValue,
-  RESERVED,
   settingMeta,
   settingsOf,
   type PinInfo
@@ -20,7 +19,8 @@ function PinSettings({ pin, view }: { readonly pin: PinInfo; readonly view: Live
   const snapshot = view !== null && connected(view) ? view.message?.snapshot : undefined;
   const r = displayReadouts(snapshot);
   const rows = pin.keys.map((k) => {
-    if (RESERVED.has(k)) return [settingMeta(k, dialect).label, 'Reserved on this firmware', k] as const;
+    const meta = settingMeta(k, dialect);
+    if (meta.access === 'reserved') return [meta.label, 'Reserved on this firmware', k] as const;
     if (k === 'spe') return ['Spindle, reported', spindleText(r), 'spe'] as const;
     if (k === 'cof' || k === 'com') return [k === 'cof' ? 'Flood, reported' : 'Mist, reported', coolantText(r), k] as const;
     if (k === 'spc' || k === 'spd' || k === 'sps') return null;

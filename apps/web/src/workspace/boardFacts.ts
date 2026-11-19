@@ -1,112 +1,23 @@
 /**
  * The board as data for the Board and Machines views: what each setting
- * means in plain words (the reviewed overlay, with the raw key kept as
- * secondary text), the TinyG v8 connector pins from the generated board
+ * means in plain words (read from the dialect's settings file,
+ * settings/meta.ts), the TinyG v8 connector pins from the generated board
  * definition (RUN_PLAN rule 6: derived facts only, nothing invented), and the
- * proposed settings draft.
+ * pending settings changes kept in this browser (`board-draft.v1`).
  *
- * The draft is a proposal kept in this browser. Writing settings is a later,
- * separately reviewed phase: nothing here reaches the board.
+ * Nothing here reaches the board: changes are written only by the apply
+ * pipeline (live/settingsApply.ts) after Review and apply and C5.
  */
 import { computed } from '@preact/signals';
-import { BOARD_DEFINITIONS, settingsSchemaFor, type BoardDefinition, type SettingValue } from '@synthetos/schema';
+import { BOARD_DEFINITIONS, type BoardDefinition, type SettingValue } from '@synthetos/schema';
 import { boardElectrical } from '@synthetos/wiring';
-import { valueText } from '../machine-ui/SettingsView.ts';
 import { connected, type LiveView } from './model.ts';
 import { isObject, stored } from './storage.ts';
 
+export { plainValue, settingMeta, valueWordsOf, type SettingMeta } from './settings/meta.ts';
+
 export const AXIS_NAMES = ['X', 'Y', 'Z', 'A', 'B', 'C'] as const;
 export const MOTORS = [1, 2, 3, 4] as const;
-
-/** Labels for the keys the overlay does not describe (sys group); values of these are shown as read. */
-const PLAIN_LABEL: Readonly<Record<string, string>> = {
-  baud: 'Serial baud setting',
-  ex: 'Flow control',
-  ec: 'Expand line feed to CR LF',
-  ee: 'Echo',
-  ej: 'JSON mode',
-  jv: 'JSON verbosity',
-  js: 'JSON syntax',
-  qv: 'Queue report verbosity',
-  sv: 'Status report verbosity',
-  si: 'Status report interval',
-  tv: 'Text verbosity',
-  ct: 'Chordal tolerance',
-  ja: 'Junction acceleration',
-  coph: 'Coolant output polarity',
-  spph: 'Spindle PWM polarity',
-  spde: 'Spindle direction delay',
-  gpl: 'Default plane',
-  gco: 'Default coordinate system',
-  gpa: 'Default path control',
-  fb: 'Firmware build',
-  fv: 'Firmware version',
-  hp: 'Hardware platform',
-  hv: 'Hardware version',
-  id: 'Board id',
-  rxm: 'Receive mode',
-  p1frq: 'PWM frequency',
-  p1csl: 'CW speed, low end',
-  p1csh: 'CW speed, high end',
-  p1cpl: 'CW duty at low speed',
-  p1cph: 'CW duty at high speed',
-  p1wsl: 'CCW speed, low end',
-  p1wsh: 'CCW speed, high end',
-  p1wpl: 'CCW duty at low speed',
-  p1wph: 'CCW duty at high speed',
-  p1pof: 'Duty when off',
-};
-
-/** Plain-words values for keys the repository documents (session types.ts: `ex` 0 off, 1 XON/XOFF, 2 RTS/CTS). */
-const PLAIN_VALUES: Readonly<Record<string, Readonly<Record<number, string>>>> = {
-  ex: { 0: 'off', 1: 'XON/XOFF', 2: 'RTS/CTS' },
-};
-
-/** Keys this firmware holds reserved: they answer "reserved" and cannot be set (den.json `_reserved_hold_setting`). */
-export const RESERVED = new Set(['coph', 'spph', 'spde']);
-
-export interface SettingMeta {
-  readonly key: string;
-  readonly label: string;
-  readonly unit: string;
-  readonly description: string;
-  /** Allowed enumerated values, when the overlay lists them. */
-  readonly values: readonly { readonly value: number; readonly label: string }[] | null;
-  readonly hwAllowed: readonly number[] | null;
-}
-
-function defs(dialect: string | null): ReturnType<typeof settingsSchemaFor>['settings'] | null {
-  try {
-    return settingsSchemaFor(dialect ?? 'tinyg-en').settings;
-  } catch {
-    return null;
-  }
-}
-
-export function settingMeta(key: string, dialect: string | null = null): SettingMeta {
-  const o = defs(dialect)?.get(key)?.overlay;
-  return {
-    key,
-    label: o?.label ?? PLAIN_LABEL[key] ?? key,
-    unit: o === undefined || o.unit === 'enum' ? '' : o.unit === 'Mmm/min3' ? 'M mm/min³' : o.unit === 'Mdeg/min3' ? 'M deg/min³' : o.unit === 'microsteps' ? '' : o.unit,
-    description: o?.description ?? '',
-    values: o?.values ?? null,
-    hwAllowed: o?.hwAllowed ?? null,
-  };
-}
-
-/** A setting's value in plain words: "limit + homing", "normally closed", "1.8 deg/step"; or null when not read. */
-export function plainValue(key: string, v: SettingValue | undefined, dialect: string | null = null): string | null {
-  if (v === undefined) return null;
-  const m = settingMeta(key, dialect);
-  if (typeof v === 'number') {
-    const named = m.values?.find((e) => e.value === v)?.label ?? PLAIN_VALUES[key]?.[v];
-    if (named !== undefined) return named;
-    const shown = Number.isInteger(v) ? v.toLocaleString('en-US').replace(/,/g, ' ') : String(Number(v.toFixed(4)));
-    return m.unit === '' ? shown : `${shown} ${m.unit}`;
-  }
-  return valueText(v);
-}
 
 /** The settings of the last complete read (empty when none). */
 export function settingsOf(view: LiveView | null): Readonly<Record<string, SettingValue>> {
@@ -214,11 +125,12 @@ function inputFunction(signal: string): { readonly text: string; readonly keys: 
   return { text: `${axis.toUpperCase()} ${SIDE[side]} switch input`, keys: [`${axis}s${side === 'min' ? 'n' : 'x'}`, 'st'] };
 }
 
+/** What each output signal does, and the settings that decide or report it; their words come from the settings file. */
 const OUTPUT_FUNCTION: Readonly<Record<string, { readonly text: string; readonly keys: readonly string[]; readonly note?: string }>> = {
   'out.spindleEnable': { text: 'Spindle enable output', keys: ['spep', 'spe'] },
   'out.spindleDirection': { text: 'Spindle direction output', keys: ['spdp', 'spc', 'spd'] },
-  'out.spindlePwm': { text: 'Spindle speed output (PWM)', keys: ['p1frq', 'p1csl', 'p1csh', 'p1cpl', 'p1cph', 'sps'], note: 'Its polarity key (spph) is reserved on this firmware.' },
-  'out.coolant': { text: 'Coolant output', keys: ['cof', 'com', 'coph'], note: 'Mist and flood share this one output. Its polarity key (coph) is reserved on this firmware.' },
+  'out.spindlePwm': { text: 'Spindle speed output (PWM)', keys: ['p1frq', 'p1csl', 'p1csh', 'p1cpl', 'p1cph', 'sps', 'spph'] },
+  'out.coolant': { text: 'Coolant output', keys: ['cof', 'com', 'coph'], note: 'Mist and flood share this one output.' },
 };
 
 /** Every connector pin of the TinyG v8, from the board definition, plus the four terminals of each motor output. */

@@ -209,7 +209,6 @@
       "complexity $/ArrowFunctionExpression:isReading#1": 18
     },
     "apps/web/src/workspace/boardFacts.ts": {
-      "complexity $/FunctionDeclaration:settingMeta#1": 18,
       "complexity $/FunctionDeclaration:v8Pins#1": 25
     },
     "apps/web/src/workspace/cloud/syncQueue.ts": {

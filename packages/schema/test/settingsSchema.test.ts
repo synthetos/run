@@ -3,8 +3,9 @@
  * overlay (ROADMAP P0-09; RUN_PLAN §7.2).
  */
 import { describe, expect, it } from 'vitest';
-import { D440, DEN, SETTINGS_SCHEMAS, TINYG_EN_OVERLAY, buildSettingsSchema, settingsSchemaFor } from '../src/index.ts';
+import { D440, DEN, SETTINGS_SCHEMAS, buildSettingsSchema, settingsSchemaFor } from '../src/index.ts';
 import type { OverlayEntry } from '../src/index.ts';
+import { TINYG_EN_OVERLAY } from './enOverlay.ts';
 
 describe('SETTINGS_SCHEMAS', () => {
   it('has every token of each vendored table, with group, type, persist flag and accessors', () => {

@@ -4,10 +4,10 @@ import { clearDraft, draftDiff, draftStore, motorFor, plainValue, setDraft, step
 
 
 describe('plain-words settings and the draft', () => {
-  it('reads enumerations and units from the overlay', () => {
-    expect(plainValue('xsn', 3)).toBe('limit + homing');
-    expect(plainValue('st', 1)).toBe('normally closed');
-    expect(plainValue('1sa', 1.8)).toBe('1.8 deg/step');
+  it('reads enumerations and units from the settings file', () => {
+    expect(plainValue('xsn', 3)).toBe('Homing and limit');
+    expect(plainValue('st', 1)).toBe('Normally closed');
+    expect(plainValue('1sa', 1.8)).toBe('1.8° per step');
     expect(plainValue('ex', 1)).toBe('XON/XOFF');
     expect(plainValue('xvm', undefined)).toBeNull();
   });

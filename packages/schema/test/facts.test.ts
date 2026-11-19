@@ -16,7 +16,6 @@ import {
   FactError,
   INVALIDATION_RULES,
   SETTINGS_SCHEMAS,
-  TINYG_EN_OVERLAY,
   addFact,
   factProblem,
   importProfileText,
@@ -29,6 +28,7 @@ import {
   view,
 } from '../src/index.ts';
 import type { FactBinding, FactState, FactTrigger, NewFact } from '../src/index.ts';
+import { TINYG_EN_OVERLAY } from './enOverlay.ts';
 import { HASH_A, HASH_B, MACHINE_ID, v1File } from './fixtures/profiles.ts';
 
 const T0 = Date.UTC(2026, 10, 1);

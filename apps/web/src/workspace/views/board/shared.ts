@@ -4,7 +4,6 @@ import {
   draftDiff,
   draftStore,
   plainValue,
-  RESERVED,
   settingMeta
 } from '../../boardFacts.ts';
 import { connected, type LiveView } from '../../model.ts';
@@ -22,7 +21,7 @@ export function fact(label: string, value: string, raw: string, attr?: string): 
 
 /** A value from the read, plain words first and the raw key after; "Not read" when absent. With `edit`, its editor below. */
 export function cell(key: string, settings: Settings, dialect: string | null, edit: LiveView | null = null): ComponentChild {
-  if (RESERVED.has(key)) return h('td', { key, class: 'muted' }, h(Keyed, { value: 'Reserved on this firmware', raw: key }));
+  if (settingMeta(key, dialect).access === 'reserved') return h('td', { key, class: 'muted' }, h(Keyed, { value: 'Reserved on this firmware', raw: key }));
   const v = plainValue(key, settings[key], dialect);
   const d = draftDiff(key, settings);
   return h(

@@ -1,0 +1,72 @@
+/**
+ * A setting in plain words, read from the dialect's settings file (Board
+ * settings spec §4.3): its name, its value spelled out with its unit, and why
+ * it is not written. A dialect without a file shows the token and the raw
+ * number; nothing here invents a meaning.
+ */
+import { settingsDefsFor, type DefinitionUnit, type SettingAccess, type SettingDefinition, type SettingValue, type ValueDef } from '@synthetos/schema';
+import { valueText } from '../../machine-ui/SettingsView.ts';
+import { numberWords, unitWords, withUnit } from './units.ts';
+
+export interface SettingMeta {
+  readonly key: string;
+  /** The raw token, shown beside the name at Advanced only (OD-44). */
+  readonly token: string;
+  readonly label: string;
+  /** The name inside its group ("Microsteps" under Motor 1). */
+  readonly short: string;
+  /** The unit as it reads beside a number ("million mm/min³"); empty for enumerations. */
+  readonly unit: string;
+  readonly description: string;
+  /** Every allowed value by meaning, when the data lists them. */
+  readonly values: readonly ValueDef[] | null;
+  readonly hwAllowed: readonly number[] | null;
+  /** Null when the dialect has no definition for the token. */
+  readonly access: SettingAccess | null;
+  readonly reason: string | null;
+  readonly def: SettingDefinition | null;
+}
+
+function definition(key: string, dialect: string | null, fb?: number): SettingDefinition | null {
+  return settingsDefsFor(dialect ?? 'tinyg-en', fb)?.tokens.get(key) ?? null;
+}
+
+/** A token with no definition: shown as itself, never described, never writable. */
+function rawMeta(key: string): SettingMeta {
+  return { key, token: key, label: key, short: key, unit: '', description: '', values: null, hwAllowed: null, access: null, reason: null, def: null };
+}
+
+function metaOf(d: SettingDefinition): SettingMeta {
+  return {
+    key: d.key,
+    token: d.key,
+    label: d.label,
+    short: d.short,
+    unit: unitWords(d.unit as DefinitionUnit),
+    description: d.description,
+    values: d.values ?? null,
+    hwAllowed: d.write?.hwAllowed ?? null,
+    access: d.access,
+    reason: d.reason ?? null,
+    def: d,
+  };
+}
+
+export function settingMeta(key: string, dialect: string | null = null, fb?: number): SettingMeta {
+  const d = definition(key, dialect, fb);
+  return d === null ? rawMeta(key) : metaOf(d);
+}
+
+/** The words for one value of a definition: its value label, "Unknown value (n)" outside the list, or the number with its unit. */
+export function valueWordsOf(d: SettingDefinition | null, v: number): string {
+  if (d === null) return numberWords(v);
+  if (d.values !== undefined) return d.values.find((e) => e.value === v)?.label ?? `Unknown value (${numberWords(v)})`;
+  return withUnit(v, d.unit, d.display);
+}
+
+/** A setting's value in plain words ("Homing and limit", "1.8° per step"), or null when not read. */
+export function plainValue(key: string, v: SettingValue | undefined, dialect: string | null = null, fb?: number): string | null {
+  if (v === undefined) return null;
+  if (typeof v === 'number') return valueWordsOf(definition(key, dialect, fb), v);
+  return valueText(v);
+}

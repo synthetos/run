@@ -50,7 +50,6 @@ export { FORBIDDEN_WRITES, forbiddenWriteReason, isForbiddenKey, isWriteForbidde
 export type { ForbiddenRule, ForbiddenWhen, ForbiddenWrites, WriteContext } from './forbiddenWrites.ts';
 export { FACT_ROOTS } from './overlays/types.ts';
 export type { EnumValue, FactPattern, OverlayEntry, Range, Risk, SourceRef, TypedConfirm, Unit } from './overlays/types.ts';
-export { TINYG_EN_OVERLAY } from './overlays/tinygEn.ts';
 export { SETTINGS_FILE_SCHEMA, expandSettingsFile } from './settingsDefs/expand.ts';
 export { requireSettingsDefs, settingsDefsFor } from './settingsDefs/load.ts';
 export { overlayFromDefs } from './settingsDefs/overlay.ts';
