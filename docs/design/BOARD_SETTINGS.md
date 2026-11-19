@@ -18,23 +18,37 @@ The simulator reports 0 for jerk, junction deviation and junction acceleration, 
 
 ## A first-time user's path
 
-1. Connect a board and open **Board**. Every tab names each setting in plain words and spells out its value with its
-   unit. The words come from the board's settings file (`packages/schema/settings/tinyg-*.json`), not from code.
-2. On a board Run may not change, one notice above the tabs says why, with **Back up settings** and **Update
-   firmware**. Every option is still shown, locked, with the current one marked.
-3. On an approved board, controls sit in place. There is no Edit values toggle. Choosing a value makes it a pending
+1. Connect a board and open **Board**. Until the board is classified, one neutral line says "Reading the board…" and
+   every control stays locked. Every tab names each setting in plain words and spells out its value with its unit.
+   The words come from the board's settings file (`packages/schema/settings/tinyg-*.json`), not from code.
+2. Lengths follow the board's units. A board in G20 reports lengths in inches, so every tab shows them in inches
+   ("End 5.906 in", "Steps per inch"). The data marks each length with `convert`, from the firmware's F_CONVERT flag,
+   so 449 and 440 boards are covered too. Writes stay millimetres only.
+3. On a board Run may not change, one notice above the tabs says why, with **Back up settings** and **Update
+   firmware**. Back up settings follows the same rule as the Backups tab. Every option is still shown, locked, with
+   the board's value marked.
+4. On an approved board, controls sit in place. There is no Edit values toggle. Choosing a value makes it a pending
    change: the row is outlined and says "was …". Choosing the board's value again removes it.
-4. The bar at the bottom counts pending changes and high-risk ones. **Review and apply…** opens the diff. **Apply**
-   asks C5 (each consequence ticked, WRITE typed for high-risk changes).
-5. Run backs up every setting first and downloads the file. It writes one setting at a time and reads each back.
-   **Revert to the backup** writes the backed-up values back the same way.
-6. **Backups** lists every backup on this computer. **Add a backup file…** adds one to the list. **Restore…** on a row
+5. The bar at the bottom counts pending changes and high-risk ones. **Review and apply…** opens the diff. **Apply**
+   asks C5 (each consequence ticked, WRITE typed for high-risk changes). A change Run can't write makes the bar say
+   "1 change can't be applied. Review it." The review lists the reason, and Apply stays off.
+6. Run backs up every setting first and downloads the file. It writes one setting at a time and reads each back. The
+   controls and Restore are locked while it runs. **Revert to the backup** writes the backed-up values back the same
+   way.
+7. **Backups** lists every backup on this computer. **Add a backup file…** adds one to the list. **Restore…** on a row
    stages its differences as pending changes and opens the tab of the first one. Nothing is written until Apply.
+   **Delete** asks first.
+8. Pending changes belong to one board. Changes with no owner, or made for another board, are dropped with one line
+   saying so. On a board Run can't change, changes left from before get a bar with **Discard** only. The tabs show
+   that board as it is.
 
 ## Inputs (owner picture 153)
 
 Owner, on 449: "Done editing" over a table of raw numbers. Built: switch contact once at the top, one five-way choice
-per input, a homing summary that links to Axes, and a line for each consequence.
+per input, a homing summary that links to Axes, and a line for each consequence. Each input has one name from the
+settings file ("X min switch") on Inputs, Axes, the pin card and in every consequence. A consequence follows the
+direction of the change: Off to Homing and limit reads "it will now stop the machine at the end of travel, and homing
+will use it".
 
 | Owner | Built, read-only, dark | Built, read-only, light |
 |---|---|---|
@@ -53,6 +67,19 @@ BC-1 to BC-4.
 |---|---|
 | ![](screenshots/board-config/built/approved-review-dark.png) | ![](screenshots/board-config/built/approved-review-light.png) |
 
+A change Run can't write: the bar says so, and the review names the reason in words.
+
+| Bar, dark | Review, light |
+|---|---|
+| ![](screenshots/board-config/built/approved-refused-bar-dark.png) | ![](screenshots/board-config/built/approved-refused-review-light.png) |
+
+A read-only board with a change left from before: the controls show the board's values, and the bar offers Discard
+only.
+
+| Dark | Light |
+|---|---|
+| ![](screenshots/board-config/built/readonly-leftover-discard-dark.png) | ![](screenshots/board-config/built/readonly-leftover-discard-light.png) |
+
 ## Motors (owner picture 154)
 
 Owner: "1mi 2" should be spelled out. Built: one card per motor; "Microsteps: Half step (2)"; steps per mm, shown board
@@ -67,7 +94,7 @@ Owner: "1mi 2" should be spelled out. Built: one card per motor; "Microsteps: Ha
 Owner: "axes doesnt look like there is a good way to set anything either it looks confusing and terrible too".
 Built: an All axes card (soft limits, junction acceleration, chordal tolerance), one card per axis with Mode, Travel
 (and what the board does with it, in words), Speed and Homing. Unused axes that are Off collapse to one line. Switch
-modes are set on Inputs only.
+modes are set on Inputs only. Each card has one link to Inputs, and none on a read-only board.
 
 | Owner | Built, approved, dark | Built, read-only, light |
 |---|---|---|
@@ -76,8 +103,9 @@ modes are set on Inputs only.
 ## All settings at Simple and Advanced (owner picture 155)
 
 Owner: Simple showed 22 guided fields with raw values. Built: every reported setting at both levels, grouped from the
-settings file, with the same control as the tabs. Simple shows the plain name and the value. Advanced adds the raw token
-beside them (OD-44).
+settings file, with the same control as the tabs. Each row shows its value once. Simple shows the plain name and the
+value. Advanced adds the raw token beside the name, in the same cell (OD-44). A setting Run never writes says "Run
+doesn't change this setting." with no promise.
 
 | Owner | Built, Simple, dark | Built, Advanced, dark |
 |---|---|---|
@@ -91,11 +119,15 @@ beside them (OD-44).
 
 Owner: the primary button floated mid-page, and two file actions meant different things. Built: Back up settings beside
 the heading, one **Add a backup file…**, a zebra list with Why, Firmware, Board and Settings, Compare in words, Restore…,
-Download and a quiet Delete.
+Download and a quiet Delete that asks first. Compare shows each column in the units it was read in.
 
 | Owner | Built, after one backup, dark | Built, after one backup, light |
 |---|---|---|
 | ![156](screenshots/board-config/owner/156.png) | ![](screenshots/board-config/built/approved-backups-after-one-dark.png) | ![](screenshots/board-config/built/approved-backups-after-one-light.png) |
+
+| Delete, dark | Delete, light |
+|---|---|
+| ![](screenshots/board-config/built/approved-backup-delete-dark.png) | ![](screenshots/board-config/built/approved-backup-delete-light.png) |
 
 ## Spindle and coolant (owner picture 152)
 
@@ -114,7 +146,8 @@ coolant output from the machine record.
 | ![](screenshots/board-config/built/readonly-overview-dark.png) | ![](screenshots/board-config/built/readonly-overview-light.png) |
 
 Every other tab of both boards, both themes, is in `screenshots/board-config/built/` as
-`<approved|readonly>-<tab>-<dark|light>.png`.
+`<approved|readonly>-<tab>-<dark|light>.png`. The simulator has no G20 mode, so inch boards are covered by unit tests
+(`apps/web/test/boardInches.test.ts`).
 
 ## Not in this change
 
