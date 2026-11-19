@@ -43,11 +43,8 @@ function ContactSection({ view, defs }: { readonly view: LiveView | null; readon
     { class: 'cfg-section board-card', 'data-region': 'switch-contact' },
     h('div', { class: 'sec-head' }, h('h3', { class: 'tan-label' }, 'Switch contact'), h('span', { class: 'fine' }, 'One setting for every switch input.')),
     h(ContactRow, { label: 'Limit and homing switches', k: 'st', view }),
-    probe?.token !== undefined
-      ? h(ContactRow, { label: 'Probe input', k: probe.token, view })
-      : probe?.fixed !== undefined
-        ? h('div', { class: 'contact-row' }, h('span', { class: 'contact-label' }, 'Probe input'), h('span', { 'data-probe-contact': '' }, probe.fixed))
-        : null,
+    // A probe contact the firmware fixes has no row: there is nothing to set (owner walk, 2026-11-19).
+    probe?.token === undefined ? null : h(ContactRow, { label: 'Probe input', k: probe.token, view }),
   );
 }
 

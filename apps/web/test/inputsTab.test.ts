@@ -42,9 +42,10 @@ describe('InputsTab', () => {
     expect(text(el)).toContain('J7.3');
   });
 
-  it('449: the probe line is fixed text and there is no prbp control; every control is locked', () => {
+  it('449: no probe line and no prbp control (owner walk: the notice already says it once); every control is locked', () => {
     const el = render(boardView({ ...OWNER_449, settings: SWITCHES }));
-    expect(text(one(el, byAttr('data-probe-contact')))).toBe('Normally open. Fixed on this firmware.');
+    expect(all(el, byAttr('data-probe-contact'))).toEqual([]);
+    expect(text(el)).not.toMatch(/fixed on this firmware/i);
     expect(controls(el)).not.toContain('prbp');
     expect(all(el, byAttr('data-pending'))).toEqual([]);
     expect(enabled(el)).toEqual([]);
