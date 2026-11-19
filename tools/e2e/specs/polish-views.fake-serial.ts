@@ -91,19 +91,12 @@ for (const theme of ['light', 'dark'] as const) {
     await rail(page, 'board');
     await shot(page, 'board-overview', theme);
     await boardTab(page, 'motors');
-    const rows = page.locator('[data-motor-row]');
-    const [selected, striped, plain] = [rows.nth(0), rows.nth(1), rows.nth(2)];
-    await expect(selected).toHaveAttribute('aria-selected', 'true');
+    // Motor cards (Board settings spec §5.5): rows are not selectable; every second row of a card is striped.
+    const rows = page.locator('[data-motor-card="1"] [data-motor-row]');
+    const [plain, striped] = [rows.nth(0), rows.nth(1)];
     const stripe = await background(striped);
     expect(CLEAR).not.toContain(stripe);
     expect(CLEAR).toContain(await background(plain));
-    const chosen = await background(selected);
-    expect(chosen).not.toBe(stripe);
-    await striped.hover();
-    const hovered = await background(striped);
-    expect(hovered).not.toBe(stripe);
-    expect(hovered).not.toBe(chosen);
-    await page.mouse.move(0, 0);
     await shot(page, 'board-motors', theme);
     for (const tab of ['axes', 'inputs', 'io', 'comms', 'settings']) {
       await boardTab(page, tab);

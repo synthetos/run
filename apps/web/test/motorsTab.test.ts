@@ -1,0 +1,62 @@
+/**
+ * Motors as cards built from the settings file (Board settings spec §5.5): one card per motor, every row from the
+ * motor's group, values spelled out, steps per unit board → new when a change is pending. Owner 154: "1mi 2" reads
+ * "Microsteps: Half step (2)".
+ */
+import { beforeEach, describe, expect, it } from 'vitest';
+import { h } from 'preact';
+import { clearDraft, setDraft } from '../src/workspace/boardFacts.ts';
+import { MotorsTab } from '../src/workspace/views/board/motors.ts';
+import { all, byAttr, one, root, text, type El } from './tree.ts';
+import { boardView, OWNER_449 } from './boardViews.ts';
+
+const OWNER_154 = { '1ma': 0, '1sa': 1.8, '1tr': 1.25, '1mi': 2, '1po': 1, '1pm': 2, '2ma': 1, '2sa': 1.8, '2tr': 1.25, '2mi': 2, '2po': 0, '2pm': 2, '3ma': 2, '3sa': 1.8, '3tr': 1.25, '3mi': 8, '3po': 1, '3pm': 1, '4ma': 3, '4sa': 1.8, '4tr': 360, '4mi': 8, '4po': 0, '4pm': 0, mt: 2 };
+const card = (el: El, m: number): El => one(el, byAttr('data-motor-card', String(m)));
+const row = (c: El, k: string): El => one(c, byAttr('data-motor-row', k));
+const enabled = (el: El): El[] => all(el, (e) => ['input', 'select', 'button'].includes(e.tag) && e.props['disabled'] !== true);
+
+beforeEach(() => clearDraft());
+
+describe('MotorsTab', () => {
+  it('owner 154 on the 449 board: every motor value in words, nothing editable', () => {
+    const el = root(h(MotorsTab, { view: boardView({ ...OWNER_449, settings: OWNER_154 }) }));
+    const m1 = card(el, 1);
+    expect(text(m1)).toContain('Motor 1');
+    expect(text(row(m1, '1ma'))).toContain('X axis');
+    expect(text(row(m1, '1sa'))).toContain('1.8° per step');
+    expect(text(row(m1, '1sa'))).toContain('200 steps per turn');
+    expect(text(row(m1, '1tr'))).toContain('1.25 mm');
+    expect(text(row(m1, '1mi'))).toContain('Half step (2)');
+    expect(text(row(m1, '1po'))).toContain('Reversed');
+    expect(text(row(m1, '1pm'))).toContain('On during a job, off after the idle time');
+    expect(text(one(m1, byAttr('data-steps-per-unit')))).toBe('320');
+    expect(enabled(el)).toEqual([]);
+  });
+
+  it('rows come from the motor group, with the short names', () => {
+    const m1 = card(root(h(MotorsTab, { view: boardView({ settings: OWNER_154 }) })), 1);
+    expect(all(m1, byAttr('data-motor-row')).map((r) => r.props['data-motor-row'])).toEqual(['1ma', '1sa', '1tr', '1mi', '1po', '1pm']);
+    expect(all(m1, (e) => e.tag === 'th' && e.props['scope'] === 'row').map(text)).toEqual(['Drives', 'Step angle', 'Travel per turn', 'Microsteps', 'Direction', 'Power', 'Steps per mm']);
+  });
+
+  it('a pending 2mi 8 shows "320 → 1 280" and the motor\'s controls are editable on an approved board', () => {
+    setDraft('2mi', 8);
+    const m2 = card(root(h(MotorsTab, { view: boardView({ settings: OWNER_154 }) })), 2);
+    expect(text(one(m2, byAttr('data-steps-per-unit')))).toBe('320 → 1 280');
+    expect(one(m2, byAttr('data-setting-control', '2mi')).props['data-pending']).toBe('true');
+    expect(one(m2, byAttr('data-setting-control', '2po')).props['data-control-kind']).toBe('segmented');
+  });
+
+  it('a motor driving a rotary axis counts steps per degree', () => {
+    const m4 = card(root(h(MotorsTab, { view: boardView({ settings: OWNER_154 }) })), 4);
+    expect(text(m4)).toContain('Steps per degree');
+    expect(text(one(m4, byAttr('data-steps-per-unit')))).toBe('4.444');
+    expect(text(m4)).toContain('drives A');
+  });
+
+  it('no draft panel and no separate Draft column', () => {
+    const el = root(h(MotorsTab, { view: boardView({ settings: OWNER_154 }) }));
+    expect(text(el)).not.toContain('Draft');
+    expect(all(el, byAttr('data-motor-card'))).toHaveLength(4);
+  });
+});

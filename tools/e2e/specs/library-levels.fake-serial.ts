@@ -27,12 +27,12 @@ test('guided settings stage only, survive level changes, and reach the existing 
   // The board's settings are their own tab beside the machine profile.
   await screen.locator('[data-tab="settings"]').click();
   const guided = screen.locator('[data-region="guided-settings"]');
-  const feed = guided.locator('[data-setting-edit="xfr"]');
+  const feed = guided.locator('[data-setting-control="xfr"] input');
   await expect(feed).toBeEnabled();
-  await expect(feed).toHaveAttribute('placeholder', /\d/);
+  await expect(feed).toHaveValue(/\d/);
   await expect(guided.locator('[data-guided-axis]')).toHaveCount(3);
   const initial = await eepromWrites(worker);
-  const next = Number(await feed.getAttribute('placeholder')) - 100;
+  const next = Number(await feed.inputValue()) - 100;
   await feed.fill(String(next));
   // A pushed live snapshot must preserve text that has not been committed by blur.
   await worker.evaluate(() => {
@@ -47,7 +47,7 @@ test('guided settings stage only, survive level changes, and reach the existing 
   await page.locator('[data-action="ui-level-advanced"]').click();
   await expect(guided).toHaveCount(0);
   await screen.getByText('All board settings', { exact: true }).click();
-  await expect(screen.locator('[data-region="all-settings"] [data-setting-edit="xfr"]')).toHaveValue(String(next));
+  await expect(screen.locator('[data-region="all-settings"] [data-setting-control="xfr"] input')).toHaveValue(String(next));
   await expect(screen.locator('[data-region="tinyg-mapping"] thead th')).toHaveCount(5);
   await screen.locator('[data-region="tinyg-mapping"]').scrollIntoViewIfNeeded();
   await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('library-advanced-connected.png') });

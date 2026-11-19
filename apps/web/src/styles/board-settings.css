@@ -33,6 +33,12 @@
 .contact-label { min-width: 15em; font-size: 13.5px; }
 .cfg-table.inputs-table :is(td, th) { vertical-align: middle; height: 38px; padding-top: 4px; padding-bottom: 4px; }
 .inputs-table th .pin-ref { color: var(--muted); font-family: var(--mono); font-size: 11.5px; }
+.motor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(460px, 1fr)); gap: 14px; }
+.motor-grid .board-card { margin-bottom: 0; }
+.card-title { font-size: 15px; margin: 0; }
+.cfg-table.motor-table :is(td, th) { vertical-align: middle; height: 38px; padding-top: 4px; padding-bottom: 4px; }
+.cfg-table.motor-table tbody th { font-weight: 400; width: 10em; }
+.motor-extra { margin-left: 8px; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip { font-size: 12.5px; padding: 4px 10px; border-radius: 14px; border: 1px solid var(--rule); background: var(--sheet); color: var(--ink); text-decoration: none; }
 .chip:hover { border-color: var(--blue); background: var(--blue-wash); }

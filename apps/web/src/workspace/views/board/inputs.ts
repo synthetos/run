@@ -13,6 +13,7 @@ import { changeRisk, type SettingsFile } from '@synthetos/schema';
 import { connectorPins, draftStore, settingMeta, settingsOf } from '../../boardFacts.ts';
 import { boardTab } from '../../boardNavigation.ts';
 import type { LiveView } from '../../model.ts';
+import { Dismissable } from '../../notes/Dismissable.ts';
 import { defsFor } from '../../settings/defs.ts';
 import { SettingControl } from '../../settings/SettingControl.ts';
 import { homingSummary, inputConsequences, inputRows, type InputRow } from './inputsModel.ts';
@@ -68,6 +69,7 @@ function InputTable({ view, rows, live }: { readonly view: LiveView | null; read
     { class: 'cfg-section board-card', 'data-region': 'switch-inputs' },
     h('div', { class: 'sec-head' }, h('h3', { class: 'tan-label' }, 'Switch inputs')),
     h('table', { class: 'cfg-table inputs-table' }, h('thead', null, h('tr', null, ...head.map((t) => h('th', { scope: 'col', key: t }, t)))), h('tbody', null, rows.map((r) => h(InputRowView, { key: r.id, r, view, live })))),
+    h(Dismissable, { id: 'board/inputs-pullups', label: 'the inputs note', inNotes: false }, h('p', { class: 'fine' }, 'Inputs have 2.7 kΩ pull-ups to 3.3 V.')),
   );
 }
 

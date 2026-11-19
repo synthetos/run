@@ -28,6 +28,7 @@ import { CATALOGUE, machineDrawing, type MachineTemplate } from '../machineDrawi
 import { connected, type LiveView, type WorkspaceModel } from '../model.ts';
 import { guidedAxes, GuidedSettings } from '../settings/GuidedSettings.ts';
 import { editBlocked, writableKey } from '../settings/editGate.ts';
+import { reviewOpen } from '../settings/reviewState.ts';
 import { SettingsTable } from '../settings/SettingsUi.ts';
 import { boardLabel, num } from '../status.ts';
 import { TabBar, TabPane } from '../ui.ts';
@@ -35,8 +36,7 @@ import { MachineCoolantField } from './MachineCoolantField.ts';
 
 export function MachineArt({ id, label }: { readonly id: string; readonly label?: string }): ComponentChild {
   const d = machineDrawing(id);
-  return h(
-    'svg',
+  return h('svg',
     { class: 'machine-drawing', viewBox: d.viewBox, ...(label === undefined ? { 'aria-hidden': 'true' } : { role: 'img', 'aria-label': label }) },
     d.paths.map((p, i) => h('path', { d: p.d, class: p.cls, key: String(i) })),
   );
@@ -320,7 +320,7 @@ function MachineSettings({ model, onView }: { readonly model: WorkspaceModel | n
   return h('section', { class: 'machine-settings', 'aria-labelledby': 'machine-settings-title', 'data-machine-settings': advanced ? 'advanced' : 'simple' },
     h('header', { class: 'machine-settings-head' }, h('h2', { id: 'machine-settings-title' }, 'TinyG settings'),
       h('span', { class: 'fine' }, view !== null && connected(view) ? boardLabel(view) : 'Not connected'),
-      h('button', { type: 'button', class: 'small', 'data-action': 'machine-review-settings', onClick: () => openBoard('settings') }, count === 0 ? 'Review board settings' : `Review ${count} pending ${count === 1 ? 'change' : 'changes'}`)),
+      h('button', { type: 'button', class: 'small', 'data-action': 'machine-review-settings', onClick: () => { reviewOpen.value = count > 0; openBoard('settings'); } }, count === 0 ? 'Review board settings' : `Review ${count} pending ${count === 1 ? 'change' : 'changes'}`)),
     advanced ? [
       h('details', { key: 'compare', class: 'machine-settings-details', open: true }, h('summary', null, 'Compare with your machine profile'), h(TinygMapping, { model })),
       h('details', { key: 'all', class: 'machine-settings-details' }, h('summary', null, 'All board settings'), h('div', { class: 'machine-settings-table' }, h(SettingsTable, { view, id: 'machine-all-settings-title' }))),

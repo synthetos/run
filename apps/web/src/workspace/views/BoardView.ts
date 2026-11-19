@@ -82,5 +82,4 @@ export function BoardView({ model }: { readonly model: WorkspaceModel | null }):
   );
 }
 
-export { MotorDraft } from './board/motorDraft.ts';
 export { FirmwareTab } from './FirmwareViews.ts';

@@ -10,7 +10,7 @@ import { Dismissable } from '../../notes/Dismissable.ts';
 import { TabBar, TabPane } from '../../ui.ts';
 import { BoardFacts } from './identity.ts';
 import { BoardIllustration } from './illustration.ts';
-import { MotorDraft } from './motorDraft.ts';
+import { MotorFacts } from './motorCard.ts';
 import { PinCard } from './pin.ts';
 
 type OverviewSide = 'board' | 'pin';
@@ -53,7 +53,7 @@ export function OverviewTab({ view }: { readonly view: LiveView | null }): Compo
         pin === null
           ? h('section', { class: 'insp' }, h('p', { class: 'fine' }, 'Select a pin to see its wiring and settings.'))
           : pin.role === 'motor'
-            ? [h(PinCard, { key: 'card', pin, view, onClose: () => setSelected(null) }), h(MotorDraft, { key: 'draft', motor: Number(pin.connector.slice(1)), view })]
+            ? [h(PinCard, { key: 'card', pin, view, onClose: () => setSelected(null) }), h(MotorFacts, { key: 'motor', m: Number(pin.connector.slice(1)), view })]
             : h(PinCard, { pin, view, onClose: () => setSelected(null) }),
       ),
     ),

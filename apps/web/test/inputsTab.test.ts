@@ -13,7 +13,8 @@ import { boardView, OWNER_449 } from './boardViews.ts';
 const SWITCHES = { xsn: 1, xsx: 2, ysn: 1, ysx: 0, zsn: 4, zsx: 1, asn: 1, asx: 0, st: 0, prbp: 0, xam: 1, yam: 1, zam: 1, aam: 3 };
 const render = (view = boardView({ settings: SWITCHES }), states?: Readonly<Record<string, number>>): El => root(h(InputsTab, { view, ...(states === undefined ? {} : { states }) }));
 const controls = (el: El): string[] => all(el, byAttr('data-setting-control')).map((e) => e.props['data-setting-control'] as string);
-const enabled = (el: El): El[] => all(el, (e) => ['input', 'select', 'button'].includes(e.tag) && e.props['disabled'] !== true && e.props['data-axis-link'] === undefined);
+/** Enabled setting inputs (the note's dismiss button is not a setting). */
+const enabled = (el: El): El[] => all(el, (e) => ['input', 'select', 'button'].includes(e.tag) && e.props['disabled'] !== true && e.props['data-action'] !== 'dismiss-notice-x');
 
 beforeEach(() => clearDraft());
 
