@@ -49,6 +49,12 @@
 .cfg-table.axis-table tbody th { font-weight: 400; width: 11em; }
 .axis-extra { margin-left: 8px; }
 .travel-line, .homing-line { margin: 4px 0; }
+.cfg-table.all-settings tbody :is(td, th) { vertical-align: middle; height: 38px; padding-top: 3px; padding-bottom: 3px; }
+.cfg-table.all-settings td[data-value] { font-family: inherit; font-size: 13px; }
+.all-settings .info-toggle { min-height: 0; width: 18px; height: 18px; margin-left: 6px; font: italic 600 11px var(--sans); color: var(--muted); border-radius: 50%; border: 1px solid var(--rule); }
+.all-settings .desc-row td { height: auto; color: var(--muted); }
+.settings-chips { margin: 10px 0; }
+.chip.on { background: var(--blue-wash); border-color: var(--blue); color: var(--blue-dk); }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip { font-size: 12.5px; padding: 4px 10px; border-radius: 14px; border: 1px solid var(--rule); background: var(--sheet); color: var(--ink); text-decoration: none; }
 .chip:hover { border-color: var(--blue); background: var(--blue-wash); }

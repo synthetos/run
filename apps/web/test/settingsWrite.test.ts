@@ -17,7 +17,8 @@ import { pendingPlan, settingsWriteBlocked, writableKey } from '../src/workspace
 import { editBlocked } from '../src/workspace/settings/editGate.ts';
 import { ReviewPanel } from '../src/workspace/settings/ReviewPanel.ts';
 import { reviewOpen } from '../src/workspace/settings/reviewState.ts';
-import { ApplyConfirm, SettingsTable, stageRestore } from '../src/workspace/settings/SettingsUi.ts';
+import { AllSettings } from '../src/workspace/settings/AllSettings.ts';
+import { ApplyConfirm, stageRestore } from '../src/workspace/settings/SettingsUi.ts';
 
 type Snapshot = NonNullable<LiveView['message']>['snapshot'];
 type SettingWrite = NonNullable<Snapshot['settingWrite']>;
@@ -288,7 +289,7 @@ describe('the settings controls gate (enabled only with the phase switch on and 
   });
 
   it('All settings is one grouped, searchable table with plain names, units and descriptions', () => {
-    const html = renderToString(h(SettingsTable, { view: view(snap()) }));
+    const html = renderToString(h(AllSettings, { view: view(snap()) }));
     expect(html).toMatch(/aria-label="Search settings"/);
     expect(html).toMatch(/class="group-row"/);
     expect(html).toMatch(/data-key="xvm"/);

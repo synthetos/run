@@ -29,7 +29,7 @@ import { connected, type LiveView, type WorkspaceModel } from '../model.ts';
 import { guidedAxes, GuidedSettings } from '../settings/GuidedSettings.ts';
 import { editBlocked, writableKey } from '../settings/editGate.ts';
 import { reviewOpen } from '../settings/reviewState.ts';
-import { SettingsTable } from '../settings/SettingsUi.ts';
+import { AllSettings } from '../settings/AllSettings.ts';
 import { boardLabel, num } from '../status.ts';
 import { TabBar, TabPane } from '../ui.ts';
 import { MachineCoolantField } from './MachineCoolantField.ts';
@@ -323,7 +323,7 @@ function MachineSettings({ model, onView }: { readonly model: WorkspaceModel | n
       h('button', { type: 'button', class: 'small', 'data-action': 'machine-review-settings', onClick: () => { reviewOpen.value = count > 0; openBoard('settings'); } }, count === 0 ? 'Review board settings' : `Review ${count} pending ${count === 1 ? 'change' : 'changes'}`)),
     advanced ? [
       h('details', { key: 'compare', class: 'machine-settings-details', open: true }, h('summary', null, 'Compare with your machine profile'), h(TinygMapping, { model })),
-      h('details', { key: 'all', class: 'machine-settings-details' }, h('summary', null, 'All board settings'), h('div', { class: 'machine-settings-table' }, h(SettingsTable, { view, id: 'machine-all-settings-title' }))),
+      h('details', { key: 'all', class: 'machine-settings-details' }, h('summary', null, 'All board settings'), h('div', { class: 'machine-settings-table' }, h(AllSettings, { view, id: 'machine-all-settings-title' }))),
       h('button', { key: 'backups', type: 'button', class: 'small', 'data-action': 'machine-backups', onClick: () => openBoard('backups') }, 'Firmware & backups'),
     ] : h(GuidedSettings, { view, prefix: 'machine' }));
 }

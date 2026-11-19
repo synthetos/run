@@ -1,20 +1,18 @@
 import { h, type ComponentChild } from 'preact';
 import type { ReadoutPhase } from '../../../live/readout.ts';
 import { SettingsStatus } from '../../../machine-ui/SettingsView.ts';
-import { uiLevel } from '../../jobWorkflow.ts';
 import { type WorkspaceModel } from '../../model.ts';
 import { Dismissable } from '../../notes/Dismissable.ts';
-import { GuidedSettings } from '../../settings/GuidedSettings.ts';
-import { SettingsTable } from '../../settings/SettingsUi.ts';
+import { AllSettings } from '../../settings/AllSettings.ts';
 
-
+/** All settings at both levels (Board settings spec §5.7, OD-44 Q2); the guided form stays in the Machines view. */
 export function SettingsTab({ model }: { readonly model: WorkspaceModel | null }): ComponentChild {
   const view = model?.live.value ?? null;
   return h(
     'div',
     { tabindex: 0, class: 'scroll-region settings-tab' },
     settingsRead(view?.readout.phase ?? { kind: 'idle' }, () => model?.actions.value?.keepBoardSettings()),
-    uiLevel.value.value === 'simple' ? h(GuidedSettings, { view, prefix: 'board' }) : h(SettingsTable, { view }),
+    h(AllSettings, { view }),
   );
 }
 

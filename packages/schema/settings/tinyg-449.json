@@ -7,7 +7,7 @@
   "groups": [
     { "id": "system", "title": "System", "explanation": "Units and distance mode at power-up, work offsets and planes at power-up, motor idle time." },
     { "id": "identity", "title": "Board identity", "explanation": "What the board reports about itself: firmware build and version, hardware platform and version, and its serial number." },
-    { "id": "communications", "title": "Communications", "explanation": "How the board talks to Run: baud rate, flow control, receive mode, echo, line endings and the JSON and text formats." },
+    { "id": "communications", "title": "Communications", "explanation": "How the board talks to Run: baud rate, flow control, receive mode, echo, line endings and the JSON and text formats. Run never changes these: they decide how the board and Run talk to each other." },
     { "id": "status-report", "title": "Status report", "explanation": "How often the board reports its state, and how much of the queue it reports." },
     { "id": "motor-1", "title": "Motor 1", "explanation": "Which axis motor 1 drives, its step angle, travel per turn, microsteps, direction and power." },
     { "id": "motor-2", "title": "Motor 2", "explanation": "Which axis motor 2 drives, its step angle, travel per turn, microsteps, direction and power." },

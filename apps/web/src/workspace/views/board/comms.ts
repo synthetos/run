@@ -27,7 +27,7 @@ function Groups({ defs, view }: { readonly defs: SettingsFile; readonly view: Li
     return h(
       'section',
       { key: id, class: 'board-card' },
-      h('div', { class: 'sec-head' }, h('h3', { class: 'card-title' }, group.title), h('span', { class: 'fine' }, group.explanation)),
+      h('div', { class: 'sec-head' }, h('h3', { class: 'card-title' }, group.title), h('span', { class: 'fine', ...(id === 'communications' ? { 'data-comms-why': '' } : {}) }, group.explanation)),
       h(Rows, { keys, view, label: (k) => defs.tokens.get(k)?.short ?? k }),
     );
   }));
@@ -52,9 +52,8 @@ export function CommsTab({ view }: { readonly view: LiveView | null }): Componen
   return h(
     'div',
     { tabindex: 0, class: 'scroll-region cfg-scroll comms-tab' },
-    h('p', { class: 'note info', 'data-comms-why': '' }, 'Run never changes these settings: they decide how the board and Run talk to each other.'),
     defs === null
-      ? h('section', { class: 'board-card' }, h('div', { class: 'sec-head' }, h('h3', { class: 'card-title' }, 'No definition yet'), h('span', { class: 'fine' }, 'Reported by the board. Run has no description for these, so they are shown as read and never changed.')), h(Rows, { keys: RAW_KEYS.filter((k) => settings[k] !== undefined), view, label: (k) => k }))
+      ? h('section', { class: 'board-card' }, h('div', { class: 'sec-head' }, h('h3', { class: 'card-title' }, 'No definition yet'), h('span', { class: 'fine', 'data-comms-why': '' }, 'Reported by the board. Run has no description for these, so they are shown as read and never changed.')), h(Rows, { keys: RAW_KEYS.filter((k) => settings[k] !== undefined), view, label: (k) => k }))
       : h(Groups, { defs, view }),
     h(StatusList, { view }),
   );
