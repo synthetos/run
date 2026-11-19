@@ -39,6 +39,13 @@ describe('FirmwareSection', () => {
     expect(tabs(renderToString(h(FirmwareSection, { model: model(busy) })))).toEqual(['update']);
   });
 
+  it('all three again once the settings check is clear, before the result is dismissed', () => {
+    const v = boardView();
+    const m = v.message as NonNullable<LiveView['message']>;
+    const clear = { ...v, message: { ...m, postFlash: { boardId: 'SIM-EN-0001', phase: 'clear', differences: [] } } } as unknown as LiveView;
+    expect(tabs(renderToString(h(FirmwareSection, { model: model(clear) })))).toEqual(['update', 'images', 'custom']);
+  });
+
   it('the ways into Firmware open its Update sub-tab', () => {
     firmwareSubTab.value = 'custom';
     openFirmwareUpdate();
