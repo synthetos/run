@@ -25,6 +25,8 @@ interface BarState {
   readonly drafts: number;
   readonly apply: ApplyState;
   readonly changes: readonly PlannedChange[];
+  /** How many pending changes the plan refuses (each reason is listed in the review panel). */
+  readonly refused: number;
   readonly blocked: string | null;
 }
 
@@ -34,8 +36,13 @@ function barState(view: LiveView | null): BarState {
     drafts: Object.keys(draftStore.value.value).length,
     apply: view?.apply ?? { kind: 'idle' },
     changes: plan !== null && plan.ok ? plan.changes : [],
+    refused: plan === null || plan.ok ? 0 : new Set(plan.refused.map((r) => r.key)).size,
     blocked: editBlocked(view) ?? settingsWriteBlocked(view),
   };
+}
+
+function refusedWords(n: number): string {
+  return n === 1 ? "1 change can't be applied. Review it." : `${n} changes can't be applied. Review them.`;
 }
 
 function BarActions({ s }: { readonly s: BarState }): ComponentChild {
@@ -47,7 +54,8 @@ function BarActions({ s }: { readonly s: BarState }): ComponentChild {
     h('button', { type: 'button', class: 'small quiet', 'data-action': 'discard-pending', disabled: running || s.drafts === 0, onClick: () => clearDraft() }, 'Discard'),
     h(
       'button',
-      { type: 'button', class: 'small primary', 'data-action': 'review-apply', disabled: idle && (s.blocked !== null || s.changes.length === 0), title: s.blocked ?? 'See every change before it is written', onClick: () => { reviewOpen.value = true; } },
+      // A refused change still opens the review: the panel says why each one can't be written.
+      { type: 'button', class: 'small primary', 'data-action': 'review-apply', disabled: idle && s.refused === 0 && (s.blocked !== null || s.changes.length === 0), title: s.blocked ?? 'See every change before it is written', onClick: () => { reviewOpen.value = true; } },
       idle ? 'Review and apply…' : 'Show progress',
     ),
   );
@@ -65,6 +73,7 @@ export function PendingBar({ model }: { readonly model: WorkspaceModel | null })
     h('strong', { class: 'pending-count', 'data-pending-count': '' }, countWords(s.drafts, s.apply)),
     high === 0 ? null : h('span', { class: 'tag danger' }, `${high} high risk`),
     one === null ? null : h('span', { class: 'pending-one', 'data-pending-one': '', title: one }, one),
+    s.refused === 0 ? null : h('span', { class: 'pending-refused', 'data-pending-refused': '', role: 'status' }, refusedWords(s.refused)),
     s.blocked === null ? null : h('span', { class: 'pending-why fine' }, s.blocked),
     h('span', { class: 'grow' }),
     h(BarActions, { s }),

@@ -82,6 +82,20 @@ describe('PendingBar', () => {
     expect(one(ready, byAttr('data-action', 'review-apply')).props['disabled']).toBe(false);
   });
 
+  it('a refused change: the bar says it can\'t be applied, Review opens, and the panel lists the reason (review finding 3)', () => {
+    setDraft('xjd', 0.02);
+    setDraft('xvm', -5);
+    const el = bar(boardView({ settings: { ...BOARD, xvm: 16000 } })) as El;
+    expect(text(one(el, byAttr('data-pending-refused')))).toBe("1 change can't be applied. Review it.");
+    const review = one(el, byAttr('data-action', 'review-apply'));
+    expect(review.props['disabled']).toBe(false);
+    click(el, 'review-apply');
+    expect(reviewOpen.value).toBe(true);
+    const panel = rootUntil(h(ReviewPanel, { model: fakeModel(boardView({ settings: { ...BOARD, xvm: 16000 } })).model }), [ApplyConfirm]);
+    expect(text(one(panel, (e) => e.props['class'] === 'tray-refused'))).toContain('xvm');
+    expect(one(panel, byAttr('data-action', 'apply-settings')).props['disabled']).toBe(true);
+  });
+
   it('a read-only board gets no bar', () => {
     setDraft('xsn', 3);
     expect(bar(boardView({ dialectId: 'tinyg-449-stock', fb: 449.01, readOnly: true, settings: BOARD }))).toBeNull();

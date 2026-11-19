@@ -72,6 +72,7 @@
 .pending-bar .pending-count { font-size: 14px; white-space: nowrap; }
 .pending-bar .pending-one { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 0 1 60ch; }
 .pending-bar .pending-why { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.pending-bar .pending-refused { font-size: 12.5px; font-weight: 600; color: var(--warn); white-space: nowrap; }
 .pending-bar .grow, .review-head .grow { flex: 1; }
 .pending-bar .bar-actions { display: inline-flex; gap: 8px; }
 .review-panel { background: var(--sheet); border-top: 1px solid var(--rule); max-height: 52vh; overflow: auto; padding: 10px 20px 14px; }
