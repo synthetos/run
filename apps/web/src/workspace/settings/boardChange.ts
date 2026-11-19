@@ -17,8 +17,9 @@ export const draftOwner = stored<string | null>('board-draft-owner.v1', null, (v
 /** The one line shown after pending changes were discarded, until dismissed. */
 export const discardNotice = signal<string | null>(null);
 
-export function discardOnBoardChange(prevId: string | null, nextId: string | null): boolean {
-  return prevId !== null && nextId !== null && prevId !== nextId;
+/** Pending changes go when a known board connects that is not their owner; changes with no owner are foreign too. */
+export function discardOnBoardChange(owner: string | null, nextId: string | null): boolean {
+  return nextId !== null && owner !== nextId;
 }
 
 /** Records the connected board as the owner of the pending changes; discards them if they belong to another. True when discarded. */
@@ -36,9 +37,16 @@ export function reconcileDrafts(boardId: string | null): boolean {
   return false;
 }
 
+/**
+ * Who owns pending changes made now: the board's reported id; a board that reports none is known only for this
+ * link (`no-id@<epoch>`), so its changes never follow it to another connection. Null while not connected or not
+ * identified yet (nothing to reconcile).
+ */
 export function boardIdOf(view: LiveView): string | null {
-  const id = view.message?.snapshot.identity?.id;
-  return connected(view) && typeof id === 'string' && id !== '' ? id : null;
+  const s = view.message?.snapshot;
+  if (s === undefined || !connected(view) || s.identity === null || s.identity === undefined) return null;
+  const id = s.identity.id;
+  return typeof id === 'string' && id !== '' ? id : `no-id@${s.epoch}`;
 }
 
 /** Runs `reconcileDrafts` whenever the connected board changes. Returns the stop function. */

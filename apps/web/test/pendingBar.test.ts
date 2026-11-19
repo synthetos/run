@@ -10,7 +10,7 @@ import type { PlannedChange } from '@synthetos/schema';
 import { clearDraft, draftStore, setDraft } from '../src/workspace/boardFacts.ts';
 import type { LiveView, WorkspaceModel } from '../src/workspace/model.ts';
 import { ApplyConfirm } from '../src/workspace/settings/SettingsUi.ts';
-import { DISCARDED_TEXT, discardNotice, discardOnBoardChange, draftOwner, reconcileDrafts } from '../src/workspace/settings/boardChange.ts';
+import { boardIdOf, DISCARDED_TEXT, discardNotice, discardOnBoardChange, draftOwner, reconcileDrafts, watchBoardChange } from '../src/workspace/settings/boardChange.ts';
 import { PendingBar } from '../src/workspace/settings/PendingBar.ts';
 import { pendingByTab } from '../src/workspace/settings/pendingTabs.ts';
 import { ReviewPanel } from '../src/workspace/settings/ReviewPanel.ts';
@@ -145,11 +145,32 @@ describe('ReviewPanel', () => {
 });
 
 describe('a different board', () => {
-  it('discardOnBoardChange is true only between two known, different ids', () => {
+  it('discardOnBoardChange: a known board that is not the owner, or pending changes with no owner (review finding 6)', () => {
     expect(discardOnBoardChange('A', 'B')).toBe(true);
     expect(discardOnBoardChange('A', 'A')).toBe(false);
-    expect(discardOnBoardChange(null, 'B')).toBe(false);
+    expect(discardOnBoardChange(null, 'B')).toBe(true);
     expect(discardOnBoardChange('A', null)).toBe(false);
+  });
+
+  it('pending changes with no owner are dropped with the discard line when a board connects (review finding 6)', () => {
+    setDraft('xsn', 3);
+    draftOwner.set(null);
+    expect(reconcileDrafts('SIM-EN-0001')).toBe(true);
+    expect(draftStore.value.value).toEqual({});
+    expect(discardNotice.value).toBe(DISCARDED_TEXT);
+    expect(draftOwner.value.value).toBe('SIM-EN-0001');
+  });
+
+  it('a board without an id still reconciles: it is never the owner of another board\'s pending changes (review finding 6)', () => {
+    const noId = boardView({ id: '', settings: BOARD });
+    expect(boardIdOf(noId)).toBe('no-id@1');
+    expect(boardIdOf(boardView({ settings: BOARD }))).toBe('SIM-EN-0001');
+    reconcileDrafts('SIM-EN-0001');
+    setDraft('xsn', 3);
+    const stop = watchBoardChange(signal(noId));
+    stop();
+    expect(draftStore.value.value).toEqual({});
+    expect(discardNotice.value).toBe(DISCARDED_TEXT);
   });
 
   it('a different board id discards pending changes and shows "Pending changes were for another board and were discarded."', () => {
