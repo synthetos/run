@@ -52,6 +52,8 @@ const PATHS = {
   probe: 'M10 2h4v8l-2 4-2-4ZM3 17h18v4H3ZM12 15.5v.5',
   // The sign-in front door's "read the overview" link (2026-11-17).
   book: 'M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5ZM4 20.5V5.5M8 7h8M8 10.5h8',
+  // Close a dialog (the setup wizard, owner 2026-11-19).
+  close: 'M6 6l12 12M18 6 6 18',
 } as const;
 
 export type IconName = keyof typeof PATHS;

@@ -26,7 +26,12 @@ describe('WizardFrame', () => {
     expect(text(next)).toBe('Next: firmware');
     expect(next.props['disabled']).toBe(true);
     expect(all(dialog, byAttr('data-action', 'wizard-skip'))).toHaveLength(1);
-    expect(one(dialog, byAttr('data-action', 'wizard-close')).props['aria-label']).toBe('Close setup');
+    // An X icon, named for screen readers and on hover (owner 2026-11-19, picture 163: not "weird text").
+    const close = one(dialog, byAttr('data-action', 'wizard-close'));
+    expect(close.props['aria-label']).toBe('Close setup');
+    expect(close.props['title']).toBe('Close setup');
+    expect(text(close)).toBe('');
+    expect(all(close, (e) => e.tag === 'svg')).toHaveLength(1);
     expect(text(dialog)).not.toMatch(/E-stop|never need|Saved in this browser/);
   });
   it('a step that cannot be skipped has no skip button; the primary calls back', () => {

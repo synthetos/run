@@ -5,6 +5,7 @@
  * scrolls inside `.wizard-body`. Pure: the mount (SetupWizard.ts) decides what goes in.
  */
 import { h, type ComponentChild, type ComponentChildren } from 'preact';
+import { Icon } from '../workspace/icons.ts';
 import { trackSafetyBar } from './safetyBarOffset.ts';
 import { WizardRail } from './WizardRail.ts';
 import type { RailMark, StepId } from './wizardState.ts';
@@ -56,7 +57,8 @@ export function WizardFrame(p: FrameProps): ComponentChild {
             h('button', { type: 'button', class: 'primary', 'data-action': 'wizard-next', disabled: p.primary.disabled === true, onClick: p.primary.onClick }, p.primary.label),
           ),
         ),
-        h('button', { type: 'button', class: 'small quiet wizard-close', 'data-action': 'wizard-close', 'aria-label': CLOSE_LABEL, onClick: p.onClose }, CLOSE_LABEL),
+        // An X, named for screen readers and on hover (owner 2026-11-19: not a text link).
+        h('button', { type: 'button', class: 'quiet wizard-close', 'data-action': 'wizard-close', 'aria-label': CLOSE_LABEL, title: CLOSE_LABEL, onClick: p.onClose }, Icon('close', 18)),
       ),
       p.overlay ?? null,
     ),

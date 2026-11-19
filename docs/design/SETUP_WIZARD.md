@@ -75,7 +75,7 @@ storage; nothing is written to the board.
 | The firmware step reads the board's standing from the release list; the offer only decides whether the update can run now. A `needed` board on a site with no updater keeps Skip and holds Next. | The owner may want `needed` never skippable; then such a person can only Close setup. |
 | Steps 3 and 4 name the connected board and refuse another board than the machine's with one line; step 3 then hides "Update firmware" and holds Next. | None visible. |
 | A refused "Open project" (a running job, a missing file) still records the project it made; the next press opens that project instead of making another. | None visible. |
-| Closing is a quiet "Close setup" button; Escape does nothing. Preferences brings it back at step 1. | One extra button. |
+| Closing is an X icon in the top-right corner, named "Close setup" for screen readers and on hover (owner 2026-11-19: not a text link); Escape does nothing. Preferences brings it back at step 1. | One extra button. |
 | The chosen tool is the newest entry added while step 5 is open, including on a wizard that resumed at step 5. The catalog page closes on the first tool added after it opened. | A tool added elsewhere during the step counts as the choice. |
 | The demo tool is defined in code with the catalog's values (id `demo.quarter-2f`); the catalog is not fetched. | A duplicate of one catalog row. |
 | There is no new-project dialog in Run; "New project" takes a name in the card and creates it the way Projects does. | None visible. |

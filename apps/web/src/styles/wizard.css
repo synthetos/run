@@ -27,7 +27,8 @@ li[data-mark="done"] .wizard-step-mark { border-color: var(--ok); color: var(--o
 .wizard-lead { font-size: 14px; line-height: 1.5; color: var(--muted); margin: 0 0 18px; }
 .wizard-body { flex: 1; min-height: 0; overflow: auto; padding-bottom: 12px; }
 .wizard-foot { flex: none; border-top: 1px solid var(--rule); padding: 14px 0 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.wizard-close { position: absolute; top: 10px; right: 10px; }
+.wizard-close { position: absolute; top: 10px; right: 10px; width: 32px; height: 32px; min-height: 0; padding: 0; display: inline-grid; place-items: center; color: var(--muted); }
+.wizard-close:hover, .wizard-close:focus-visible { color: var(--ink); }
 .wizard-line { font-size: 13px; line-height: 1.55; color: var(--muted); margin: 0 0 10px; }
 .wizard-headline { font-size: 14px; font-weight: 600; color: var(--ink); margin: 0 0 6px; }
 .wizard-covers { margin: 0 0 14px; padding-left: 18px; list-style: disc; font-size: 13.5px; line-height: 1.7; }
