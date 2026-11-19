@@ -33,14 +33,19 @@ function Groups({ defs, view }: { readonly defs: SettingsFile; readonly view: Li
   }));
 }
 
+/** A status-report field in words: its setting's name, else the file's statusFields word, else the raw token. */
+function fieldWords(k: string, view: LiveView | null): string {
+  const meta = settingMeta(k, view?.readout.dialectId ?? null);
+  return meta.def?.label ?? defsFor(view)?.statusFields?.[k] ?? k;
+}
+
 function StatusList({ view }: { readonly view: LiveView | null }): ComponentChild {
   const srList = view !== null && connected(view) ? view.message?.snapshot.live.srList : undefined;
-  const dialect = view?.readout.dialectId ?? null;
   return h(
     'section',
     { class: 'board-card' },
     h('div', { class: 'sec-head' }, h('h3', { class: 'card-title' }, 'Status report fields'), h('span', { class: 'fine' }, 'What the board puts in each status report.')),
-    srList === undefined ? h('p', { class: 'fine' }, 'Read when the board answers the first status request.') : h('ul', { class: 'key-chips', 'aria-label': 'Fields in the status report' }, srList.map((k) => h('li', { key: k }, settingMeta(k, dialect).label, h('code', { class: 'raw-key' }, k)))),
+    srList === undefined ? h('p', { class: 'fine' }, 'Read when the board answers the first status request.') : h('ul', { class: 'key-chips', 'aria-label': 'Fields in the status report' }, srList.map((k) => h('li', { key: k }, fieldWords(k, view), h('code', { class: 'raw-key' }, k)))),
   );
 }
 

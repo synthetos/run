@@ -19,6 +19,10 @@ function members(dialect: string): string[] {
   return settingsReadGroups(dialect).flatMap((g) => g.members);
 }
 
+const perAxis = (prefix: string): string[] => ['x', 'y', 'z', 'a', 'b', 'c'].map((a) => `${prefix}${a}`);
+/** The TinyG tokens a status report can carry. */
+const STATUS_FIELDS = ['stat', 'macs', 'cycs', 'mots', 'hold', 'line', 'vel', 'feed', 'unit', 'coor', 'momo', 'plan', 'path', 'dist', 'frmo', 'tool', ...perAxis('pos'), ...perAxis('mpo'), ...perAxis('ofs')];
+
 /** Every token whose cfgArray flags end in "c" (F_CONVERT) at the dialect's pin, read from config_app.c. */
 function convertRows(d: string): string[] {
   const each = (xs: readonly string[], ys: readonly string[]): string[] => xs.flatMap((x) => ys.map((y) => `${x}${y}`));
@@ -176,6 +180,11 @@ describe('describe-only files for stock 449 and 440 (safety: nothing becomes wri
   it.each(DIALECTS)('%s: exactly the cfgArray F_CONVERT rows (_fipc, _fipnc) are marked as lengths', (d) => {
     const marked = members(d).filter((k) => settingsDefsFor(d)!.tokens.get(k)?.convert === true).sort();
     expect(marked).toEqual(convertRows(d));
+  });
+
+  it.each(DIALECTS)('%s: every status-report field has words, from a token definition or statusFields', (d) => {
+    const f = settingsDefsFor(d)!;
+    expect(STATUS_FIELDS.filter((k) => (f.statusFields?.[k] ?? f.tokens.get(k)?.label) === undefined)).toEqual([]);
   });
 
   it.each([S449, TG440])('%s: every src cites its own pin', (d) => {

@@ -102,6 +102,14 @@
       ]
     }
   },
+  "statusFields": {
+    "stat": "Machine state", "macs": "Machine state detail", "cycs": "Cycle state", "mots": "Motion state", "hold": "Feedhold state",
+    "line": "Line number", "vel": "Velocity", "feed": "Feed rate", "unit": "Units", "coor": "Coordinate system", "momo": "Motion mode",
+    "plan": "Plane", "path": "Path control", "dist": "Distance mode", "frmo": "Feed rate mode", "tool": "Tool",
+    "posx": "X position", "posy": "Y position", "posz": "Z position", "posa": "A position", "posb": "B position", "posc": "C position",
+    "mpox": "X machine position", "mpoy": "Y machine position", "mpoz": "Z machine position", "mpoa": "A machine position", "mpob": "B machine position", "mpoc": "C machine position",
+    "ofsx": "X offset", "ofsy": "Y offset", "ofsz": "Z offset", "ofsa": "A offset", "ofsb": "B offset", "ofsc": "C offset"
+  },
   "families": [
     { "pattern": "{m}ma", "for": { "m": ["1", "2", "3", "4"] }, "rows": { "1": 186, "2": 196, "3": 207, "4": 218 }, "src": "S449 config_app.c:{row}", "label": "Motor {m} axis", "short": "Drives", "description": "The axis motor {m} drives.", "unit": "enum", "enum": "motorAxis", "group": "motor-{m}", "tab": "motors", "access": "read", "reason": "Read only on this firmware." },
     { "pattern": "{m}sa", "for": { "m": ["1", "2", "3", "4"] }, "rows": { "1": 187, "2": 197, "3": 208, "4": 219 }, "src": "S449 config_app.c:{row}", "label": "Motor {m} step angle", "short": "Step angle", "description": "Degrees per full step of motor {m} (1.8 for a 200-step motor).", "unit": "deg/step", "group": "motor-{m}", "tab": "motors", "access": "read", "reason": "Read only on this firmware." },

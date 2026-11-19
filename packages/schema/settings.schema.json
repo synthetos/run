@@ -56,6 +56,12 @@
       "required": ["rule", "src"],
       "properties": { "rule": { "enum": ["radiusFullTurn", "backoffOnly"] }, "src": { "type": "string", "minLength": 1 } }
     },
+    "statusFields": {
+      "$comment": "Words for status-report fields that are not settings (stat, posx, mpoa...). Describe only: never read or written as settings.",
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z0-9]+$" },
+      "additionalProperties": { "type": "string", "minLength": 1 }
+    },
     "families": { "type": "array", "items": { "$ref": "#/$defs/family" } },
     "tokens": {
       "type": "object",

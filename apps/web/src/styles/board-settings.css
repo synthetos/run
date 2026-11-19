@@ -55,6 +55,8 @@
 .cfg-table.axis-table :is(td, th) { vertical-align: middle; height: 38px; padding-top: 4px; padding-bottom: 4px; }
 .cfg-table.axis-table tbody th { font-weight: 400; width: 11em; }
 .axis-extra { margin-left: 8px; }
+/* PWM names are longer than axis names ("Counter-clockwise highest speed"): one line each. */
+.cfg-table.pwm-table tbody th { width: 17em; white-space: nowrap; }
 .travel-line, .homing-line { margin: 4px 0; }
 .cfg-table.all-settings tbody :is(td, th) { vertical-align: middle; height: 38px; padding-top: 3px; padding-bottom: 3px; }
 .cfg-table.all-settings td[data-value] { font-family: inherit; font-size: 13px; }

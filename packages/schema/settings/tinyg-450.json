@@ -39,6 +39,14 @@
   "probeAllowedSrc": "EN switch.c:285-322 find_probe_switch (a probe on A refused, -3; two probe inputs refused, -2); bench check BC-5",
   "probeContact": { "token": "prbp" },
   "homingTravel": { "rule": "radiusFullTurn", "src": "EN cycle_homing.c:251-255 (search = |tm - tn| + lb; a radius-mode axis with tn == tm searches one turn, 2 pi r; bench check BC-9)" },
+  "statusFields": {
+    "stat": "Machine state", "macs": "Machine state detail", "cycs": "Cycle state", "mots": "Motion state", "hold": "Feedhold state",
+    "line": "Line number", "vel": "Velocity", "feed": "Feed rate", "unit": "Units", "coor": "Coordinate system", "momo": "Motion mode",
+    "plan": "Plane", "path": "Path control", "dist": "Distance mode", "frmo": "Feed rate mode", "tool": "Tool",
+    "posx": "X position", "posy": "Y position", "posz": "Z position", "posa": "A position", "posb": "B position", "posc": "C position",
+    "mpox": "X machine position", "mpoy": "Y machine position", "mpoz": "Z machine position", "mpoa": "A machine position", "mpob": "B machine position", "mpoc": "C machine position",
+    "ofsx": "X offset", "ofsy": "Y offset", "ofsz": "Z offset", "ofsa": "A offset", "ofsb": "B offset", "ofsc": "C offset"
+  },
   "families": [
     {
       "pattern": "{m}ma", "for": { "m": ["1", "2", "3", "4"] }, "rows": { "1": 211, "2": 221, "3": 232, "4": 243 }, "src": "EN config_app.c:{row}",

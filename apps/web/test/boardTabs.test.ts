@@ -6,14 +6,17 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { h, type ComponentChild } from 'preact';
 import { renderToString } from 'preact-render-to-string';
 import { clearDraft } from '../src/workspace/boardFacts.ts';
+import type { LiveView } from '../src/workspace/model.ts';
 import { CommsTab } from '../src/workspace/views/board/comms.ts';
 import { BoardFacts } from '../src/workspace/views/board/identity.ts';
 import { MotorsTab } from '../src/workspace/views/board/motors.ts';
 import { OutputsTab } from '../src/workspace/views/board/outputs.ts';
-import { all, byAttr, one, root, text } from './tree.ts';
+import { all, byAttr, one, root, text, type El } from './tree.ts';
 import { boardView, OWNER_449 } from './boardViews.ts';
 
 const IO = { spep: 1, spdp: 0, p1frq: 100, p1csl: 1000, p1csh: 2000, p1cpl: 0.125, p1cph: 1, p1wsl: 1000, p1wsh: 2000, p1wpl: 0.125, p1wph: 1, p1pof: 0, coph: 0, spph: 0 };
+/** An element's own text, without its children's (the hidden raw-key code). */
+const ownText = (el: El): string => el.children.filter((c): c is string => typeof c === 'string').join('');
 const COMMS = { baud: 5, ex: 1, ec: 0, ee: 0, ej: 1, jv: 4, js: 1, tv: 1, qv: 1, sv: 1, si: 250 };
 const polarity = (node: ComponentChild, ref: string): string => text(one(root(node), byAttr('data-polarity', ref)));
 
@@ -49,6 +52,14 @@ describe('Communications', () => {
     expect(all(el, (e) => ['input', 'select', 'button'].includes(e.tag) && e.props['disabled'] !== true)).toEqual([]);
     expect(all(el, (e) => ['segmented', 'select', 'number'].includes(e.props['data-control-kind'] as string))).toEqual([]);
   });
+
+  it('status report fields read in words from the data file, never a bare token (lead review, comms picture)', () => {
+    const v = boardView({ settings: COMMS });
+    const m = v.message as NonNullable<LiveView['message']>;
+    const view = { ...v, message: { ...m, snapshot: { ...m.snapshot, live: { ...m.snapshot.live, srList: ['stat', 'posx', 'mpoa', 'spe', 'tool'] } } } } as LiveView;
+    const words = all(root(h(CommsTab, { view })), (e) => e.tag === 'li').map(ownText);
+    expect(words).toEqual(['Machine state', 'X position', 'A machine position', 'Spindle on', 'Tool']);
+  });
 });
 
 describe('stale copy and motor idle time', () => {
@@ -61,7 +72,8 @@ describe('stale copy and motor idle time', () => {
     const line = one(el, byAttr('data-region', 'motor-idle'));
     expect(one(line, byAttr('data-setting-control', 'mt')).props['data-control-kind']).toBe('number');
     // A plain field label, not a sentence around the field (lead review, Motors 2).
-    expect(text(one(line, (e) => e.tag === 'label'))).toBe('Idle motors power off after');
+    // The setting's one name from the data, the same as in All settings.
+    expect(text(one(line, (e) => e.tag === 'label'))).toBe('Motor idle timeout');
     expect(text(line)).not.toContain('Motors set to power off when idle turn off after');
   });
 });

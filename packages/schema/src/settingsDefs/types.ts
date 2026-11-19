@@ -120,5 +120,7 @@ export interface SettingsFile {
   readonly probeContact?: { readonly token?: string; readonly fixed?: string; readonly src?: string };
   /** How far homing searches when an axis's ends are equal. */
   readonly homingTravel?: { readonly rule: 'radiusFullTurn' | 'backoffOnly'; readonly src: string };
+  /** Words for status-report fields that are not settings (`stat` → "Machine state"); describe only. */
+  readonly statusFields?: Readonly<Record<string, string>>;
   readonly tokens: ReadonlyMap<string, SettingDefinition>;
 }

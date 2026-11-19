@@ -70,7 +70,7 @@ function Pwm({ view, keys }: { readonly view: LiveView | null; readonly keys: re
     'section',
     { class: 'board-card' },
     h('div', { class: 'sec-head' }, h('h3', { class: 'card-title' }, 'Spindle speed output (PWM)')),
-    h('table', { class: 'cfg-table axis-table' }, h('tbody', null, keys.map((k) => h('tr', { key: k }, h('th', { scope: 'row' }, settingMeta(k, dialect).label), h('td', null, h(SettingControl, { k, view })))))),
+    h('table', { class: 'cfg-table axis-table pwm-table' }, h('tbody', null, keys.map((k) => h('tr', { key: k }, h('th', { scope: 'row' }, settingMeta(k, dialect).label), h('td', null, h(SettingControl, { k, view })))))),
   );
 }
 
