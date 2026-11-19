@@ -6,6 +6,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { h } from 'preact';
 import { clearDraft, setDraft } from '../src/workspace/boardFacts.ts';
+import { boardTab } from '../src/workspace/boardNavigation.ts';
 import { AxesTab } from '../src/workspace/views/board/axes.ts';
 import { subTabChoice } from '../src/workspace/views/board/subTabs.ts';
 import { InputsTab } from '../src/workspace/views/board/inputs.ts';
@@ -14,9 +15,16 @@ import { boardView, OWNER_449 } from './boardViews.ts';
 
 const SWITCHES = { xsn: 1, xsx: 2, ysn: 1, ysx: 0, zsn: 4, zsx: 1, asn: 1, asx: 0, st: 0, prbp: 0, xam: 1, yam: 1, zam: 1, aam: 3 };
 const render = (view = boardView({ settings: SWITCHES }), states?: Readonly<Record<string, number>>): El => root(h(InputsTab, { view, ...(states === undefined ? {} : { states }) }));
+/** The Inputs tab on its Homing sub-tab. */
+const homing = (view = boardView({ settings: SWITCHES })): El => {
+  subTabChoice.inputs.value = 'homing';
+  const el = render(view);
+  subTabChoice.inputs.value = null;
+  return el;
+};
 const controls = (el: El): string[] => all(el, byAttr('data-setting-control')).map((e) => e.props['data-setting-control'] as string);
-/** Enabled setting inputs (the note's dismiss button is not a setting). */
-const enabled = (el: El): El[] => all(el, (e) => ['input', 'select', 'button'].includes(e.tag) && e.props['disabled'] !== true && e.props['data-action'] !== 'dismiss-notice-x');
+/** Enabled setting inputs (the note's dismiss button and the sub-tab buttons are not settings). */
+const enabled = (el: El): El[] => all(el, (e) => ['input', 'select', 'button'].includes(e.tag) && e.props['disabled'] !== true && e.props['data-action'] !== 'dismiss-notice-x' && e.props['data-subtab'] === undefined);
 
 beforeEach(() => clearDraft());
 
@@ -27,8 +35,8 @@ describe('a read-only board with a pending change left from before (review findi
     const el = render(ro);
     expect(text(el)).not.toContain('High risk');
     expect(all(el, (e) => e.props['class'] === 'drafted')).toEqual([]);
-    expect(text(el)).not.toContain('Homing, with the pending changes');
-    expect(text(el)).toContain('X homes towards min');
+    expect(text(homing(ro))).not.toContain('Homing, with the pending changes');
+    expect(text(homing(ro))).toContain('X homes towards min');
     subTabChoice.axes.value = 'x';
     const x = one(root(h(AxesTab, { view: ro })), byAttr('data-axis-card', 'x'));
     subTabChoice.axes.value = null;
@@ -55,14 +63,27 @@ describe('InputsTab', () => {
     expect(one(el, byAttr('data-setting-control', 'xsn')).props['data-control-kind']).toBe('locked');
   });
 
-  it('each homing chip is a link to that axis\'s Homing section on Axes', () => {
-    const chips = all(render(), byAttr('data-axis-link'));
+  it('each homing chip is a link to that axis\'s Homing section, and opens that axis\'s sub-tab on Axes', () => {
+    const chips = all(homing(), byAttr('data-axis-link'));
     expect(chips.map((c) => [c.tag, c.props['href'], text(c)])).toEqual([
       ['a', '#board-axis-x-homing', 'X homes towards min · J7.3'],
       ['a', '#board-axis-y-homing', 'Y homes towards min · J7.5'],
       ['a', '#board-axis-z-homing', 'Z homes towards max · J8.4'],
       ['a', '#board-axis-a-homing', 'A homes towards min · J8.5'],
     ]);
+    (chips[2]?.props['onClick'] as () => void)();
+    expect(boardTab.value).toBe('axes');
+    expect(subTabChoice.axes.value).toBe('z');
+    subTabChoice.axes.value = null;
+  });
+
+  it('Switches first, then Homing; the Homing sub-tab counts the consequences of the pending changes (owner walk 2026-11-19)', () => {
+    const el = render();
+    expect(all(el, byAttr('data-subtab')).map((t) => t.props['data-subtab'])).toEqual(['switches', 'homing']);
+    expect(all(el, byAttr('data-region', 'switch-contact'))).toHaveLength(1);
+    expect(all(el, byAttr('data-axis-link'))).toEqual([]);
+    setDraft('xsx', 0);
+    expect(text(one(render(), byAttr('data-subtab', 'homing')))).toBe('Homing1');
   });
 
   it('no homing speed control renders on Inputs, and there is no Edit values toggle', () => {
@@ -73,9 +94,8 @@ describe('InputsTab', () => {
 
   it('a pending change shows its consequence under the homing summary', () => {
     setDraft('xsx', 0);
-    const el = render();
-    expect(text(one(el, byAttr('data-region', 'input-consequences')))).toContain('X max switch is no longer a limit. Only soft limits stop X at the far end.');
-    expect(one(el, byAttr('data-setting-control', 'xsx')).props['data-pending']).toBe('true');
+    expect(text(one(homing(), byAttr('data-region', 'input-consequences')))).toContain('X max switch is no longer a limit. Only soft limits stop X at the far end.');
+    expect(one(render(), byAttr('data-setting-control', 'xsx')).props['data-pending']).toBe('true');
   });
 
   it('Test switches is not built yet: no button and no Now column unless states are given', () => {

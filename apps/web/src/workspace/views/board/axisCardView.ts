@@ -14,6 +14,7 @@ import { boardInches } from '../../settings/meta.ts';
 import { SettingControl } from '../../settings/SettingControl.ts';
 import { numberWords, unitWords } from '../../settings/units.ts';
 import type { AxisCard } from './axesModel.ts';
+import { subTabChoice } from './subTabs.ts';
 
 type Settings = Readonly<Record<string, SettingValue>>;
 
@@ -68,7 +69,7 @@ function Homing({ p }: { readonly p: CardProps }): ComponentChild {
   if (!p.defs.tokens.has(`${a}sn`)) return null;
   const keys = [`${a}sv`, `${a}lv`, `${a}lb`, `${a}zb`, `${a}jh`];
   // The card's one link to Inputs; a board Run can't change gets none.
-  const link = readOnlyNotice(p.view) === null ? h('a', { href: '#board-pane-inputs', 'data-action': 'open-inputs', onClick: () => { boardTab.value = 'inputs'; } }, 'Change switches on Inputs') : null;
+  const link = readOnlyNotice(p.view) === null ? h('a', { href: '#board-pane-inputs', 'data-action': 'open-inputs', onClick: () => { subTabChoice.inputs.value = 'switches'; boardTab.value = 'inputs'; } }, 'Change switches on Inputs') : null;
   const line = h('p', { class: 'homing-line' }, p.c.homingLine, link === null ? null : ' ', link);
   if (p.c.homingLine.startsWith('Homes towards')) return h(Section, { title: 'Homing', keys, p, id: `board-axis-${a}-homing` }, line);
   return h('div', { class: 'axis-section', id: `board-axis-${a}-homing` }, h('h4', { class: 'tan-label' }, 'Homing'), line, h('details', { class: 'axis-more' }, h('summary', null, 'Homing speeds'), h('table', { class: 'cfg-table axis-table' }, h('tbody', null, keys.map((k) => h(Row, { key: k, k, p }))))));

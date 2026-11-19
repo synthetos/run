@@ -19,6 +19,7 @@ import { plannedDrafts } from '../../settings/editGate.ts';
 import { SettingControl } from '../../settings/SettingControl.ts';
 import { homingSummary, inputConsequences, inputRows, type InputRow } from './inputsModel.ts';
 import { Empty, type Settings } from './shared.ts';
+import { SubTabs, subTabChoice, type SubTab } from './subTabs.ts';
 
 type States = Readonly<Record<string, number>>;
 
@@ -85,7 +86,7 @@ function HomingSection({ defs, settings, planned, pending }: { readonly defs: Se
       'div',
       { class: 'chips' },
       homingSummary(defs, planned, inputAxes(defs)).map((x) =>
-        h('a', { key: x.axis, class: 'chip', href: `#board-axis-${x.axis}-homing`, 'data-axis-link': x.axis, title: 'Homing speeds and backoffs are on Axes', onClick: () => { boardTab.value = 'axes'; } }, x.text),
+        h('a', { key: x.axis, class: 'chip', href: `#board-axis-${x.axis}-homing`, 'data-axis-link': x.axis, title: 'Homing speeds and backoffs are on Axes', onClick: () => { subTabChoice.axes.value = x.axis; boardTab.value = 'axes'; } }, x.text),
       ),
     ),
     lines.length === 0 ? null : h('div', { class: 'consequences', 'data-region': 'input-consequences' }, lines.map((l) => h('p', { key: l, class: 'note' }, l))),
@@ -110,11 +111,12 @@ export function InputsTab({ view, states }: { readonly view: LiveView | null; re
   if (defs === null) return h('div', { tabindex: 0, class: 'scroll-region cfg-scroll' }, h(RawInputs, { view }));
   const drafts = plannedDrafts(view);
   const rows = inputRows(defs, settings, drafts, states);
-  return h(
-    'div',
-    { tabindex: 0, class: 'scroll-region cfg-scroll inputs-tab' },
-    h(ContactSection, { view, defs }),
-    h(InputTable, { view, rows, live: states !== undefined }),
-    h(HomingSection, { defs, settings, planned: { ...settings, ...drafts }, pending: rows.some((r) => r.pending) }),
-  );
+  const planned = { ...settings, ...drafts };
+  const checks = inputConsequences(defs, settings, planned).length;
+  // Two views, so neither scrolls (owner walk 2026-11-19): the switches, then homing with the checks of the changes.
+  const tabs: readonly SubTab[] = [{ id: 'switches', label: 'Switches' }, { id: 'homing', label: 'Homing', ...(checks === 0 ? {} : { badge: String(checks) }) }];
+  const part = (id: string): ComponentChild => (id === 'homing'
+    ? h(HomingSection, { defs, settings, planned, pending: rows.some((r) => r.pending) })
+    : [h(ContactSection, { key: 'contact', view, defs }), h(InputTable, { key: 'table', view, rows, live: states !== undefined })]);
+  return h('div', { tabindex: 0, class: 'scroll-region cfg-scroll inputs-tab' }, h(SubTabs, { name: 'Inputs', prefix: 'board-inputs', tabs, choice: subTabChoice.inputs, render: part }));
 }
