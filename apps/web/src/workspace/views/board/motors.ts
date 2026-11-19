@@ -19,7 +19,7 @@ export function MotorsTab({ view }: { readonly view: LiveView | null }): Compone
     'div',
     { tabindex: 0, class: 'scroll-region cfg-scroll motors-tab' },
     defs.tokens.has('mt')
-      ? h('p', { class: 'motor-idle', 'data-region': 'motor-idle' }, 'Motors set to power off when idle turn off after ', h(SettingControl, { k: 'mt', view }), '.')
+      ? h('div', { class: 'motor-idle board-card', 'data-region': 'motor-idle' }, h('label', null, 'Idle motors power off after'), h(SettingControl, { k: 'mt', view }))
       : null,
     h('div', { class: 'motor-grid' }, MOTORS.map((m) => h(MotorCard, { key: m, m, view, defs }))),
   );

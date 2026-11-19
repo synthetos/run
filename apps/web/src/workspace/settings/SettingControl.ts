@@ -87,16 +87,23 @@ function Segmented({ c }: { readonly c: Ctx }): ComponentChild {
   );
 }
 
+/** Wide enough for the longest option plus the padding and the chevron (inputs sized to content). */
+function selectWidth(labels: readonly string[]): string {
+  return `width: calc(${Math.max(...labels.map((l) => l.length))}ch + 44px)`;
+}
+
 function Select({ c }: { readonly c: Ctx }): ComponentChild {
   const isKnown = known(c);
+  const placeholder = isKnown ? null : c.current === undefined ? 'Not read' : `Unknown value (${numberWords(c.current)})`;
+  const values = c.meta.values ?? [];
   return h(
     'span',
     { class: 'select-wrap' },
     h(
       'select',
-      { 'aria-label': c.meta.label, title: c.meta.description, value: isKnown ? String(c.current) : '', onChange: (e: Event) => pick(c, Number((e.currentTarget as HTMLSelectElement).value)) },
-      isKnown ? null : h('option', { value: '', disabled: true, selected: true }, c.current === undefined ? 'Not read' : `Unknown value (${numberWords(c.current)})`),
-      (c.meta.values ?? []).map((v) => h('option', { key: v.value, value: String(v.value), title: v.help }, v.label)),
+      { 'aria-label': c.meta.label, title: c.meta.description, value: isKnown ? String(c.current) : '', style: selectWidth([...values.map((v) => v.label), placeholder ?? '']), onChange: (e: Event) => pick(c, Number((e.currentTarget as HTMLSelectElement).value)) },
+      placeholder === null ? null : h('option', { value: '', disabled: true, selected: true }, placeholder),
+      values.map((v) => h('option', { key: v.value, value: String(v.value), title: v.help }, v.label)),
     ),
   );
 }

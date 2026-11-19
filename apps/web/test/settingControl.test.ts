@@ -108,6 +108,15 @@ describe('SettingControl', () => {
   });
 });
 
+describe('SettingControl sizes', () => {
+  it('a select is sized to its longest option, with room for the chevron (lead review, Motors 1)', () => {
+    const width = (k: string): unknown => one(render(k), (e) => e.tag === 'select').props['style'];
+    expect(width('1mi')).toBe(`width: calc(${'Quarter step (4)'.length}ch + 44px)`);
+    const pm = all(render('1pm'), (e) => e.tag === 'option').map(text);
+    expect(width('1pm')).toBe(`width: calc(${Math.max(...pm.map((t) => t.length))}ch + 44px)`);
+  });
+});
+
 describe('SettingControl while Apply runs (review finding 9)', () => {
   it('every control is locked and still shows the change being written; edits and Restore wait for the write', () => {
     setDraft('xsn', 3);

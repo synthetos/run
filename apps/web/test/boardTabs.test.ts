@@ -60,7 +60,9 @@ describe('stale copy and motor idle time', () => {
     const el = root(h(MotorsTab, { view: boardView({ settings: { '1ma': 0, '1sa': 1.8, '1tr': 1.25, '1mi': 8, '1po': 0, '1pm': 2, mt: 2 } }) }));
     const line = one(el, byAttr('data-region', 'motor-idle'));
     expect(one(line, byAttr('data-setting-control', 'mt')).props['data-control-kind']).toBe('number');
-    expect(text(line)).toContain('Motors set to power off when idle turn off after');
+    // A plain field label, not a sentence around the field (lead review, Motors 2).
+    expect(text(one(line, (e) => e.tag === 'label'))).toBe('Idle motors power off after');
+    expect(text(line)).not.toContain('Motors set to power off when idle turn off after');
   });
 });
 

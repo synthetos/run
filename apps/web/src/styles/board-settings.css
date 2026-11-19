@@ -16,7 +16,9 @@
 .segmented.locked .segment[aria-current="true"], .option-list .segment[aria-current="true"] { background: var(--grid); color: var(--ink); box-shadow: inset 0 -2px 0 var(--muted); }
 .option-list { display: inline-flex; flex-wrap: wrap; gap: 4px 6px; }
 .option-list .segment { font-size: 12px; color: var(--muted); padding: 2px 8px; border: 1px solid var(--rule); border-radius: 10px; }
-.setting-control .select-wrap select { width: auto; min-width: 12ch; max-width: 34ch; }
+/* The width comes from the longest option (SettingControl selectWidth); the chevron sits in the right padding. */
+.setting-control .select-wrap { flex: none; }
+.setting-control .select-wrap select { min-width: 0; max-width: none; flex: none; padding-left: 10px; padding-right: 30px; }
 .setting-control .unit-input { display: inline-flex; align-items: center; gap: 6px; width: auto; }
 .setting-control .unit-input input { font-variant-numeric: tabular-nums; padding: 0 8px; height: 30px; }
 .setting-control .unit-input i { position: static; font-style: normal; color: var(--muted); font-size: 12px; white-space: nowrap; }
@@ -33,6 +35,8 @@
 .contact-label { min-width: 15em; font-size: 13.5px; }
 .cfg-table.inputs-table :is(td, th) { vertical-align: middle; height: 38px; padding-top: 4px; padding-bottom: 4px; }
 .inputs-table th .pin-ref { color: var(--muted); font-family: var(--mono); font-size: 11.5px; }
+.motor-idle { display: flex; align-items: center; gap: 12px; }
+.motor-idle label { font-size: 13.5px; }
 .motor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(460px, 1fr)); gap: 14px; }
 .motor-grid .board-card { margin-bottom: 0; }
 .card-title { font-size: 15px; margin: 0; }
