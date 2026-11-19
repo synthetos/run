@@ -26,7 +26,7 @@
 ## Review Focus
 
 1. **A board value outside the defined values** (an old build stored `1mi` 3, or a firmware adds switch mode 5): the row reads "Unknown value (3)", no option is shown selected, nothing crashes, and choosing a defined value makes it pending. Test in Task 6.
-2. **A dialect with no settings file** (unclassified, g2core): every reported token is listed under "No definition yet", nothing is writable, no exception. Test in Task 5 and Task 11.
+2. **A dialect with no settings file** (unclassified, g2core): every reported token is listed under "No definition yet", nothing is writable, no exception. Test in Task 5 and Task 11b.
 3. **Pending changes, then a different board connects** (another `id`): pending changes are discarded and one line says so; they are never applied to the other board. Test in Task 7.
 4. **A board reporting inches** (`unit` 0): lengths are labelled in inches, and Review and apply is disabled with "Set the board to millimetres (G21) to change lengths." Test in Task 6.
 5. **Test switches when the machine leaves idle** (a job starts in another tab, an alarm, a jog): polling stops within one poll, and the button returns to off. Test in Task 9.
@@ -49,10 +49,10 @@
   - `type SettingAccess = 'write' | 'read' | 'forbidden' | 'readout' | 'reserved'`
   - `interface ValueDef { value: number; label: string; help?: string }`
   - `interface WriteDef` = today's `OverlayEntry` minus `key`, `label`, `description`, `unit`, `values`, `src` (fields: `valueType, range, rangeSource, hwAllowed?, e158?, convert, scope, risk, typedConfirm, afterWrite, invalidates, whatGoesWrong`)
-  - `interface SettingDefinition { key; label; short; description; unit: Unit; display?: number; values?: readonly ValueDef[]; group: string; tab: string; access: SettingAccess; reason?: string; since?: number; until?: number; src: string; labelSrc?: string; write?: WriteDef }`
+  - `interface SettingDefinition { key; label; short; description; unit: Unit; display?: number; values?: readonly ValueDef[]; group: string; tab: string; access: SettingAccess; reason?: string; since?: number; until?: number; src: string; labelSrc?: string; verify?: string; write?: WriteDef }` (`verify` names the bench check, e.g. `"BC-8"`, that must confirm a label or unit)
   - `interface InputDefinition { id; label; pin; function: string; contact?: string; state?: string; action?: string; note?: string }`
   - `interface GroupDefinition { id; title; explanation }`
-  - `interface SettingsFile { format: 'synthetos-settings@1'; dialect; firmware: { family; fb: { min?: number; max?: number }; source }; mode: 'writable' | 'readOnly'; groups; inputs; probeAllowed?: readonly string[]; tokens: ReadonlyMap<string, SettingDefinition> }`
+  - `interface SettingsFile { format: 'synthetos-settings@1'; dialect; firmware: { family; fb: { min?: number; max?: number }; source }; mode: 'writable' | 'readOnly'; groups; inputs; probeAllowed?: readonly string[]; homingTravel?: { rule: 'radiusFullTurn' | 'backoffOnly'; src: string }; tokens: ReadonlyMap<string, SettingDefinition> }`
   - `function expandSettingsFile(raw: unknown, fb?: number): SettingsFile` (validates, expands `families`, resolves `enum` references and `{m}`/`{a}`/`{A}` placeholders, filters by `since`/`until`, throws `Error` naming the token on any rule break)
   - `function settingsDefsFor(dialectId: string, fb?: number): SettingsFile | null` (registry of bundled files; null for an unknown dialect)
 
@@ -276,7 +276,7 @@ expect(inputConsequences(d450, s, { ...s, zsn: 1, zsx: 1 })).toContain("Z can't 
 expect(inputConsequences(d449, s, { ...s, asn: 4 })).toContain('A probe is allowed only on X, Y or Z on this firmware.');
 expect(inputRows(d450, s, {}, { in6: 1, in2: -1 }).find((r) => r.id === 'zmax')?.state).toBe('pressed');
 ```
-Tab test: 449 shows the probe line "Normally open. Fixed on this firmware." and no `prbp` control; 450 shows `prbp`; read-only shows locked controls and no `data-pending`.
+Tab test: 449 shows the probe line "Normally open. Fixed on this firmware." and no `prbp` control; 450 shows `prbp`; read-only shows locked controls and no `data-pending`; each homing chip is a link to that axis's Homing section on Axes; no homing speed control (`{a}sv` etc.) renders on Inputs.
 - [ ] **Step 2: Run** `cd apps/web && pnpm exec vitest run test/inputsModel.test.ts test/inputsTab.test.ts`. Expected: FAIL.
 - [ ] **Step 3: Implement.** The Edit values toggle and `EditToggle` usage go; rows use `SettingControl`.
 - [ ] **Step 4: Run** both files. Expected: PASS. Walkthrough screenshots.
@@ -323,21 +323,55 @@ it('the header says "Reads each input 4 times a second while on. A switch set to
 - [ ] **Step 4: Run** plus `test/board-draft.test.ts`. Expected: PASS. Walkthrough screenshots.
 - [ ] **Step 5: Commit** `git commit -m "Show motors as cards built from the settings file"`.
 
-### Task 11: Axes, Spindle and coolant, Communications, stale copy
+### Task 11a: Axes tab (spec §5.6; owner Q9, Q10)
 
 **Files:**
-- Modify: `apps/web/src/workspace/views/board/axes.ts` (cards per machine axis, OD-13; switch modes removed, they live on Inputs)
+- Create: `apps/web/src/workspace/views/board/axesModel.ts` (pure)
+- Rewrite: `apps/web/src/workspace/views/board/axes.ts` (All axes card, one card per axis, collapsed summaries; layout per mockup `2026-11-18-board-config-axes`)
+- Modify: `apps/web/src/machine-ui/AxisModes.ts` (delete the box and its note; export a per-axis `axisModeLine(view, axis): string | null` for the cards)
+- Modify: `packages/safety/src/axisModeFacts.ts` (sentences only, for the current release; codes and conditions unchanged; safety review)
+- Modify: `packages/schema/settings/tinyg-450.json`, `tinyg-449.json` (each axis token's `tab: "axes"`, `{a}s{n,x}` `tab: "inputs"`, `mt` `tab: "motors"`, `sl ja ct` `tab: "axes"` with `group: "all-axes"`; a `homingTravel` rule per file: `"radiusFullTurn"` on 450, `"backoffOnly"` on 449, each with its citation)
+- Test: `apps/web/test/axesModel.test.ts`, `apps/web/test/axesTab.test.ts`, `apps/web/test/oneHome.test.ts`
+
+**Interfaces:**
+- Consumes: `SettingsFile`, `SettingControl`, `homingAxis`, `firmwareTravelEqual`, `travelSemanticsFor`, `inputRows` (Task 8, for the "Homes towards … at …" sentence).
+- Produces:
+  - `interface AxisCard { axis: 'x'|'y'|'z'|'a'|'b'|'c'; rotary: boolean; mode: number | null; open: boolean; summary: string; travelLine: string; homingLine: string; modeLine: string | null; motor: number | null }`
+  - `function axisCards(defs: SettingsFile, planned: Settings, machineAxes: readonly string[], dialectId: string): { cards: readonly AxisCard[]; collapsedOff: readonly string[] }`
+  - `function travelLine(defs: SettingsFile, planned: Settings, axis: string, dialectId: string): string`
+
+- [ ] **Step 1: Write the failing tests** with the owner's 157 values (`sl` 0; X, Y, Z mode 1; A mode 3, `atn` -1, `atm` -1, `alb` 5, `asn` 1; B, C mode 0):
+
+```ts
+expect(axisCards(d450, s, ['x','y','z','a'], 'tinyg-en').collapsedOff).toEqual(['b', 'c']);
+expect(travelLine(d450, s, 'x', 'tinyg-en')).toBe('Soft limits are off, so these ends are not checked. Homing searches 155 mm.');
+expect(travelLine(d450, { ...s, sl: 1 }, 'a', 'tinyg-en')).toBe('No travel limit: the axis turns freely. Start and end are the same, so the board never checks this axis. Homing searches one full turn.');
+expect(travelLine(d449, { ...s, sl: 1 }, 'a', 'tinyg-449-stock')).toContain('Homing searches only 5°: start and end are the same on this firmware.');
+expect(travelLine(d450, { ...s, sl: 1, xtn: -1_000_000 }, 'x', 'tinyg-en')).toContain('No limit at this end.');
+expect(cardOf('a').summary).toContain('Rotary, radius mode');
+expect(cardOf('x').homingLine).toBe('Homes towards min at the X min switch, J7.3.');
+```
+Tab test: jerk renders "20" with unit "million mm/min³"; A rapid renders "230 400" with "°/min" and "640 turns a minute"; `ara` renders on A in radius mode only; the All axes card holds `sl`, `ja`, `ct`; no `st` or `mt` control on Axes; "This release never moves the machine" appears nowhere; a read-only board renders every value as text with no enabled control.
+`oneHome.test.ts`: render each Board tab for an approved 450 board and assert every `[data-setting-control]` key's definition `tab` equals the tab it rendered on (All settings excepted).
+- [ ] **Step 2: Run** `cd apps/web && pnpm exec vitest run test/axesModel.test.ts test/axesTab.test.ts test/oneHome.test.ts test/axisModes.test.ts`. Expected: FAIL.
+- [ ] **Step 3: Implement.** Wide windows open the machine's axes; narrower than 1100 px opens only the first. Collapsed summaries come from `axisCards`, not hand-written strings.
+- [ ] **Step 4: Run** the four files and `packages/safety` `pnpm exec vitest run test/axisModeFacts.test.ts`. Expected: PASS. Walkthrough screenshots.
+- [ ] **Step 5: Commit** `git commit -m "Rebuild the Axes tab as one card per axis from the settings file"`. **Safety review:** the rewritten axis-mode sentences and the travel lines against their citations. BC-8, BC-9 and BC-10 confirm the rotary units, the rotary homing search and the `ja` unit; until they report, those three labels carry a `verify` flag in the data and the tab shows them as the firmware prints them.
+
+### Task 11b: Spindle and coolant, Communications, stale copy
+
+**Files:**
 - Modify: `apps/web/src/workspace/views/board/outputs.ts` (polarity rows from data; absent tokens read "No setting on this firmware"; the coolant row shows the machine record's wired-to value from the separate builder's field, read only here)
 - Modify: `apps/web/src/workspace/views/board/comms.ts` (values from data; one group sentence)
 - Modify: `apps/web/src/workspace/views/board/identity.ts:47` (remove "Phase 1 connects every board read-only…")
-- Modify: `apps/web/src/machine-ui/AxisModes.ts:85` (remove "This release never moves the machine.")
+- Modify: `apps/web/src/workspace/views/board/motors.ts` (the `mt` line above the cards: "Motors set to power off when idle turn off after 2 s.")
 - Test: `apps/web/test/boardTabs.test.ts`
 
-- [ ] **Step 1: Write the failing tests:** 449 J6.6 polarity reads "No setting on this firmware", 450 reads "Reserved on this firmware"; neither stale sentence appears anywhere in the rendered Board view; Axes shows X, Y, Z (and A only when the machine has it); a dialect with no file renders values raw and no control (Review Focus 2).
-- [ ] **Step 2: Run** `cd apps/web && pnpm exec vitest run test/boardTabs.test.ts test/axisModes.test.ts`. Expected: FAIL.
+- [ ] **Step 1: Write the failing tests:** 449 J6.6 polarity reads "No setting on this firmware", 450 reads "Reserved on this firmware"; "Phase 1 connects every board" appears nowhere; the `mt` control renders on Motors; a dialect with no file renders values raw and no control (Review Focus 2).
+- [ ] **Step 2: Run** `cd apps/web && pnpm exec vitest run test/boardTabs.test.ts`. Expected: FAIL.
 - [ ] **Step 3: Implement.** Delete `EditToggle` and `cell` from `views/board/shared.ts` when no tab uses them.
 - [ ] **Step 4: Run.** Expected: PASS. Walkthrough screenshots.
-- [ ] **Step 5: Commit** `git commit -m "Build Axes, Spindle and coolant and Communications from the settings file"`.
+- [ ] **Step 5: Commit** `git commit -m "Build Spindle and coolant and Communications from the settings file"`.
 
 ### Task 12: All settings at both levels
 
@@ -395,6 +429,7 @@ it('the header says "Reads each input 4 times a second while on. A switch set to
 | 2 | Golden taken from the pre-change tree; no `write` field changed; CODEOWNERS covers the new paths |
 | 4 | No `write` object in 449 or 440 files; no key became writable |
 | 6 | `editBlocked` only tightens; inches reason matches the session's refusal |
+| 11a | Rewritten axis-mode sentences in `packages/safety` (codes and conditions unchanged); each travel and homing line matches its firmware citation |
 | 9 | One outstanding read (H57); stops on motion and alarm; the limit sentence shown; whether a hazard entry is needed |
 | 13 | Restore still stages through `restoreChanges` and the apply path; identity and forbidden keys skipped |
 
@@ -402,11 +437,11 @@ Flagged SAFETY text proposals (owner decides; spec §7): H58 mitigation 4 names 
 
 ## Bench checks for the TG Firmware session
 
-BC-1 to BC-7 as in spec §8. BC-1 to BC-4 gate Task 9. BC-5 confirms `probeAllowed` in the 450 file (Task 3). BC-6 is the end-to-end apply after Task 14. BC-7 confirms the power-mode wording (Task 3).
+BC-1 to BC-10 as in spec §8. BC-1 to BC-4 gate Task 9. BC-5 confirms `probeAllowed` in the 450 file (Task 3). BC-6 is the end-to-end apply after Task 14. BC-7 confirms the power-mode wording (Task 3). BC-8 to BC-10 clear the `verify` flags of Task 11a.
 
 ## Owner questions (spec §9, recommendations)
 
-1. Drop the Edit values toggle; controls inline wherever Run may write. **Recommend yes.** Blocks Tasks 6, 8, 10, 11.
+1. Drop the Edit values toggle; controls inline wherever Run may write. **Recommend yes.** Blocks Tasks 6, 8, 10, 11a, 11b.
 2. All settings shows every setting at Simple. **Recommend yes.** Blocks Task 12.
 3. Test switches. **Recommend yes**, after safety review and BC-1 to BC-4. Blocks Task 9.
 4. One "Add a backup file…" action. **Recommend yes.** Blocks Task 13.
@@ -414,5 +449,7 @@ BC-1 to BC-7 as in spec §8. BC-1 to BC-4 gate Task 9. BC-5 confirms `probeAllow
 6. Describe-only definitions for stock 449. **Recommend yes.** Blocks Task 4.
 7. Sticky Apply bar at the bottom. **Recommend yes.** Blocks Task 7.
 8. Tokens at Advanced only. **Recommend yes.** Affects Tasks 6 and 12.
+9. One home per setting (spec §5.6 table): switch modes and contact on Inputs, homing motion, travel, soft limits and cornering on Axes, motor idle time on Motors. **Recommend yes.** Blocks Tasks 11a and 11b.
+10. Collapse axes the machine does not use. **Recommend yes.** Affects Task 11a.
 
 Slice A (Tasks 1 to 5) needs no owner answer except Q6 and can start now.

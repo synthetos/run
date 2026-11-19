@@ -4,7 +4,9 @@ Design, 2026-11-18. Status: **draft for owner review**. Calls made while writing
 overturn any of them. Owner questions are in §9, each with a recommendation. No product code changed for this design.
 
 Inputs: the owner's staging feedback of 2026-11-18 (TinyG v8, stock firmware 449.01, dark theme), screenshots
-`docs/design/screenshots/board-config/owner/152.png` to `156.png`, and an audit run in the fake-serial build (§2).
+`docs/design/screenshots/board-config/owner/152.png` to `157.png`, and an audit run in the fake-serial build (§2).
+On 157 (Axes) the owner said: "axes doesnt look like there is a good way to set anything either it looks confusing
+and terrible too".
 
 > **Owner, verbatim:** "look at the whole board config ui its a mess you cannot set anything. each input for homing has a
 > bunch of options but the ui does not auto build this and show the user what they could be set to nor a way to apply
@@ -62,26 +64,35 @@ The meanings live in one TypeScript overlay (`packages/schema/src/overlays/tinyg
    Edit values is pressed; Motors always shows a draft column; All settings shows editors inline. Three editing
    models in one view. Allowed values are never shown before editing. Audit: `approved-inputs-dark.png` vs
    `approved-inputs-editing-dark.png`.
-4. **All settings at Simple is not all settings.** At Simple the tab renders `GuidedSettings`: default units plus seven
+4. **Axes cannot be read, let alone set.** Owner 157, on 449: modes as 1, 3, 0; switch codes 1, 4, 0; no units on
+   any column; A's speed 230 400 and jerk 5 760 with no hint they are degrees and millions; travel -1 and -1 with no
+   word on what that does; B and C listed though unused; min and max switch modes duplicated from Inputs; and a loose
+   footer of raw tokens (`st 1`, `sl 0`, `mt 2`) beside junction acceleration and chordal tolerance, none of which
+   belong to one axis. On 450 the units appear but jerk reads "20 M mm/min³". The A axis radius (`ara`), which
+   decides how radius mode converts feed, is not shown at all. The "Axis modes (read only)" box says "This release
+   never moves the machine… would block motion in a later release": a Phase 0 leftover. Its facts
+   (`packages/safety/src/axisModeFacts.ts`) gate nothing today; job checks have their own axis-mode findings. Audit:
+   `approved-axes-light.png`, `approved-axes-editing-dark.png`.
+5. **All settings at Simple is not all settings.** At Simple the tab renders `GuidedSettings`: default units plus seven
    fields per axis, 22 settings, with raw values on 449 (owner 155). Advanced shows the 189-row table. Audit:
    `approved-settings-dark.png` vs `approved-settings-advanced-dark.png`.
-5. **No way to see Apply until something is pending, and the tray pushes the page down.** The pending tray appears at
+6. **No way to see Apply until something is pending, and the tray pushes the page down.** The pending tray appears at
    the top of the Board view only after a change. There is no "Review and apply" in reach of the control just changed.
    Audit: `approved-inputs-pending-dark.png`.
-6. **Inputs do not read as inputs.** One row per pin, with "What it does" as a bare select ("Keep: off"), the shared
+7. **Inputs do not read as inputs.** One row per pin, with "What it does" as a bare select ("Keep: off"), the shared
    switch type repeated in every row's Contact column, and the switch type editor at the bottom, below the fold. No
    homing summary, no live switch state, no warning when a limit is turned off. Audit: `approved-inputs-editing-dark.png`.
-7. **Backups antipatterns.** The primary "Back up settings" floats mid-page away from its heading (owner 156). Two
+8. **Backups antipatterns.** The primary "Back up settings" floats mid-page away from its heading (owner 156). Two
    near-synonym file actions ("Import a backup file…" adds to the list; "Restore from a file…" stages pending changes)
    with no words on the difference. The empty state does not say what a backup is. Rows have no settings count and
    Delete sits beside Restore with equal weight. Audit: `approved-backups-after-one-dark.png`.
-8. **Stale and wrong copy.** Overview, read-only: "Phase 1 connects every board read-only: Run reads positions and
+9. **Stale and wrong copy.** Overview, read-only: "Phase 1 connects every board read-only: Run reads positions and
    settings and writes nothing." Axes: "This release never moves the machine." Both are false now. The J6 coolant row
    says "Reserved on this firmware" on 449, where `coph` does not exist at all (the `RESERVED` set ignores the dialect).
    Audit: `readonly-overview-light.png`, `approved-axes-editing-dark.png`, owner 152.
-9. **Units hide or repeat.** "1.8 deg/step" in a cell and "°" in the input; jerk as "0 M mm/min³"; the raw-key style is
+10. **Units hide or repeat.** "1.8 deg/step" in a cell and "°" in the input; jerk as "0 M mm/min³"; the raw-key style is
    applied at both levels, against OD-13. Audit: `approved-axes-editing-dark.png`.
-10. **The communications and status-report lists are read only without one shared rule.** Communications says why in a
+11. **The communications and status-report lists are read only without one shared rule.** Communications says why in a
     dismissable note; All settings says "Read only" on every row with no reason. Audit: `approved-settings-advanced-dark.png`.
 
 ### 2.2 Per tab
@@ -90,7 +101,7 @@ The meanings live in one TypeScript overlay (`packages/schema/src/overlays/tinyg
 |---|---|---|---|---|
 | Overview | Board drawing, board facts | Nothing | Nothing to change | Stale "Phase 1 … writes nothing" on read-only |
 | Motors | Table of 4 motors, a draft column for one | ma, sa, tr, mi, po, pm (no Edit toggle) | Nothing on a read-only board: the draft accepts values | None until the tray refuses |
-| Axes | Motion and homing tables | am, vm, fr, tn, tm, jm, jd, sn, sx, sv, lv, lb, zb, jh after Edit values | Edit values toggle | "Review pending changes before applying." |
+| Axes | Stale axis-modes box, Motion and Homing tables for all six axes, a loose footer of `st sl mt ja ct` | am, vm, fr, tn, tm, jm, jd, sn, sx, sv, lv, lb, zb, jh, st, sl, mt after Edit values; never `ara` | Edit values toggle; on 449 everything raw (owner 157) | "Reported by the board." and the stale box |
 | Inputs | One row per switch pin | sn/sx per pin and `st`, after Edit values | Edit values toggle; `st` editor below the fold | One fine line on pull-ups |
 | Spindle and coolant | J6 pins, readouts, PWM values | spep, spdp after Edit values | `spph`, `coph` reserved (450) | "Reserved on this firmware", also on 449 where wrong |
 | Communications | Serial link and status-report list | Nothing | Forbidden writes (H61) | Dismissable note |
@@ -262,6 +273,8 @@ Two firmware differences the data must carry, not the UI:
    setting label table (a record keyed by tokens with string values), and checks that `settingMeta(k).label !== k`
    for every read-group member of every dialect with a file.
 6. **src lines:** every `src` names a cfgArray row of the vendored table's commit (the overlay test's rule today).
+7. **One home:** every token's `tab` is one tab; a render test of the Board view fails if a token has a
+   `SettingControl` on any other tab (All settings excepted, §5.6).
 
 Requests to the firmware owner, not blocking: have `gen_tables.py` emit `F_CONVERT`, the factory default and the
 text-mode legend per row, so the meanings can be generated and checked instead of cited by hand.
@@ -347,6 +360,7 @@ data gives an input, so g2core's extra "action" column appears without UI code.
    - homing on both ends: refused by the schema rule, shown as "Z can't home on both ends. Choose one.";
    - no homing switch on an enabled axis: "Y has no homing switch. Home all skips Y.";
    - a second probe input, or a probe on A on 449: refused, with the reason from the data.
+   Each axis chip links to that axis's Homing section on Axes, where the homing speeds and backoffs are set (§5.6).
 
 **Live state ("Test switches").** A button in the section header. While on, Run reads `{"in":null}` four times a
 second, only while the board is idle and only while the Inputs tab is open, and shows Pressed / Released / Off per
@@ -378,12 +392,94 @@ axis"), Step angle ("1.8° per step", "200 steps per turn"), Travel per turn ("1
 (8)"), Direction (Normal | Reversed), Power (the four modes by meaning: "Off: never powered", "Always on", "On during a
 job, off after the idle time", "Only while moving"). A derived Steps per mm row shows board → new when a change is
 pending. The motor draft panel and its separate "Draft" column go away: the cards are the editor. Owner 154 answered:
-"1mi 2" reads "Microsteps: half step (2)".
+"1mi 2" reads "Microsteps: half step (2)". Motor idle time (`mt`, moved from the Axes footer) is one line above the
+cards: "Motors set to power off when idle turn off after 2 s", with its number control.
 
-### 5.6 Axes, Spindle and coolant, Communications
+### 5.6 Axes, and where each setting lives
 
-- **Axes:** one card per enabled axis (the machine's axes, OD-13: X, Y, Z, plus A when present), with Motion and
-  Homing speeds sections; switch modes move to Inputs. The stale "This release never moves the machine" note goes.
+Mockup: `2026-11-18-board-config-axes-{dark,light}.png` (the owner's 157 values on an approved board, one pending
+change). Owner 157 answered: "Mode 3" reads "Rotary, radius mode"; "Min switch 4" is set on Inputs and reads "Probe";
+"Jerk 5 760" reads "5 760 million °/min³"; travel -1 and -1 reads "No travel limit: the axis turns freely".
+
+**Layout.**
+
+1. **All axes**, one card at the top, for the settings that belong to no single axis: Soft limits (`sl`, Off | On,
+   with what each does), Junction acceleration (`ja`) and Chordal tolerance (`ct`). On 450 `ja` and `ct` are shown
+   as "Not changed by Run yet" until they get reviewed `write` objects.
+2. **One card per axis**, in machine order. The machine's axes (OD-13: X, Y, Z, plus A when the machine has it, or
+   any axis whose mode is not Off) start open on a wide window; the rest start collapsed to one summary line ("Y axis ·
+   Standard · 0 to 150 mm · 800 mm/min · homes towards min · Show"). B and C, or any axis whose mode is Off and that
+   the machine does not use, collapse into one line: "B and C · Off · Not used on this machine · Show".
+3. Inside a card, three titled sections:
+   - **Mode** (and, for A, B, C in radius mode, **Radius** `{a}ra`, "turns feed in mm into degrees"). Linear axes offer
+     Off, Standard, Inhibited; rotary axes add Radius (the data's `values`, from canonical_machine.c's `msg_am`).
+   - **Travel:** Start (`tn`) and End (`tm`), the length between them, and one line on what the board does with them
+     (rules below).
+   - **Speed:** Rapid speed (`vm`), Feed speed limit (`fr`), Jerk (`jm`), Junction deviation (`jd`, "larger is faster",
+     the firmware's own words).
+   - **Homing:** one sentence derived from Inputs, "Homes towards min at the X min switch, J7.3. Change switches on
+     Inputs" (a link that opens Inputs at that row), then Search speed (`sv`), Latch speed (`lv`), Latch backoff
+     (`lb`), Zero backoff (`zb`), Homing jerk (`jh`). An axis with no homing switch shows only "No homing switch. Set one
+     on Inputs." and keeps its speeds collapsed.
+4. Every value is a `SettingControl` (§5.1), so pending, "was …", the sticky bar and C5 work as on every tab.
+
+**Units, from the data, cited to the firmware's own print functions.**
+
+| Setting | Linear axis | Rotary axis (A, B, C) | Source |
+|---|---|---|---|
+| Travel, backoffs, junction deviation | mm | ° | EN canonical_machine.c:3191-3198 (`_print_axis_flt`: degrees for rotary axes) |
+| Rapid, feed, search, latch speeds | mm/min | °/min, plus turns a minute for rapid ("230 400 °/min, 640 turns a minute") | fmt_Xvm, fmt_Xfr (`%s/min`) |
+| Jerk, homing jerk | million mm/min³ | million °/min³ | fmt_Xjm "/min^3 * 1 million" (EN :3170) |
+| Radius | mm | | fmt_Xra |
+| Junction acceleration | mm/min² (confirm when authoring: the firmware prints only "mm") | | fmt_ja (EN :3131) |
+| Chordal tolerance | mm | | fmt_ct (EN :3132) |
+
+Radius mode makes some rotary values linear: the homing comment says "radius-mode homing distances are linear" (EN
+cycle_homing.c:253). Which A values are millimetres in radius mode is bench check BC-8; until then the data labels
+them as the firmware prints them (degrees).
+
+**Travel rules shown in words** (one line under Travel, from the existing `firmwareTravelEqual` and `homingAxis`
+helpers, with the firmware rule per dialect in the data):
+
+| Board values | Line shown |
+|---|---|
+| Soft limits off | "Soft limits are off, so these ends are not checked." |
+| Start and end equal (owner's A: -1 and -1) | "No travel limit: the axis turns freely. Start and end are the same, so the board never checks this axis." (the soft-limit test skips an axis whose ends are equal, `fp_EQ`, EN canonical_machine.c:586) |
+| An end at or below -1 000 000 | "No limit at this end." (`DISABLE_SOFT_LIMIT`, canonical_machine.h:45) |
+| Homing configured | "Homing searches *n* mm." (`|end − start| + latch backoff`, EN cycle_homing.c:251) |
+| Rotary, radius mode, equal ends, 450 | "Homing searches one full turn." (EN cycle_homing.c:252-255) |
+| Rotary, equal ends, 449 | "Homing searches only 5°: start and end are the same on this firmware. Set a travel range before homing A." (449 cycle_homing.c:231-232; on the owner's A this is a real problem) |
+| Equal ends and zero backoff, homing configured | "Homing will stop with an error: the search distance is 0." (STAT_HOMING_ERROR_TRAVEL_MIN_MAX_IDENTICAL) |
+
+**Axis-mode problems** move into the card of the axis they concern, as one line in current terms, for example "Mode
+Off: the board ignores moves on this axis." The "Axis modes (read only)" box, its "This release never moves the
+machine" note and its all-clear sentence are removed. The fact codes in `packages/safety/src/axisModeFacts.ts` stay;
+their sentences are rewritten for the current release and reviewed as safety text (§7).
+
+**One home for each setting.** Each setting has exactly one place where it is changed. Other tabs may show it as a
+sentence with a link, never a second control. All settings lists every setting once, with the same control, as the
+index.
+
+| Setting | Changed on | Shown elsewhere as |
+|---|---|---|
+| What each switch does (`{a}sn`, `{a}sx`) | Inputs | Axes: "Homes towards min at the X min switch, J7.3" with a link |
+| Switch contact (`st`), probe contact (`prbp`, 450) | Inputs | nothing |
+| Live switch state (`in1`..`in8`) | Inputs (Test switches) | nothing |
+| Homing motion (`{a}sv lv lb zb jh`) | Axes, Homing section | Inputs homing summary links to it |
+| Travel (`{a}tn tm`) and Soft limits (`sl`) | Axes | Inputs: nothing |
+| Axis mode, radius (`{a}am`, `{a}ra`) | Axes | Motors: "drives A (rotary)" |
+| Speeds, jerk, junction deviation (`{a}vm fr jm jd`) | Axes | nothing |
+| Junction acceleration (`ja`), chordal tolerance (`ct`) | Axes, All axes card | nothing |
+| Motor map, step angle, travel per turn, microsteps, direction, power (`{m}ma sa tr mi po pm`) | Motors | Axes header: "motor 1" |
+| Motor idle time (`mt`) | Motors, one line above the cards: "Motors set to power off when idle turn off after 2 s." | nothing |
+| Units and distance mode at power-up (`gun`, `gdi`) | All settings, System | nothing |
+| Spindle and probe polarity (`spep`, `spdp`) | Spindle and coolant | nothing |
+
+The data records this as each token's `tab`; a test fails if a token appears as a control on any tab but its own
+(§4.4, item 7). **(call; owner question Q9)**
+
+### 5.6b Spindle and coolant, Communications
+
 - **Spindle and coolant:** J6 rows from the board file; polarity rows from the data (`spep`, `spdp` writable on 450;
   `spph`, `coph` reserved on 450 and absent on 449, shown as "No setting on this firmware"). The coolant row shows
   the machine record's "What is wired to the coolant output" (none, flood, mist, air) from the separate builder, as an
@@ -439,9 +535,12 @@ Mockup: `2026-11-18-board-config-backups-{dark,light}.png`.
 | All settings at Simple = GuidedSettings | All settings at both levels |
 | Two file actions in Backups | one: Add a backup file |
 | Nothing reads `in1`..`in8` | Test switches on the Inputs tab |
+| Axes: two six-row tables, a stale axis-modes box, a loose token footer | All axes card, one card per axis (unused ones collapsed), travel rules in words, `ara` shown |
+| Switch modes editable on Axes and Inputs | Inputs only; Axes links to it (one home per setting) |
 
 New modules stay small and single-purpose (owner's modular rule): a definitions loader, a `SettingControl`
-component, an `InputsModel` (pure: rows, homing summary, consequences), a `switchTest` poller, a `PendingBar`. No god
+component, an `InputsModel` (pure: rows, homing summary, consequences), an `AxesModel` (pure: cards, collapse,
+travel lines), a `switchTest` poller, a `PendingBar`. No god
 files: the current `SettingsUi.ts` (360 lines) is split along these lines rather than grown.
 
 ## 7. Safety
@@ -460,6 +559,9 @@ Needs safety-path review:
    it needs its own hazard entry.
 4. **`editBlocked` READ_ONLY check** (tightening only).
 5. **Removing Restore from a file** (the same staging path remains through Add a backup file, then Restore).
+6. **Axis-mode sentences** in `packages/safety/src/axisModeFacts.ts` are rewritten for the current release ("This
+   release never moves the machine" removed). The fact codes and when they fire do not change. The travel and homing
+   lines on Axes (§5.6) state firmware behaviour; the reviewer checks each against its citation.
 
 **Flagged proposals for the owner (not applied):**
 
@@ -479,6 +581,9 @@ Needs safety-path review:
 | BC-5 | Probe on A min refused, and two probes refused, as 449 switch.c:258-280 | 450.06 | The `probeAllowed` data |
 | BC-6 | Apply `xsn` 0→3 and `2mi` 2→8, read back, reset, read again, Revert | 450.06 | End-to-end apply with a switch and a motor change (HIL-4.8, HIL-4.9 cover the parts) |
 | BC-7 | `pm` 2 vs 3 with `mt` 2 s: when the motor de-energizes | 450.06 | The power mode wording |
+| BC-8 | A in radius mode with `ara` 10: read `atn atm alb azb asv avm` and home A; which values act as mm and which as degrees | 450.06 | The rotary units in radius mode (§5.6) |
+| BC-9 | A with `atn` = `atm`, homing on A min, `alb` 5: how far the homing search moves | 449.01, 450.06 | The "searches only 5°" and "one full turn" lines |
+| BC-10 | `ja` unit: compare cornering speed at two `ja` values against the planner formula | 450.06 | The junction acceleration unit (the firmware prints only "mm") |
 
 ## 9. Owner questions
 
@@ -500,6 +605,12 @@ Needs safety-path review:
    changed and the page does not jump. No: keep the top tray. **Recommend yes.**
 8. **Tokens at Advanced only?** Yes: matches OD-13. No: always show them small. **Recommend Advanced only**; the
    description panel shows the token at Simple for people who search forum posts.
+9. **One home per setting, as in the §5.6 table?** Switch modes and contact on Inputs; homing speeds, travel, soft
+   limits, modes, speeds and cornering on Axes; motor idle time on Motors. Yes: each setting is changed in one place,
+   and other tabs link to it. No: let Axes also edit the switch modes, as today. **Recommend yes.** The person who
+   thinks "homing" lands on either tab and is one click from the other.
+10. **Collapse axes the machine does not use?** Yes: B and C (and A when off) become one line with Show. No: always
+    list all six. **Recommend yes**, following OD-13's "the machine's axes only".
 
 ## 10. Mockups
 
@@ -509,6 +620,7 @@ Static HTML with the app's tokens, rendered at 1280 px in both themes, in `docs/
 |---|---|
 | `2026-11-18-board-config-inputs-*.png` | Inputs on an approved 450 board, one switch change pending, Test switches on |
 | `2026-11-18-board-config-motors-*.png` | Motor cards, one microsteps change pending, the microsteps options |
+| `2026-11-18-board-config-axes-*.png` | Owner 157 values: All axes card, X and A open, Y, Z, B and C collapsed, one travel change pending |
 | `2026-11-18-board-config-all-settings-*.png` | All settings at Advanced: groups, controls, read-only groups, no definition yet |
 | `2026-11-18-board-config-backups-*.png` | Backups list with an open compare, and the empty state |
 | `2026-11-18-board-config-read-only-*.png` | The owner's 449.01 board: notice, locked choices, motor values |
