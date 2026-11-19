@@ -3,8 +3,12 @@
  * read-only board refuses edits at the source, not only at Apply.
  */
 import { describe, expect, it } from 'vitest';
-import { INITIAL_LIVE_VIEW } from '../src/workspace/model.ts';
+import { h } from 'preact';
+import { signal } from '@preact/signals';
+import { INITIAL_LIVE_VIEW, type LiveView, type WorkspaceModel } from '../src/workspace/model.ts';
+import { BoardNotices } from '../src/workspace/settings/BoardNotices.ts';
 import { editBlocked, readOnlyNotice } from '../src/workspace/settings/editGate.ts';
+import { all, byAttr, one, root, text } from './tree.ts';
 import { SETTINGS_WRITES_UNAVAILABLE, settingsWriteBlocked } from '../src/workspace/settings/pending.ts';
 import { boardView, OWNER_449 } from './boardViews.ts';
 
@@ -57,5 +61,27 @@ describe('readOnlyNotice', () => {
   it('approved board or no board: no notice', () => {
     expect(readOnlyNotice(boardView())).toBeNull();
     expect(readOnlyNotice(null)).toBeNull();
+  });
+});
+
+/** A connected board whose classification is not known yet (identifying). */
+function identifying(): LiveView {
+  const v = boardView();
+  const m = v.message as NonNullable<LiveView['message']>;
+  return { ...v, message: { ...m, snapshot: { ...m.snapshot, classification: null } } };
+}
+
+describe('classification not known yet (review finding 8)', () => {
+  it('controls stay locked with the neutral "Reading the board…", and no read-only notice', () => {
+    expect(editBlocked(identifying())).toBe('Reading the board…');
+    expect(readOnlyNotice(identifying())).toBeNull();
+  });
+
+  it('the Board notices say "Reading the board…" with no buttons', () => {
+    const model = { live: signal(identifying()), actions: signal(null) } as unknown as WorkspaceModel;
+    const el = root(h(BoardNotices, { model, onUpdate: () => undefined }));
+    const line = one(el, byAttr('data-region', 'board-reading'));
+    expect(text(line)).toBe('Reading the board…');
+    expect(all(el, (e) => e.tag === 'button')).toEqual([]);
   });
 });

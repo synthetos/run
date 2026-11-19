@@ -17,6 +17,8 @@ export { writableKey } from './pending.ts';
 
 type Message = NonNullable<LiveView['message']>;
 
+export const READING_BOARD = 'Reading the board…';
+
 function firmwareText(m: Message): string {
   const fb = numberOf(m.snapshot.identity?.fb);
   return fb === null ? 'this firmware' : `firmware ${fbText(fb)}`;
@@ -37,6 +39,8 @@ function readOnlyBoard(m: Message, readDialect: string | null): boolean {
 export function editBlockedFor(m: Message | null, settings: Readonly<Record<string, unknown>>, readDialect: string | null): string | null {
   if (m === null || m.snapshot.base === 'NOT_CONNECTED') return 'Connect a board to change its settings.';
   if (m.settingsWrites !== true) return SETTINGS_WRITES_UNAVAILABLE;
+  // Not classified yet: neutral and still locked, never "can't change" before the board is known (review finding 8).
+  if (m.snapshot.classification === null) return READING_BOARD;
   if (readOnlyBoard(m, readDialect)) return `Run can't change settings on ${firmwareText(m)}.`;
   if (Object.keys(settings).length === 0) return 'Wait for the settings read to finish.';
   return null;
@@ -61,7 +65,7 @@ export function readOnlyNotice(view: LiveView | null): { readonly text: string; 
   const m = view?.message ?? null;
   if (view === null || m === null || m.snapshot.base === 'NOT_CONNECTED') return null;
   if (m.settingsWrites !== true) return { text: 'Changing settings is not turned on here.', update: false };
-  if (!readOnlyBoard(m, view.readout.dialectId)) return null;
+  if (m.snapshot.classification === null || !readOnlyBoard(m, view.readout.dialectId)) return null;
   const head = `Run can't change settings on ${firmwareText(m)}. You can see every setting and back them up.`;
   if (!updateHelps(m)) return { text: head, update: false };
   const target = updateTarget(view, m);

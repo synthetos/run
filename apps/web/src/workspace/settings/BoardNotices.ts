@@ -7,15 +7,18 @@
 import { h, type ComponentChild } from 'preact';
 import type { WorkspaceModel } from '../model.ts';
 import { discardNotice } from './boardChange.ts';
-import { readOnlyNotice } from './editGate.ts';
+import { editBlocked, READING_BOARD, readOnlyNotice } from './editGate.ts';
 
 export function BoardNotices({ model, onUpdate }: { readonly model: WorkspaceModel | null; readonly onUpdate: () => void }): ComponentChild {
-  const notice = readOnlyNotice(model?.live.value ?? null);
+  const view = model?.live.value ?? null;
+  const notice = readOnlyNotice(view);
+  const reading = editBlocked(view) === READING_BOARD;
   const discarded = discardNotice.value;
-  if (notice === null && discarded === null) return null;
+  if (notice === null && !reading && discarded === null) return null;
   return h(
     'div',
     { class: 'board-notices' },
+    reading ? h('div', { class: 'board-notice', role: 'status', 'data-region': 'board-reading' }, h('p', null, READING_BOARD)) : null,
     notice === null
       ? null
       : h(
