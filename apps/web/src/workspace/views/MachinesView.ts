@@ -31,6 +31,7 @@ import { writableKey } from '../settings/pending.ts';
 import { editBlocked, SettingsTable } from '../settings/SettingsUi.ts';
 import { boardLabel, num } from '../status.ts';
 import { TabBar, TabPane } from '../ui.ts';
+import { MachineCoolantField } from './MachineCoolantField.ts';
 
 export function MachineArt({ id, label }: { readonly id: string; readonly label?: string }): ComponentChild {
   const d = machineDrawing(id);
@@ -94,10 +95,9 @@ function MyMachine({ model, onView }: { readonly model: WorkspaceModel | null; r
             'div',
             { class: 'field-grid machine-edit' },
             h('label', { class: 'field wide-field' }, h('span', null, 'Name'), h('span', { class: 'unit-input' }, h('input', { value: mine.name, maxLength: 60, onChange: (e: Event) => update({ name: (e.currentTarget as HTMLInputElement).value.slice(0, 60) || mine.name }) }))),
-            ...(['x', 'y', 'z'] as const).map((a) =>
-              h('label', { class: 'field', key: a }, h('span', null, `Travel ${a.toUpperCase()}`), h('span', { class: 'unit-input' }, h('input', { type: 'number', min: 1, value: mine.travel[a], onChange: (e: Event) => update({ travel: { ...mine.travel, [a]: num((e.currentTarget as HTMLInputElement).value, mine.travel[a]) } }) }), h('i', null, 'mm'))),
-            ),
+            ...(['x', 'y', 'z'] as const).map((a) => h('label', { class: 'field', key: a }, h('span', null, `Travel ${a.toUpperCase()}`), h('span', { class: 'unit-input' }, h('input', { type: 'number', min: 1, value: mine.travel[a], onChange: (e: Event) => update({ travel: { ...mine.travel, [a]: num((e.currentTarget as HTMLInputElement).value, mine.travel[a]) } }) }), h('i', null, 'mm')))),
             h('label', { class: 'field' }, h('span', null, 'Spindle'), h('span', { class: 'unit-input' }, h('input', { value: mine.spindle, maxLength: 40, onChange: (e: Event) => update({ spindle: (e.currentTarget as HTMLInputElement).value.slice(0, 40) }) }))),
+            h(MachineCoolantField, { machine: mine, update }),
           )
         : [h('h2', { key: 'n' }, mine.name), h('p', { key: 'p' }, `${CATALOGUE.find((t) => t.id === mine.templateId)?.name ?? 'Custom'} · ${mine.drive === 'any' ? 'any drive' : `${mine.drive} drive`} · ${mine.travel.x} × ${mine.travel.y} × ${mine.travel.z} mm travel · ${mine.spindle}${uiLevel.value.value === 'advanced' ? ` · revision ${mine.revision ?? 1}` : ''}`), isOn && view !== null ? h('p', { key: 'b', class: 'fine' }, `Connected: ${boardLabel(view)}`) : null],
     ),

@@ -10,6 +10,7 @@ import {
 } from '../../boardFacts.ts';
 import { connected, type LiveView } from '../../model.ts';
 import { coolantText, displayReadouts, spindleText } from '../../status.ts';
+import { CoolantWiringPanel } from './CoolantWiring.ts';
 
 
 /** What a pin's settings say, row by row (readouts from the status report or the read-only poll). */
@@ -49,6 +50,8 @@ export function PinCard({ pin, view, onClose }: { readonly pin: PinInfo; readonl
     h('p', { class: 'pin-function' }, pin.function, pin.mcu === undefined ? null : h('small', { class: 'raw-key' }, ` ${pin.mcu}`)),
     h('p', { class: 'fine' }, connectorLabel(pin.connector)),
     pin.keys.length === 0 || pin.role === 'motor' ? null : h(PinSettings, { pin, view }),
+    // What is wired to the coolant output is the machine's (owner 152), saved with it, never written to the board.
+    pin.keys.includes('cof') ? h(CoolantWiringPanel, null) : null,
     pin.note === undefined ? null : h('p', { class: 'note' }, pin.note),
     h('p', { class: 'raw-key block' }, `Source: ${pin.src}`),
   );

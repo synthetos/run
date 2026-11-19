@@ -4,6 +4,7 @@ import { toolDisplayName } from './tools/displayName.ts';
  * needed, in the order the advice needs it. Material first, then the machine's spindle facts, then the operation's
  * own inputs. Motion analysis never waits for any of these. Display only.
  */
+import { COOLANT_KINDS } from '@synthetos/library';
 import type { AdvisorFields } from './advisorModel.ts';
 import type { MachineProfile, ToolEntry } from './library.ts';
 
@@ -19,7 +20,9 @@ export interface Question {
 }
 
 const OPERATION_KINDS: readonly (readonly [string, string])[] = [['slot', 'Slot'], ['pocket', 'Pocket'], ['adaptive', 'Adaptive'], ['profile', 'Profile'], ['finish', 'Finish'], ['drill', 'Drill'], ['v-carve', 'V-carve']];
-const COOLANTS: readonly (readonly [string, string])[] = [['none', 'None'], ['air', 'Air'], ['mist', 'Mist'], ['flood', 'Flood']];
+// The same words as the machine's coolant output (MachineProfile.coolant), so the advice and the machine agree.
+const COOLANT_NAMES: Readonly<Record<(typeof COOLANT_KINDS)[number], string>> = { none: 'None', air: 'Air', mist: 'Mist', flood: 'Flood' };
+const COOLANTS: readonly (readonly [string, string])[] = COOLANT_KINDS.map((k) => [k, COOLANT_NAMES[k]] as const);
 
 const isNumber = (s: string | undefined, min = 0, strict = true): boolean => s !== undefined && s.trim() !== '' && Number.isFinite(Number(s)) && (strict ? Number(s) > min : Number(s) >= min);
 

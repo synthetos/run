@@ -78,6 +78,14 @@ export type HomeFrame = 'front-left-top' | 'back-left-top' | 'front-right-top' |
 const HOME_FRAMES: readonly HomeFrame[] = ['front-left-top', 'back-left-top', 'front-right-top', 'back-right-top'];
 const DRIVES = ['belt', 'screw', 'rack', 'any'] as const;
 
+/**
+ * What is wired to the board's coolant output (owner, 2026-11-18, picture 152). A property of the machine, not a
+ * TinyG setting: the board drives one output and cannot know whether a pump, a mist valve or an air blast is on it.
+ * The same words as the cutting advice's coolant question.
+ */
+export const COOLANT_KINDS = ['none', 'air', 'mist', 'flood'] as const;
+export type MachineCoolant = (typeof COOLANT_KINDS)[number];
+
 export interface MachineProfile {
   readonly axes?: Readonly<Partial<Record<(typeof AXES)[number], AxisProfile>>>;
   /** Switch type for every input (TinyG `st`): 0 normally open, 1 normally closed. */
@@ -96,6 +104,8 @@ export interface MachineProfile {
   readonly homeFrame?: HomeFrame;
   /** The board this machine is bound to (the board's `identity.id`), set when it was connected during setup. */
   readonly boardId?: string;
+  /** What is wired to the coolant output; absent until someone says (records from before the field). */
+  readonly coolant?: MachineCoolant;
 }
 
 // ---------------------------------------------------------------- reading
@@ -171,10 +181,11 @@ function optionIssues(v: Record<string, unknown>): Issue[] {
   if (v['switchType'] !== undefined && v['switchType'] !== 0 && v['switchType'] !== 1) out.push(issue('/switchType', 'must be 0 or 1'));
   if (v['homeFrame'] !== undefined && !HOME_FRAMES.includes(v['homeFrame'] as HomeFrame)) out.push(issue('/homeFrame', 'must name a top corner'));
   if (v['boardId'] !== undefined && !(typeof v['boardId'] === 'string' && v['boardId'] !== '' && v['boardId'].length <= 64)) out.push(issue('/boardId', 'must be short text'));
+  if (v['coolant'] !== undefined && !COOLANT_KINDS.includes(v['coolant'] as MachineCoolant)) out.push(issue('/coolant', 'must be none, air, mist or flood'));
   return out;
 }
 
-const FIELDS = new Set(['axes', 'switchType', 'id', 'name', 'templateId', 'drive', 'travel', 'spindle', 'createdAt', 'revision', 'bed', 'homeFrame', 'boardId']);
+const FIELDS = new Set(['axes', 'switchType', 'id', 'name', 'templateId', 'drive', 'travel', 'spindle', 'createdAt', 'revision', 'bed', 'homeFrame', 'boardId', 'coolant']);
 
 /**
  * A machine profile as it may enter an account: every field checked. Unknown fields are refused at the root and in

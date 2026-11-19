@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readMachine } from '../src/index.ts';
+import { COOLANT_KINDS, readMachine } from '../src/index.ts';
 import { AT, bed, holeGrid, machine } from './recordFixtures.ts';
 
 const paths = (value: unknown): string[] => {
@@ -19,6 +19,15 @@ describe('readMachine', () => {
     }
     // The Machines view saves a cleared spindle description as ''.
     expect(readMachine({ id: 'm', name: 'M', templateId: 't', drive: 'any', travel: { x: 1, y: 1, z: 1 }, spindle: '', createdAt: AT }).ok).toBe(true);
+  });
+
+  it('what is wired to the coolant output: optional, one of the four words (owner, 2026-11-18, picture 152)', () => {
+    expect(COOLANT_KINDS).toEqual(['none', 'air', 'mist', 'flood']);
+    for (const coolant of COOLANT_KINDS) expect(readMachine({ ...machine(), coolant }).ok, coolant).toBe(true);
+    // Records from before the field read as before.
+    expect(readMachine(machine()).ok).toBe(true);
+    expect(paths({ ...machine(), coolant: 'water' })).toEqual(['/coolant']);
+    expect(paths({ ...machine(), coolant: null })).toEqual(['/coolant']);
   });
 
   it('refuses anything but an object with known fields', () => {

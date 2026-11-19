@@ -9,3 +9,6 @@ export const viewRequest = signal<string | null>(null);
 
 /** A release Board → Firmware should bring into view and mark (the update offer's "Go to update"); the view clears it. */
 export const releaseRequest = signal<string | null>(null);
+
+/** A pin Board → This board should open (the coolant toggle's "Set what is wired"); the Overview tab clears it. */
+export const pinRequest = signal<string | null>(null);

@@ -44,10 +44,10 @@ export { BUILTIN_MATERIALS, BUILTIN_TOOL_MATERIALS, BUILTIN_TOOL_TYPES, SEED_PLA
 export type { ToolMaterialSpec, ToolTypeSpec } from './seed.ts';
 export { deepFreeze } from './freeze.ts';
 export { isArray, isDateTime, isHole, isNum, isObject, isPoint, SHA256_HEX } from './shape.ts';
-export { readMachine } from './machine.ts';
+export { COOLANT_KINDS, readMachine } from './machine.ts';
 export { EMPTY_SETUP_RECORD, SETUP_RECORD_ID, readSetup } from './setup.ts';
 export type { HomingChoice, SetupRecord } from './setup.ts';
-export type { AxisProfile, BedHoleGrid, BedSource, HomeFrame, MachineBed, MachineProfile } from './machine.ts';
+export type { AxisProfile, BedHoleGrid, BedSource, HomeFrame, MachineBed, MachineCoolant, MachineProfile } from './machine.ts';
 export { JOB_FORMAT, isBed, isJob } from './job.ts';
 export type { DrawingSource, Job, JobDatum, JobFile, JobMachine, JobPlacement, JobReference, JobSetup, StockOutline, ToolRef } from './job.ts';
 export { FILE_ROLES, PROJECT_FORMAT, isProjectShape, readProject } from './project.ts';

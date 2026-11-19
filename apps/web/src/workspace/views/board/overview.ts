@@ -1,5 +1,6 @@
 import { h, type ComponentChild } from 'preact';
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
+import { pinRequest } from '../../boardNavigation.ts';
 import {
   pinByRef,
   settingsOf
@@ -15,8 +16,10 @@ import { PinCard } from './pin.ts';
 type OverviewSide = 'board' | 'pin';
 
 export function OverviewTab({ view }: { readonly view: LiveView | null }): ComponentChild {
-  const [selected, setSelected] = useState<string | null>(null);
-  const [side, setSide] = useState<OverviewSide>('board');
+  // A pin another view asked for (the coolant toggle's "Set what is wired") opens on arrival; the request is spent.
+  const [selected, setSelected] = useState<string | null>(() => pinRequest.peek());
+  const [side, setSide] = useState<OverviewSide>(() => (pinRequest.peek() === null ? 'board' : 'pin'));
+  useEffect(() => { pinRequest.value = null; }, []);
   const settings = settingsOf(view);
   const pin = selected === null ? null : pinByRef(selected);
   const select = (ref: string): void => {

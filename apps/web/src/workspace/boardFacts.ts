@@ -268,6 +268,11 @@ export function pinByRef(ref: string): PinInfo | null {
   return v8Pins().find((p) => p.ref === ref) ?? null;
 }
 
+/** The pin that drives the coolant output (its keys name `cof`), or null when the board data has none. */
+export function coolantPinRef(): string | null {
+  return v8Pins().find((p) => p.keys.includes('cof'))?.ref ?? null;
+}
+
 /** The connector pins of one connector id (J1, J6, J7, J8, M1..M4), in pin order. */
 export function connectorPins(id: string): readonly PinInfo[] {
   return v8Pins().filter((p) => p.connector === id).sort((a, b) => a.n - b.n);
