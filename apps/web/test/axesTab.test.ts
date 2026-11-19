@@ -55,6 +55,14 @@ describe('AxesTab', () => {
     expect(one(homing, byAttr('data-action', 'open-inputs')).props['href']).toBe('#board-pane-inputs');
   });
 
+  it('one homing link per card, and none on a read-only board (review finding 10)', () => {
+    const x = card(render(boardView({ settings: { ...OWNER_157, xsn: 0 } })), 'x');
+    expect(all(x, byAttr('data-action', 'open-inputs'))).toHaveLength(1);
+    expect(text(x)).not.toContain('Set one on Inputs');
+    const ro = render(boardView({ ...OWNER_449, settings: OWNER_157 }));
+    expect(all(ro, byAttr('data-action', 'open-inputs'))).toEqual([]);
+  });
+
   it('B and C collapse into one line', () => {
     const off = one(render(), byAttr('data-region', 'axes-off'));
     const own = off.children.find((c): c is El => typeof c !== 'string' && c.tag === 'summary');

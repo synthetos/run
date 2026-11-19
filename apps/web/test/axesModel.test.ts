@@ -47,8 +47,9 @@ describe('axisCards', () => {
   it('the homing line names the switch and its pin, from Inputs', () => {
     expect(cardOf('x')?.homingLine).toBe('Homes towards min at the X min switch, J7.3.');
     expect(cardOf('z')?.homingLine).toBe('Homes towards max at the Z max switch, J8.4.');
-    expect(axisCards(d450, { ...s, xsn: 0 }, ['x'], EN).cards[0]?.homingLine).toBe('No homing switch. Set one on Inputs.');
-    expect(axisCards(d450, { ...s, xsx: 1 }, ['x'], EN).cards[0]?.homingLine).toBe('Homes on both ends. Choose one on Inputs.');
+    // The one link to Inputs is the card's own (review finding 10): the line states the fact only.
+    expect(axisCards(d450, { ...s, xsn: 0 }, ['x'], EN).cards[0]?.homingLine).toBe('No homing switch.');
+    expect(axisCards(d450, { ...s, xsx: 1 }, ['x'], EN).cards[0]?.homingLine).toBe('Homes on both ends.');
   });
 
   it('a mode other than Standard gets one line in words from the data', () => {

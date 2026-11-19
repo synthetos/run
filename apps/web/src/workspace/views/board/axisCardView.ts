@@ -9,6 +9,7 @@ import type { SettingValue, SettingsFile } from '@synthetos/schema';
 import { axisModeFact, type AxisModeView } from '../../../machine-ui/AxisModes.ts';
 import { boardTab } from '../../boardNavigation.ts';
 import type { LiveView } from '../../model.ts';
+import { readOnlyNotice } from '../../settings/editGate.ts';
 import { boardInches } from '../../settings/meta.ts';
 import { SettingControl } from '../../settings/SettingControl.ts';
 import { numberWords, unitWords } from '../../settings/units.ts';
@@ -66,7 +67,9 @@ function Homing({ p }: { readonly p: CardProps }): ComponentChild {
   const a = p.c.axis;
   if (!p.defs.tokens.has(`${a}sn`)) return null;
   const keys = [`${a}sv`, `${a}lv`, `${a}lb`, `${a}zb`, `${a}jh`];
-  const line = h('p', { class: 'homing-line' }, p.c.homingLine, ' ', h('a', { href: '#board-pane-inputs', 'data-action': 'open-inputs', onClick: () => { boardTab.value = 'inputs'; } }, 'Change switches on Inputs'));
+  // The card's one link to Inputs; a board Run can't change gets none.
+  const link = readOnlyNotice(p.view) === null ? h('a', { href: '#board-pane-inputs', 'data-action': 'open-inputs', onClick: () => { boardTab.value = 'inputs'; } }, 'Change switches on Inputs') : null;
+  const line = h('p', { class: 'homing-line' }, p.c.homingLine, link === null ? null : ' ', link);
   if (p.c.homingLine.startsWith('Homes towards')) return h(Section, { title: 'Homing', keys, p, id: `board-axis-${a}-homing` }, line);
   return h('div', { class: 'axis-section', id: `board-axis-${a}-homing` }, h('h4', { class: 'tan-label' }, 'Homing'), line, h('details', { class: 'axis-more' }, h('summary', null, 'Homing speeds'), h('table', { class: 'cfg-table axis-table' }, h('tbody', null, keys.map((k) => h(Row, { key: k, k, p }))))));
 }

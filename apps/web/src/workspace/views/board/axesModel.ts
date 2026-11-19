@@ -89,8 +89,8 @@ export function travelLine(defs: SettingsFile, planned: Settings, axis: string, 
 
 function homingLine(defs: SettingsFile, s: Settings, a: string): string {
   const end = homingEnd(s, a);
-  if (end === 'both') return 'Homes on both ends. Choose one on Inputs.';
-  if (end === null) return 'No homing switch. Set one on Inputs.';
+  if (end === 'both') return 'Homes on both ends.';
+  if (end === null) return 'No homing switch.';
   const input = defs.inputs.find((i) => i.function === `${a}s${end === 'min' ? 'n' : 'x'}`);
   return input === undefined ? `Homes towards ${end}.` : `Homes towards ${end} at the ${input.label}, ${input.pin}.`;
 }
