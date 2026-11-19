@@ -111,6 +111,8 @@ for (const theme of ['dark', 'light'] as const) {
     test(`read-only board (449.01), every tab, ${theme}`, async ({ page }) => {
       test.setTimeout(120_000);
       await connect(page, READ_ONLY);
+      // Wait for the settings read: the notice's Back up settings is enabled only once the board is read and at rest.
+      await expect(page.locator('[data-action="notice-backup"]')).toBeEnabled({ timeout: 20_000 });
       for (const id of TABS) {
         await tab(page, id);
         await shoot(page, `readonly-${id}-${theme}`);
