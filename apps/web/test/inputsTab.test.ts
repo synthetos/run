@@ -6,6 +6,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { h } from 'preact';
 import { clearDraft, setDraft } from '../src/workspace/boardFacts.ts';
+import { AxesTab } from '../src/workspace/views/board/axes.ts';
 import { InputsTab } from '../src/workspace/views/board/inputs.ts';
 import { all, byAttr, one, root, text, type El } from './tree.ts';
 import { boardView, OWNER_449 } from './boardViews.ts';
@@ -17,6 +18,20 @@ const controls = (el: El): string[] => all(el, byAttr('data-setting-control')).m
 const enabled = (el: El): El[] => all(el, (e) => ['input', 'select', 'button'].includes(e.tag) && e.props['disabled'] !== true && e.props['data-action'] !== 'dismiss-notice-x');
 
 beforeEach(() => clearDraft());
+
+describe('a read-only board with a pending change left from before (review finding 4)', () => {
+  it('Inputs and Axes describe the board as it is: no pending marks, no high-risk tag, no planned homing', () => {
+    setDraft('xsn', 0);
+    const ro = boardView({ ...OWNER_449, settings: SWITCHES });
+    const el = render(ro);
+    expect(text(el)).not.toContain('High risk');
+    expect(all(el, (e) => e.props['class'] === 'drafted')).toEqual([]);
+    expect(text(el)).not.toContain('Homing, with the pending changes');
+    expect(text(el)).toContain('X homes towards min');
+    const x = one(root(h(AxesTab, { view: ro })), byAttr('data-axis-card', 'x'));
+    expect(text(x)).toContain('homes towards min');
+  });
+});
 
 describe('InputsTab', () => {
   it('450: the switch contact and the probe contact are controls; one five-way choice per input', () => {

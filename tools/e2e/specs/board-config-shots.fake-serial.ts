@@ -2,8 +2,9 @@
  * Board settings walkthrough pictures (owner rule: UI changes need a first-time-user walkthrough with screenshots).
  * Runs only when BOARD_CONFIG_SHOTS names a folder; then it captures every Board tab at 1280 px, dark and light, for
  * an approved board (the plain simulator) and a read-only one (the edge-next simulator reporting 449.01, READ_ONLY:
- * the test kit has no stock-449 simulator), plus a pending change with the review panel, All settings at Advanced,
- * and Backups after one backup. It asserts only what it needs to reach each state.
+ * the test kit has no stock-449 simulator), plus a pending change with the review panel, a change the plan refuses,
+ * a read-only board with a change left from before (Discard only), All settings at Advanced, and Backups after one
+ * backup with the Delete confirmation. It asserts only what it needs to reach each state.
  */
 import type { Page, Worker } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
@@ -77,6 +78,34 @@ for (const theme of ['dark', 'light'] as const) {
       await backup.click();
       await page.waitForTimeout(3000);
       await shoot(page, `approved-backups-after-one-${theme}`);
+      await page.locator('#board-pane-backups [data-action="backup-delete"]').first().click();
+      await expect(page.locator('[data-safety="backup-delete"]')).toBeVisible();
+      await shoot(page, `approved-backup-delete-${theme}`);
+    });
+
+    test(`approved board, a change the plan refuses, ${theme}`, async ({ page }) => {
+      await connect(page);
+      await tab(page, 'axes');
+      const field = page.locator('#board-pane-axes [data-setting-control="xvm"] input');
+      await field.fill('-5');
+      await field.press('Tab');
+      await expect(page.locator('[data-pending-refused]')).toBeVisible();
+      await shoot(page, `approved-refused-bar-${theme}`);
+      await page.locator('[data-region="pending-bar"] [data-action="review-apply"]').click();
+      await expect(page.locator('.tray-refused')).toBeVisible();
+      await shoot(page, `approved-refused-review-${theme}`);
+    });
+
+    test(`read-only board with a change left from before: Discard only, ${theme}`, async ({ page }) => {
+      await connect(page);
+      await tab(page, 'inputs');
+      await page.locator('#board-pane-inputs [data-setting-control="xsn"] [data-value][aria-checked="false"]').nth(2).click();
+      await expect(page.locator('[data-region="pending-bar"]')).toBeVisible();
+      await connect(page, READ_ONLY);
+      await tab(page, 'inputs');
+      await expect(page.locator('#board-pane-inputs [data-setting-control="xsn"]')).toBeVisible({ timeout: 20_000 });
+      await expect(page.locator('[data-pending-readonly]')).toBeVisible();
+      await shoot(page, `readonly-leftover-discard-${theme}`);
     });
 
     test(`read-only board (449.01), every tab, ${theme}`, async ({ page }) => {

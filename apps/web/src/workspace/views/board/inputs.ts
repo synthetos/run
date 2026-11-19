@@ -10,11 +10,12 @@
  */
 import { h, type ComponentChild } from 'preact';
 import { changeRisk, type SettingsFile } from '@synthetos/schema';
-import { connectorPins, draftStore, settingMeta, settingsOf } from '../../boardFacts.ts';
+import { connectorPins, settingMeta, settingsOf } from '../../boardFacts.ts';
 import { boardTab } from '../../boardNavigation.ts';
 import type { LiveView } from '../../model.ts';
 import { Dismissable } from '../../notes/Dismissable.ts';
 import { defsFor } from '../../settings/defs.ts';
+import { plannedDrafts } from '../../settings/editGate.ts';
 import { SettingControl } from '../../settings/SettingControl.ts';
 import { homingSummary, inputConsequences, inputRows, type InputRow } from './inputsModel.ts';
 import { Empty, type Settings } from './shared.ts';
@@ -26,7 +27,7 @@ const STATE_WORDS: Readonly<Record<NonNullable<InputRow['state']>, string>> = { 
 /** The current value's help sentence from the data, if it has one. */
 function valueHelp(key: string, view: LiveView | null): string | null {
   const meta = settingMeta(key, view?.readout.dialectId ?? null);
-  const v = draftStore.value.value[key] ?? view?.readout.settings[key];
+  const v = plannedDrafts(view)[key] ?? view?.readout.settings[key];
   return meta.values?.find((x) => x.value === v)?.help ?? null;
 }
 
@@ -110,7 +111,7 @@ export function InputsTab({ view, states }: { readonly view: LiveView | null; re
   if (Object.keys(settings).length === 0) return h('div', { class: 'scroll-region' }, h(Empty, { view }));
   const defs = defsFor(view);
   if (defs === null) return h('div', { tabindex: 0, class: 'scroll-region cfg-scroll' }, h(RawInputs, { view }));
-  const drafts = draftStore.value.value;
+  const drafts = plannedDrafts(view);
   const rows = inputRows(defs, settings, drafts, states);
   return h(
     'div',

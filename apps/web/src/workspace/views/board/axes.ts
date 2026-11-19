@@ -6,11 +6,11 @@
 import { h, type ComponentChild } from 'preact';
 import type { SettingValue, SettingsFile } from '@synthetos/schema';
 import { axisModeState } from '../../../machine-ui/AxisModes.ts';
-import { draftStore, settingMeta, settingsOf } from '../../boardFacts.ts';
+import { settingMeta, settingsOf } from '../../boardFacts.ts';
 import { selectedMachine } from '../../library.ts';
 import type { LiveView } from '../../model.ts';
 import { defsFor } from '../../settings/defs.ts';
-import { readOnlyNotice } from '../../settings/editGate.ts';
+import { plannedDrafts, readOnlyNotice } from '../../settings/editGate.ts';
 import { guidedAxes } from '../../settings/GuidedSettings.ts';
 import { boardInches } from '../../settings/meta.ts';
 import { SettingControl } from '../../settings/SettingControl.ts';
@@ -80,7 +80,7 @@ export function AxesTab({ view }: { readonly view: LiveView | null }): Component
   const modes = view?.axisModes ?? null;
   const root = { tabindex: 0, class: 'scroll-region cfg-scroll axes-tab', 'data-region': 'axes', 'data-axis-modes': axisModeState(modes) ?? undefined };
   if (defs === null) return h('div', root, h(RawAxes, { view, settings }));
-  const planned: Settings = { ...settings, ...draftStore.value.value };
+  const planned: Settings = { ...settings, ...plannedDrafts(view) };
   const machine = guidedAxes(selectedMachine.value, settings);
   const { cards, collapsedOff } = axisCards(defs, planned, machine, axisContext(view));
   const narrow = typeof window !== 'undefined' && window.innerWidth < NARROW;

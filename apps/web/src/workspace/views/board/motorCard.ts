@@ -5,10 +5,11 @@
  */
 import { h, type ComponentChild } from 'preact';
 import type { SettingValue, SettingsFile } from '@synthetos/schema';
-import { AXIS_NAMES, draftStore, stepsPerUnit } from '../../boardFacts.ts';
+import { AXIS_NAMES, stepsPerUnit } from '../../boardFacts.ts';
 import { boardTab } from '../../boardNavigation.ts';
 import type { LiveView } from '../../model.ts';
 import { defsFor } from '../../settings/defs.ts';
+import { plannedDrafts } from '../../settings/editGate.ts';
 import { boardInches, boardValueWords } from '../../settings/meta.ts';
 import { SettingControl } from '../../settings/SettingControl.ts';
 import { numberWords } from '../../settings/units.ts';
@@ -56,7 +57,7 @@ export function MotorFacts({ m, view }: { readonly m: number; readonly view: Liv
 
 export function MotorCard({ m, view, defs }: { readonly m: number; readonly view: LiveView | null; readonly defs: SettingsFile }): ComponentChild {
   const board: Settings = view?.readout.settings ?? {};
-  const planned: Settings = { ...board, ...draftStore.value.value };
+  const planned: Settings = { ...board, ...plannedDrafts(view) };
   const ma = num(planned, `${m}ma`);
   const rotary = ma !== undefined && ma >= 3;
   const rows = [...defs.tokens.values()].filter((d) => d.group === `motor-${m}`);

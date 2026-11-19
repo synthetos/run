@@ -9,6 +9,7 @@
 import { settingsDefsFor } from '@synthetos/schema';
 import { UPDATE_FIXES } from '../../firmware/updateNeeded.ts';
 import { fbText, newestRelease, numberOf } from '../../firmware/updateOffer.ts';
+import { draftStore } from '../boardFacts.ts';
 import type { LiveView } from '../model.ts';
 import { SETTINGS_WRITES_UNAVAILABLE } from './pending.ts';
 
@@ -65,6 +66,14 @@ function updateTarget(view: LiveView, m: Message): string | null {
   if (releases === undefined || !releases.ok || hv === null || fb === null) return null;
   const r = newestRelease(releases.list, hv, fb, true);
   return r === null ? null : fbText(r.fb);
+}
+
+/**
+ * The pending changes the tabs plan with: none on a board Run can't change, so Inputs, Axes and Motors describe that
+ * board as it is while leftover changes wait for Discard (review finding 4).
+ */
+export function plannedDrafts(view: LiveView | null): Readonly<Record<string, number>> {
+  return readOnlyNotice(view) === null ? draftStore.value.value : {};
 }
 
 /** The one notice above the Board tabs when Run may not change settings here, or null. */
