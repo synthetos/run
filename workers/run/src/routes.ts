@@ -23,6 +23,7 @@ import { authConfig, type AuthEnv } from './authConfig.ts';
 import { authRoute } from './authRoutes.ts';
 import { runSessionIdentity } from './authSession.ts';
 import { API_CACHE_CONTROL, HASHED_ASSET_CACHE_CONTROL } from './headers.ts';
+import { loadGithubReleases } from './githubReleaseRoute.ts';
 
 export const VERSION = '0.0.0';
 
@@ -41,6 +42,13 @@ export interface Env extends AuthEnv {
   readonly RUN_DATA?: RunDataBinding & RunFilesBinding;
   readonly ASSETS: AssetsBinding;
   readonly RUN_ENV?: string;
+  /** Read-only GitHub key for public repositories; CI uploads it with the deploy (githubReleases.ts says why). */
+  readonly GITHUB_RELEASES_TOKEN?: string;
+}
+
+/** The TinyG release list for this request, keyed with the Worker's GitHub key when it has one. */
+function releasesFor(env: Env, deps: FirmwareProxyDeps | undefined): NonNullable<FirmwareProxyDeps['releases']> {
+  return deps?.releases ?? (() => loadGithubReleases(env.GITHUB_RELEASES_TOKEN));
 }
 
 /** Body of `GET /api/health`. The post-deploy smoke test checks `service` and `env`. */
@@ -160,7 +168,7 @@ export async function route(request: Request, env: Env, firmwareDeps?: FirmwareP
   const { pathname } = url;
   if (pathname === '/firmware' || pathname === '/firmware/') return new Response(null, { status: 302, headers: { location: '/update/', 'cache-control': 'no-store' } });
   if (under(pathname, '/api')) {
-    const data = dataRoute(request, { pathname, env, releases: firmwareDeps?.releases });
+    const data = dataRoute(request, { pathname, env, releases: releasesFor(env, firmwareDeps) });
     if (data !== null) return data;
     if (pathname === '/api/identity') {
       if (request.method === 'GET') return identity(request, env);
@@ -176,7 +184,7 @@ export async function route(request: Request, env: Env, firmwareDeps?: FirmwareP
     return json(405, { error: 'method_not_allowed' }, { allow: 'GET, HEAD' });
   }
   if (under(pathname, '/auth')) return authRoute(request, env, now());
-  if (firmwareAssetPath(pathname) !== null) return firmware(request, env, pathname, firmwareDeps ?? liveFirmwareDeps(url.origin));
+  if (firmwareAssetPath(pathname) !== null) return firmware(request, env, pathname, { ...(firmwareDeps ?? liveFirmwareDeps(url.origin)), releases: releasesFor(env, firmwareDeps) });
   // Every other request (the Worker runs first for all of them: P1-00 on
   // staging, OD-29 in production). The asset layer answers; the caller
   // applies the headers.

@@ -363,7 +363,8 @@ describe('undo a failed deployment (P0 review)', () => {
     expect(rules(always)).toEqual(['deploy-rollback']);
     const idAt = CI.indexOf('        id: deploy\n', start);
     const noId = CI.slice(0, idAt) + CI.slice(idAt + '        id: deploy\n'.length);
-    expect(rules(noId)).toEqual(['deploy-rollback']);
+    // The deploy step also carries the pinned GitHub releases key (releasesKeyCredential.ts), so any edit to it trips that rule too.
+    expect(rules(noId).sort()).toEqual(['deploy-rollback', 'secret-outside-deploy']);
   });
 });
 

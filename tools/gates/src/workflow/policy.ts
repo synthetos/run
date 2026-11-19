@@ -91,7 +91,7 @@ import { dataOrder, dataProvisionOrPreflight, dataStep, DATA_MIGRATION, DATA_DEP
 
 import { AUTH_PROVISION_WORKFLOW } from './authProvisionWorkflow.ts';
 import { MUTATION_JOB } from './mutationJob.ts';
-import { D1_SECRET, d1ReadinessIsConfined, d1StepIsConfined } from './d1Credentials.ts';
+import { confinedSecret, D1_SECRET, d1ReadinessIsConfined, d1StepIsConfined } from './releasesKeyCredential.ts';
 
 export const DEPLOY_JOBS: readonly string[] = ['deploy-staging', 'deploy-production'];
 export const DEPLOY_ENVIRONMENTS: Readonly<Record<string, string>> = {
@@ -397,7 +397,7 @@ export function checkWorkflow(file: string, source: string): PolicyFinding[] {
         add(line.no, 'secret-outside-deploy', `only ${DEPLOY_JOBS.join(' and ')} may reference secrets or ${DEPLOY_SECRET}`);
       } else {
         for (const m of content.matchAll(/\bsecrets\b(\s*\.\s*([A-Za-z0-9_]+))?/g)) {
-          if (m[2] !== DEPLOY_SECRET && !(m[2] === D1_SECRET && job !== undefined && (backupStep(stepOf(job, line), job.name) || dataProvisionOrPreflight(stepOf(job, line), job.name) || dataStep(stepOf(job, line), job.name, DATA_MIGRATION) || d1StepIsConfined(stepOf(job, line), DEPLOY_ENVIRONMENTS[job.name] ?? '') || d1ReadinessIsConfined(stepOf(job, line), DEPLOY_ENVIRONMENTS[job.name] ?? '')))) {
+          if (m[2] !== DEPLOY_SECRET && !confinedSecret(m[2], job === undefined ? [] : stepOf(job, line), DEPLOY_ENVIRONMENTS[job?.name ?? ''] ?? '', () => job !== undefined && (backupStep(stepOf(job, line), job.name) || dataProvisionOrPreflight(stepOf(job, line), job.name) || dataStep(stepOf(job, line), job.name, DATA_MIGRATION) || d1StepIsConfined(stepOf(job, line), DEPLOY_ENVIRONMENTS[job.name] ?? '') || d1ReadinessIsConfined(stepOf(job, line), DEPLOY_ENVIRONMENTS[job.name] ?? '')))) {
             add(line.no, 'secret-outside-deploy', `deploy jobs may use secrets.${DEPLOY_SECRET}; the D1 credential is confined to the reviewed migration step`);
           }
         }

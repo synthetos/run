@@ -1331,7 +1331,7 @@
       "complexity $/FunctionDeclaration:checkArtifactDigests#1": 21,
       "complexity $/FunctionDeclaration:checkDeployConfig#1": 35,
       "complexity $/FunctionDeclaration:checkSafetyReviewShape#1": 28,
-      "complexity $/FunctionDeclaration:checkWorkflow#1": 141,
+      "complexity $/FunctionDeclaration:checkWorkflow#1": 137,
       "max-depth $/FunctionDeclaration:checkWorkflow#1": 5,
       "max-lines $file": 679,
       "max-lines-per-function $/FunctionDeclaration:checkWorkflow#1": 199
@@ -1397,7 +1397,7 @@
       "max-lines $file": 2870
     },
     "workers/run/src/routes.ts": {
-      "complexity $/FunctionDeclaration:route#1": 23
+      "complexity $/FunctionDeclaration:route#1": 22
     },
     "workers/run/test/auth.test.ts": {
       "max-lines-per-function $/ArrowFunctionExpression:describe('GET /auth/callback')[1]#1": 166

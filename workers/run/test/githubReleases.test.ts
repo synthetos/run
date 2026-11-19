@@ -18,6 +18,26 @@ describe('TinyG release selection', () => {
     expect(() => latestGithubReleases({})).toThrow();
     expect(latestGithubReleases([{ ...release(1), tag_name: '../other' }, null])).toEqual([]);
   });
+  it('ranks by the firmware version in the hex name, so older firmware uploaded later cannot push the newest out', () => {
+    const late = (tag: string, file: string) => ({ ...release(1), tag_name: tag, published_at: '2026-11-16T00:00:00Z', assets: [asset(file)] });
+    const list = latestGithubReleases([release(3), release(6), release(4), release(5), late('440.20', 'tinyg-440.20.hex'), late('master-449-final', 'tinyg-449.02.hex'), late('edge-0.98-final', 'tinyg-444.23.hex'), late('edge-0.97-final', 'tinyg-449.01.hex'), late('odd', 'tinyg-special.hex')]);
+    expect(list.map(r => r.tag)).toEqual(['450.06', '450.05', '450.04', '450.03', 'master-449-final']);
+    expect(latestGithubReleases([release(2), late('450.10', 'tinyg-450.10.hex')]).map(r => r.tag)).toEqual(['450.10', '450.02']);
+    expect(latestGithubReleases([late('odd', 'tinyg-special.hex'), release(2)]).map(r => r.tag)).toEqual(['450.02', 'odd']);
+  });
+});
+it('sends the read-only key when the Worker has one, and nothing otherwise', async () => {
+  const fetcher = vi.fn(async () => new Response('[]'));
+  await githubReleaseLoader(fetcher)('github_pat_example');
+  expect(fetcher.mock.calls[0]?.[1]).toMatchObject({ headers: expect.objectContaining({ authorization: 'Bearer github_pat_example' }) });
+  const keyless = vi.fn(async () => new Response('[]'));
+  await githubReleaseLoader(keyless)();
+  await githubReleaseLoader(keyless)('');
+  for (const call of keyless.mock.calls) expect(call[1]).toMatchObject({ headers: expect.not.objectContaining({ authorization: expect.anything() }) });
+});
+it('names the HTTP status GitHub refused with, for the Worker log', async () => {
+  const load = githubReleaseLoader(async () => new Response('{"message":"API rate limit exceeded"}', { status: 403 }));
+  await expect(load()).rejects.toThrow('(HTTP 403)');
 });
 it('fetches only the fixed API, coalesces refresh and expires after ten minutes', async () => {
   let now = 0;

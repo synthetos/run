@@ -33,11 +33,20 @@ function readRelease(value: unknown): GithubFirmwareRelease | null {
   const { sha256, size, unavailable } = integrity(asset);
   return Object.freeze({ repo: TINYG_REPO, tag, file: asset['name'] as string, date, notes: typeof notes === 'string' ? notes.slice(0, 16000) : '', prerelease: value['prerelease'], size, sha256, unavailable });
 }
+/** The firmware build in `tinyg-<major>.<minor>.hex` as one comparable number; -1 when the name carries none. */
+function firmwareRank(file: string): number {
+  const m = /^tinyg-(\d{1,4})\.(\d{1,3})\.hex$/.exec(file);
+  return m === null ? -1 : Number(m[1]) * 1000 + Number(m[2]);
+}
+/** Newest firmware first, by the version in the hex name (owner 2026-11-19: old builds uploaded later must not push 450.06 out); then by date. */
+function newestFirst(a: GithubFirmwareRelease, b: GithubFirmwareRelease): number {
+  return firmwareRank(b.file) - firmwareRank(a.file) || Date.parse(b.date) - Date.parse(a.date);
+}
 /** Invalid integrity metadata stays visible but can never authorize a download. */
 export function latestGithubReleases(value: unknown): readonly GithubFirmwareRelease[] {
   if (!Array.isArray(value)) throw new Error('GitHub returned an invalid release list.');
   const releases = value.map(readRelease).filter((r): r is GithubFirmwareRelease => r !== null);
-  releases.sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
+  releases.sort(newestFirst);
   const unique = releases.filter((r, i) => releases.findIndex(other => other.tag === r.tag) === i);
   return Object.freeze(unique.slice(0, 5));
 }

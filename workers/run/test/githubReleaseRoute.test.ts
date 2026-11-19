@@ -32,6 +32,22 @@ it('proxies only current listed assets, checks bytes including cache hits, and n
   expect((await proxyFirmwareAsset(path, 'production', { ...deps, cache: memoryCache(), fetch: async () => new Response('wrong!!!') })).ok).toBe(false);
 });
 
+it('keys both the list and the firmware download with the Worker secret GITHUB_RELEASES_TOKEN', async () => {
+  for (const pathname of ['/api/firmware/releases', '/firmware/synthetos/TinyG/450.05/tinyg-450.05.hex']) {
+    vi.resetModules();
+    const { route } = await import('../src/routes.ts');
+    const calls: { url: string; auth: string | null }[] = [];
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
+      calls.push({ url, auth: new Headers(init.headers).get('authorization') });
+      return new Response('[]');
+    });
+    try {
+      await route(new Request(`${origin}${pathname}`), { ASSETS: { fetch: async () => new Response(null) }, RUN_ENV: 'production', GITHUB_RELEASES_TOKEN: 'github_pat_example' });
+    } finally { vi.unstubAllGlobals(); }
+    expect(calls.find(c => c.url.startsWith('https://api.github.com/'))).toEqual({ url: expect.stringContaining('synthetos/TinyG/releases'), auth: 'Bearer github_pat_example' });
+  }
+});
+
 it('adds the exact security headers to all release endpoint outcomes', async () => {
   for (const [method, headers, fail, status] of [
     ['GET', {}, false, 200], ['POST', {}, false, 405],
