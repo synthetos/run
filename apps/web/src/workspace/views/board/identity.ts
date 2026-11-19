@@ -40,13 +40,8 @@ export function BoardFacts({ view }: { readonly view: LiveView | null }): Compon
     on
       ? boardFactsList({ id, dialect, units, settings, view, wcs, c })
       : h('p', { class: 'fine' }, NOT_CONNECTED_TEXT),
-    on && readOnly
-      ? h(
-        'p',
-        { class: 'note', 'data-board-fact': 'read-only' },
-        'Phase 1 connects every board read-only: Run reads positions and settings and writes nothing.',
-        c?.detail === undefined || c.detail === '' ? null : h('small', { class: 'raw-key block' }, boardText(c.detail)),
-      )
+    on && readOnly && c?.detail !== undefined && c.detail !== ''
+      ? h('p', { class: 'fine', 'data-board-fact': 'read-only' }, h('small', { class: 'raw-key block' }, boardText(c.detail)))
       : null,
     h(
       'div',

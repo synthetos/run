@@ -66,22 +66,13 @@ async function openBoard(page: Page): Promise<void> {
   // W29 is dismissed by the page fixture's handler (specs/fixtures.ts).
 }
 
-/** Tabs that still hide their controls behind Edit values get it pressed; tabs with controls in place need nothing. */
-async function openEditing(page: Page, tab: string): Promise<void> {
-  const toggle = page.locator(`#board-pane-${tab} [data-action="toggle-edit"]`);
-  await expect(page.locator(`#board-pane-${tab} :is([data-action="toggle-edit"], [data-setting-control])`).first()).toBeVisible({ timeout: 20_000 });
-  if ((await toggle.count()) === 0) return;
-  await expect(toggle).toBeEnabled({ timeout: 20_000 });
-  await toggle.click();
-}
-
 test('edit a setting, apply: backup downloaded first, written once and read back, persisted; then revert from the backup', async ({ page }) => {
   test.setTimeout(90_000);
   await page.setViewportSize({ width: 1440, height: 900 });
   const worker = await connectedTab(page);
   await openBoard(page);
+  // Controls sit in place on every tab (OD-44): no Edit values toggle.
   await page.locator('[data-board-tab="axes"]').click();
-  await openEditing(page, 'axes');
   const field = page.locator('#board-pane-axes [data-setting-control="xfr"] input');
   await expect(field).toBeEnabled({ timeout: 20_000 });
   const before = await board(worker);
@@ -104,7 +95,6 @@ test('edit a setting, apply: backup downloaded first, written once and read back
 
   // A high-risk change (switch type) needs its consequence ticked and WRITE typed: shown, then cancelled.
   await page.locator('[data-board-tab="inputs"]').click();
-  await openEditing(page, 'inputs');
   const st = before.eeprom['st'] === 1 ? '0' : '1';
   await page.locator(`#board-pane-inputs [data-setting-control="st"] [data-value="${st}"]`).first().click();
   await expect(tray.locator('[data-pending-key="st"]')).toHaveClass(/high-risk/);

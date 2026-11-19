@@ -184,7 +184,7 @@ describe('Phase 1 control allowlist', () => {
     // Catalog preview, opening a local tool, and draft dismissal are UI/library only; no machine access.
     /^action:catalog-(preview|add|open-tool|back)$/,
     /^action:dialog-(keep-editing|discard)$/,
-    /^action:(toggle-edit|toggle-pending|discard-pending|remove-pending|clear-apply|cancel-apply|stage-profile)$/,
+    /^action:(toggle-pending|discard-pending|remove-pending|clear-apply|cancel-apply|stage-profile|review-apply|close-review|notice-backup|notice-update|open-inputs|open-motors)$/,
     // The Firmware and Backups tabs: records on this computer (export, import, compare, delete, download) and dialog controls.
     /^action:(backup-compare|backup-export|backup-delete|backup-import|firmware-download|firmware-delete|trust-revoke|trust-cancel|cancel-flash|flash-cancel|flash-dismiss|flash-reconnect|switch-test-start)$/,
     /^preview:(file|rapids|dialect|mode|scrubber|fit|cancel|view-iso|view-top|view-front)$/,

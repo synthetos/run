@@ -1,78 +1,95 @@
+/**
+ * The Spindle and coolant tab (Board settings spec §5.6b): the J6 pins from the board file with each output's
+ * polarity from the settings file (a control where Run may write it; "Reserved on this firmware" for a stub; "No
+ * setting on this firmware" where the firmware has none), what is wired to the coolant output (the machine record,
+ * changed on the J6.6 pin panel, never a board setting), the readouts, and the spindle PWM values.
+ */
 import { h, type ComponentChild } from 'preact';
-import { useState } from 'preact/hooks';
-import {
-  connectorPins,
-  dialectOf,
-  plainValue,
-  settingMeta,
-  settingsOf
-} from '../../boardFacts.ts';
+import type { PinInfo } from '../../boardFacts.ts';
+import { connectorPins, settingMeta, settingsOf } from '../../boardFacts.ts';
+import { COOLANT_WIRING } from '../../coolant.ts';
+import { selectedMachine } from '../../library.ts';
 import { connected, type LiveView } from '../../model.ts';
 import { Dismissable } from '../../notes/Dismissable.ts';
-import { editBlocked } from '../../settings/editGate.ts';
+import { defsFor } from '../../settings/defs.ts';
+import { SettingControl } from '../../settings/SettingControl.ts';
 import { coolantText, displayReadouts, spindleText } from '../../status.ts';
-import { EditToggle, cell } from './shared.ts';
+import { CHOOSE_MACHINE_FIRST } from './CoolantWiring.ts';
+import { Empty } from './shared.ts';
 
-export function OutputsTab({ view }: { readonly view: LiveView | null }): ComponentChild {
-  const [editing, setEditing] = useState(false);
-  const edit = editing && editBlocked(view) === null ? view : null;
-  const settings = settingsOf(view);
-  const dialect = dialectOf(view);
-  const pins = connectorPins('J6');
+/** The setting that decides each output's polarity. */
+const POLARITY: Readonly<Record<string, string>> = { 'out.spindleEnable': 'spep', 'out.spindleDirection': 'spdp', 'out.spindlePwm': 'spph', 'out.coolant': 'coph' };
+
+function Polarity({ pin, view }: { readonly pin: PinInfo; readonly view: LiveView | null }): ComponentChild {
+  const k = pin.signal === undefined ? undefined : POLARITY[pin.signal];
+  const attrs = { 'data-polarity': pin.ref };
+  if (k === undefined) return h('td', { ...attrs, class: 'muted' }, 'Not applicable');
+  const defs = defsFor(view);
+  if (defs === null) return h('td', attrs, view?.readout.settings[k] === undefined ? 'Not read' : h(SettingControl, { k, view }));
+  const d = defs.tokens.get(k);
+  if (d === undefined) return h('td', { ...attrs, class: 'muted' }, 'No setting on this firmware');
+  if (d.access === 'reserved') return h('td', { ...attrs, class: 'muted', title: d.reason }, 'Reserved on this firmware');
+  return h('td', attrs, h(SettingControl, { k, view }));
+}
+
+function wiredTo(): string {
+  const machine = selectedMachine.value;
+  if (machine === null) return CHOOSE_MACHINE_FIRST;
+  const label = COOLANT_WIRING.find(([value]) => value === machine.coolant)?.[1];
+  return label === undefined ? 'Not set. Choose it on the J6.6 pin panel.' : `Wired to: ${label}.`;
+}
+
+function PinRow({ pin, view }: { readonly pin: PinInfo; readonly view: LiveView | null }): ComponentChild {
+  return h(
+    'tr',
+    { key: pin.ref },
+    h('th', { scope: 'row' }, h('strong', null, pin.label), ' ', h('small', { class: 'pin-ref' }, pin.ref)),
+    h('td', null, pin.function, pin.signal === 'out.coolant' ? h('small', { class: 'block fine', 'data-coolant-wired': '' }, wiredTo()) : null),
+    h(Polarity, { pin, view }),
+  );
+}
+
+function Readouts({ view }: { readonly view: LiveView | null }): ComponentChild {
   const snapshot = view !== null && connected(view) ? view.message?.snapshot : undefined;
   const r = displayReadouts(snapshot);
-  const pwm = Object.keys(settings).filter((k) => /^p1/.test(k)).sort();
   const srList = snapshot?.live.srList;
   const missing = srList !== undefined && !['spe', 'spc', 'sps', 'cof', 'com'].every((k) => srList.includes(k));
   return h(
+    'section',
+    { class: 'board-card' },
+    h('div', { class: 'sec-head' }, h('h3', { class: 'card-title' }, 'Reported now')),
+    h('dl', { class: 'facts inline-facts' }, h('div', null, h('dt', null, 'Spindle'), h('dd', null, spindleText(r))), h('div', null, h('dt', null, 'Coolant'), h('dd', null, coolantText(r)))),
+    h('p', { class: 'fine' }, missing ? 'This board’s status list does not carry these: they were read once at connect and change only when the list carries them. Display only: never rely on them for safety.' : 'From the board’s status reports. Display only: never rely on them for safety.'),
+  );
+}
+
+function Pwm({ view, keys }: { readonly view: LiveView | null; readonly keys: readonly string[] }): ComponentChild {
+  if (keys.length === 0) return null;
+  const dialect = view?.readout.dialectId ?? null;
+  return h(
+    'section',
+    { class: 'board-card' },
+    h('div', { class: 'sec-head' }, h('h3', { class: 'card-title' }, 'Spindle speed output (PWM)')),
+    h('table', { class: 'cfg-table axis-table' }, h('tbody', null, keys.map((k) => h('tr', { key: k }, h('th', { scope: 'row' }, settingMeta(k, dialect).label), h('td', null, h(SettingControl, { k, view })))))),
+  );
+}
+
+export function OutputsTab({ view }: { readonly view: LiveView | null }): ComponentChild {
+  const settings = settingsOf(view);
+  if (Object.keys(settings).length === 0) return h('div', { class: 'scroll-region' }, h(Empty, { view }));
+  const pins = connectorPins('J6');
+  const pwm = Object.keys(settings).filter((k) => /^p1/.test(k)).sort();
+  return h(
     'div',
-    { tabindex: 0, class: 'scroll-region cfg-scroll' },
-    h(EditToggle, { view, editing, onToggle: () => setEditing((e) => !e) }),
+    { tabindex: 0, class: 'scroll-region cfg-scroll outputs-tab' },
     h(
       'section',
-      { class: 'cfg-section' },
-      h('h3', { class: 'tan-label' }, 'J6 spindle and coolant'),
-      h(
-        'table',
-        { class: 'cfg-table' },
-        h('thead', null, h('tr', null, ...['Pin', 'Name', 'What it does', 'Polarity', 'Chip pin'].map((t) => h('th', { scope: 'col', key: t }, t)))),
-        h(
-          'tbody',
-          null,
-          pins.map((p) =>
-            h(
-              'tr',
-              { key: p.ref },
-              h('th', { scope: 'row' }, h('span', { class: 'pin-ref' }, p.ref)),
-              h('td', null, h('strong', null, p.label)),
-              h('td', null, p.function),
-              p.signal === 'out.spindleEnable' ? cell('spep', settings, dialect, edit) : p.signal === 'out.spindleDirection' ? cell('spdp', settings, dialect, edit) : p.signal === 'out.spindlePwm' ? cell('spph', settings, dialect) : p.signal === 'out.coolant' ? cell('coph', settings, dialect) : h('td', { class: 'muted' }, 'Not applicable'),
-              h('td', { class: 'mono' }, p.mcu ?? 'Not applicable'),
-            ),
-          ),
-        ),
-      ),
+      { class: 'board-card' },
+      h('div', { class: 'sec-head' }, h('h3', { class: 'card-title' }, 'J6 spindle and coolant')),
+      h('table', { class: 'cfg-table outputs-table' }, h('thead', null, h('tr', null, ...['Pin', 'What it does', 'Polarity'].map((t) => h('th', { scope: 'col', key: t }, t)))), h('tbody', null, pins.map((p) => h(PinRow, { key: p.ref, pin: p, view })))),
       h(Dismissable, { id: 'board/coolant-shared', label: 'the coolant note', inNotes: false }, h('p', { class: 'fine' }, 'Mist and flood share the one coolant output on this board.')),
     ),
-    h(
-      'section',
-      { class: 'cfg-section' },
-      h('h3', { class: 'tan-label' }, 'Reported now'),
-      h(
-        'dl',
-        { class: 'facts inline-facts' },
-        h('div', null, h('dt', null, 'Spindle', h('small', { class: 'raw-key' }, 'spe spc sps')), h('dd', null, spindleText(r))),
-        h('div', null, h('dt', null, 'Coolant', h('small', { class: 'raw-key' }, 'cof com')), h('dd', null, coolantText(r))),
-      ),
-      h('p', { class: 'fine' }, missing ? 'This board’s status list does not carry these: they were read once at connect and change only when the list carries them. Display only: never rely on them for safety.' : 'From the board’s status reports. Display only: never rely on them for safety.'),
-    ),
-    pwm.length === 0
-      ? null
-      : h(
-        'section',
-        { class: 'cfg-section' },
-        h('h3', { class: 'tan-label' }, 'Spindle speed output (PWM)'),
-        h('dl', { class: 'facts inline-facts' }, pwm.map((k) => h('div', { key: k }, h('dt', null, settingMeta(k, dialect).label, h('small', { class: 'raw-key' }, k)), h('dd', null, plainValue(k, settings[k], dialect) ?? 'Not read')))),
-      ),
+    h(Readouts, { view }),
+    h(Pwm, { view, keys: pwm }),
   );
 }
