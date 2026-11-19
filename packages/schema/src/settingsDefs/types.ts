@@ -104,6 +104,8 @@ export interface GroupDefinition {
   readonly id: string;
   readonly title: string;
   readonly explanation: string;
+  /** `advanced`: All settings lists the group at Advanced only (settings Run owns, such as communications). */
+  readonly level?: 'advanced';
 }
 
 export interface SettingsFile {

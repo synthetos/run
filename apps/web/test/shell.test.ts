@@ -178,7 +178,7 @@ describe('Phase 1 control allowlist', () => {
     /^action:job-(step-(machine|stock|place|check|run|back|next)|close|library-machines|use-machine)$/,
     /^view:(job|library|board|projects|analyze|settings|safety)$/,
     /^tab:(machines|tools|materials|gcode|terminal|live|notes|spindle|jog|home|zero|overrides|details|buy|cutting|overview|links|basics|safety|stock|fixture|bed|board|pin|mine|tinyg|settings|catalogue|catalog)$/,
-    /^board-tab:(overview|motors|axes|inputs|io|comms|settings|backups|firmware)$/,
+    /^board-tab:(overview|motors|axes|inputs|io|settings|backups|firmware)$/,
     // Length units in the tool catalog and tool window: display only, stored values stay in mm.
     /^action:(catalog|tool)-units-(mm|in)$/,
     // Catalog preview, opening a local tool, and draft dismissal are UI/library only; no machine access.

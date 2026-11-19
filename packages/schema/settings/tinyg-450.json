@@ -7,8 +7,8 @@
   "groups": [
     { "id": "system", "title": "System", "explanation": "Units and distance mode at power-up, work offsets and planes at power-up, optional stop, motor idle time." },
     { "id": "identity", "title": "Board identity", "explanation": "What the board reports about itself: firmware build and version, hardware platform and version, and its serial number." },
-    { "id": "communications", "title": "Communications", "explanation": "How the board talks to Run: baud rate, flow control, receive mode, echo, line endings and the JSON and text formats. Run never changes these: they decide how the board and Run talk to each other." },
-    { "id": "status-report", "title": "Status report", "explanation": "How often the board reports its state, and how much of the queue it reports." },
+    { "id": "communications", "title": "Communications", "explanation": "How the board talks to Run: baud rate, flow control, receive mode, echo, line endings and the JSON and text formats. Run sets this itself. Changing it could cut the connection.", "level": "advanced" },
+    { "id": "status-report", "title": "Status report", "explanation": "How often the board reports its state, and how much of the queue it reports. Run sets this itself. Changing it could cut the connection.", "level": "advanced" },
     { "id": "motor-1", "title": "Motor 1", "explanation": "Which axis motor 1 drives, its step angle, travel per turn, microsteps, direction and power." },
     { "id": "motor-2", "title": "Motor 2", "explanation": "Which axis motor 2 drives, its step angle, travel per turn, microsteps, direction and power." },
     { "id": "motor-3", "title": "Motor 3", "explanation": "Which axis motor 3 drives, its step angle, travel per turn, microsteps, direction and power." },
@@ -698,62 +698,62 @@
 
     "baud": {
       "label": "USB baud rate", "short": "Baud rate", "description": "The speed of the serial link to Run.",
-      "unit": "enum", "group": "communications", "tab": "comms", "access": "forbidden", "reason": "Changing it drops the connection, so Run never writes it.", "src": "EN config_app.c:479",
+      "unit": "enum", "group": "communications", "tab": "settings", "access": "forbidden", "reason": "Run sets this itself. Changing it could cut the connection.", "src": "EN config_app.c:479",
       "values": [{ "value": 1, "label": "9 600 baud" }, { "value": 2, "label": "19 200 baud" }, { "value": 3, "label": "38 400 baud" }, { "value": 4, "label": "57 600 baud" }, { "value": 5, "label": "115 200 baud" }, { "value": 6, "label": "230 400 baud" }],
       "labelSrc": "EN config_app.c:1121 fmt_baud"
     },
     "ex": {
       "label": "Flow control", "short": "Flow control", "description": "How the board tells Run to pause sending.",
-      "unit": "enum", "group": "communications", "tab": "comms", "access": "forbidden", "reason": "Run's sending depends on it, so Run never writes it.", "src": "EN config_app.c:477",
+      "unit": "enum", "group": "communications", "tab": "settings", "access": "forbidden", "reason": "Run sets this itself. Changing it could cut the connection.", "src": "EN config_app.c:477",
       "values": [{ "value": 0, "label": "Off" }, { "value": 1, "label": "XON/XOFF" }, { "value": 2, "label": "RTS/CTS" }],
       "labelSrc": "EN config_app.c:1115 fmt_ex [0=off,1=XON/XOFF,2=RTS/CTS]"
     },
     "rxm": {
       "label": "Receive mode", "short": "Receive mode", "description": "Whether the board takes commands a character or a line at a time.",
-      "unit": "enum", "group": "communications", "tab": "comms", "access": "forbidden", "reason": "Run's sending depends on it, so Run never writes it.", "src": "EN config_app.c:478",
+      "unit": "enum", "group": "communications", "tab": "settings", "access": "forbidden", "reason": "Run sets this itself. Changing it could cut the connection.", "src": "EN config_app.c:478",
       "values": [{ "value": 0, "label": "Character mode" }, { "value": 1, "label": "Line mode" }],
       "labelSrc": "EN config_app.c:1116 fmt_rxm [0=char_mode,1=line_mode]"
     },
-    "ec": { "label": "CR LF line endings", "short": "CR LF line endings", "description": "Whether the board ends each line it sends with CR LF instead of LF.", "unit": "enum", "enum": "offOn", "group": "communications", "tab": "comms", "access": "read", "reason": "Run doesn't change this setting.", "src": "EN config_app.c:475", "labelSrc": "EN config_app.c:1113 fmt_ec [0=off,1=on]" },
-    "ee": { "label": "Echo", "short": "Echo", "description": "Whether the board sends back what it receives.", "unit": "enum", "enum": "offOn", "group": "communications", "tab": "comms", "access": "read", "reason": "Run doesn't change this setting.", "src": "EN config_app.c:476", "labelSrc": "EN config_app.c:1114 fmt_ee [0=off,1=on]" },
+    "ec": { "label": "CR LF line endings", "short": "CR LF line endings", "description": "Whether the board ends each line it sends with CR LF instead of LF.", "unit": "enum", "enum": "offOn", "group": "communications", "tab": "settings", "access": "read", "reason": "Run sets this itself. Changing it could cut the connection.", "src": "EN config_app.c:475", "labelSrc": "EN config_app.c:1113 fmt_ec [0=off,1=on]" },
+    "ee": { "label": "Echo", "short": "Echo", "description": "Whether the board sends back what it receives.", "unit": "enum", "enum": "offOn", "group": "communications", "tab": "settings", "access": "read", "reason": "Run sets this itself. Changing it could cut the connection.", "src": "EN config_app.c:476", "labelSrc": "EN config_app.c:1114 fmt_ee [0=off,1=on]" },
     "ej": {
       "label": "JSON mode", "short": "JSON mode", "description": "Whether the board talks JSON or text.",
-      "unit": "enum", "group": "communications", "tab": "comms", "access": "forbidden", "reason": "Run speaks JSON only, so Run never writes it.", "src": "EN config_app.c:467",
+      "unit": "enum", "group": "communications", "tab": "settings", "access": "forbidden", "reason": "Run sets this itself. Changing it could cut the connection.", "src": "EN config_app.c:467",
       "values": [{ "value": 0, "label": "Text" }, { "value": 1, "label": "JSON" }],
       "labelSrc": "EN json_parser.c:1102 fmt_ej [0=text,1=JSON]"
     },
     "jv": {
       "label": "JSON verbosity", "short": "JSON verbosity", "description": "How much the board puts in each JSON reply.",
-      "unit": "enum", "group": "communications", "tab": "comms", "access": "forbidden", "reason": "Run changes it only during a check you agree to, and puts it back.", "src": "EN config_app.c:468",
+      "unit": "enum", "group": "communications", "tab": "settings", "access": "forbidden", "reason": "Run sets this itself. Changing it could cut the connection.", "src": "EN config_app.c:468",
       "values": [{ "value": 0, "label": "Silent" }, { "value": 1, "label": "Footer only" }, { "value": 2, "label": "Messages" }, { "value": 3, "label": "Configs" }, { "value": 4, "label": "Line numbers" }, { "value": 5, "label": "Verbose" }],
       "labelSrc": "EN json_parser.c:1103 fmt_jv [0=silent,1=footer,2=messages,3=configs,4=linenum,5=verbose]"
     },
     "js": {
       "label": "JSON style", "short": "JSON style", "description": "Whether the board's JSON is relaxed or strict.",
-      "unit": "enum", "group": "communications", "tab": "comms", "access": "forbidden", "reason": "Run reads strict JSON only, so Run never writes it.", "src": "EN config_app.c:469",
+      "unit": "enum", "group": "communications", "tab": "settings", "access": "forbidden", "reason": "Run sets this itself. Changing it could cut the connection.", "src": "EN config_app.c:469",
       "values": [{ "value": 0, "label": "Relaxed" }, { "value": 1, "label": "Strict" }],
       "labelSrc": "EN json_parser.c:1104 fmt_js [0=relaxed,1=strict]"
     },
     "tv": {
       "label": "Text verbosity", "short": "Text verbosity", "description": "How much the board says in text mode.",
-      "unit": "enum", "group": "communications", "tab": "comms", "access": "read", "reason": "Run doesn't change this setting.", "src": "EN config_app.c:470",
+      "unit": "enum", "group": "communications", "tab": "settings", "access": "read", "reason": "Run sets this itself. Changing it could cut the connection.", "src": "EN config_app.c:470",
       "values": [{ "value": 0, "label": "Silent" }, { "value": 1, "label": "Verbose" }],
       "labelSrc": "EN text_parser.c:347 fmt_tv [0=silent,1=verbose]"
     },
 
     "qv": {
       "label": "Queue report verbosity", "short": "Queue reports", "description": "How the board reports free space in its planner queue.",
-      "unit": "enum", "group": "status-report", "tab": "comms", "access": "forbidden", "reason": "Run changes it only during a check you agree to, and puts it back.", "src": "EN config_app.c:471",
+      "unit": "enum", "group": "status-report", "tab": "settings", "access": "forbidden", "reason": "Run sets this itself. Changing it could cut the connection.", "src": "EN config_app.c:471",
       "values": [{ "value": 0, "label": "Off" }, { "value": 1, "label": "Single" }, { "value": 2, "label": "Triple" }],
       "labelSrc": "EN report.c:873 fmt_qv [0=off,1=single,2=triple]"
     },
     "sv": {
       "label": "Status report verbosity", "short": "Status reports", "description": "Whether the board sends status reports, and whether each one holds only what changed.",
-      "unit": "enum", "group": "status-report", "tab": "comms", "access": "read", "reason": "Run doesn't change this setting.", "src": "EN config_app.c:472",
+      "unit": "enum", "group": "status-report", "tab": "settings", "access": "read", "reason": "Run sets this itself. Changing it could cut the connection.", "src": "EN config_app.c:472",
       "values": [{ "value": 0, "label": "Off" }, { "value": 1, "label": "Only what changed" }, { "value": 2, "label": "Everything" }],
       "labelSrc": "EN report.c:719 fmt_sv [0=off,1=filtered,2=verbose]"
     },
-    "si": { "label": "Status report interval", "short": "Report interval", "description": "How often the board reports its state while it moves.", "unit": "ms", "display": 0, "group": "status-report", "tab": "comms", "access": "read", "reason": "Run doesn't change this setting.", "src": "EN config_app.c:473", "labelSrc": "EN report.c:718 fmt_si (ms)" },
+    "si": { "label": "Status report interval", "short": "Report interval", "description": "How often the board reports its state while it moves.", "unit": "ms", "display": 0, "group": "status-report", "tab": "settings", "access": "read", "reason": "Run sets this itself. Changing it could cut the connection.", "src": "EN config_app.c:473", "labelSrc": "EN report.c:718 fmt_si (ms)" },
 
     "spph": { "label": "Spindle pause on hold", "short": "Spindle pause on hold", "description": "Whether a feed hold also stops the spindle.", "unit": "none", "group": "spindle-coolant", "tab": "io", "access": "reserved", "reason": "Reserved on this firmware: the board keeps it and does nothing with it.", "until": 450.05, "src": "EN config_app.c:653" },
     "spde": { "label": "Spindle restart delay", "short": "Spindle restart delay", "description": "How long the board waits after the spindle restarts.", "unit": "s", "group": "spindle-coolant", "tab": "io", "access": "reserved", "reason": "Reserved on this firmware: the board keeps it and does nothing with it.", "until": 450.05, "src": "EN config_app.c:654" },

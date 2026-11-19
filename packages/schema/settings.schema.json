@@ -91,7 +91,8 @@
       "properties": {
         "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
         "title": { "type": "string", "minLength": 1 },
-        "explanation": { "type": "string", "minLength": 1 }
+        "explanation": { "type": "string", "minLength": 1 },
+        "level": { "$comment": "advanced: listed in All settings at Advanced only (settings Run owns).", "enum": ["advanced"] }
       }
     },
     "input": {

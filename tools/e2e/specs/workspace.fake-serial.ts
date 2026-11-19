@@ -310,7 +310,7 @@ for (const width of [1440, 1280] as const) {
       await shot('board-pin');
       await page.locator('[data-pin="M2.3"]').click();
       await shot('board-motor-pin');
-      for (const tab of ['motors', 'axes', 'inputs', 'io', 'comms', 'settings', 'backups', 'firmware'] as const) {
+      for (const tab of ['motors', 'axes', 'inputs', 'io', 'settings', 'backups', 'firmware'] as const) {
         await page.locator(`[data-board-tab="${tab}"]`).click();
         await page.waitForTimeout(150);
         await shot(`board-${tab}`);

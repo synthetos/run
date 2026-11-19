@@ -7,7 +7,6 @@ import { h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
 import { settingsDefsFor } from '@synthetos/schema';
 import { AxesTab } from '../src/workspace/views/board/axes.ts';
-import { CommsTab } from '../src/workspace/views/board/comms.ts';
 import { InputsTab } from '../src/workspace/views/board/inputs.ts';
 import { MotorsTab } from '../src/workspace/views/board/motors.ts';
 import { OutputsTab } from '../src/workspace/views/board/outputs.ts';
@@ -21,7 +20,6 @@ const TABS: readonly [string, () => string][] = [
   ['inputs', () => renderToString(h(InputsTab, { view }))],
   ['motors', () => renderToString(h(MotorsTab, { view }))],
   ['io', () => renderToString(h(OutputsTab, { view }))],
-  ['comms', () => renderToString(h(CommsTab, { view }))],
 ];
 
 describe('one home per setting', () => {

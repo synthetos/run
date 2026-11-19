@@ -32,7 +32,7 @@ export function reportsNotice(view: LiveView | null): ComponentChild {
 export function reportsNotes(view: LiveView | null): readonly Note[] {
   const r = view !== null && connected(view) ? view.message?.snapshot.reports : undefined;
   if (r === undefined) return [];
-  const board = { kind: 'board', tab: 'comms', label: 'Communications' } as const;
+  const board = { kind: 'board', tab: 'settings', label: 'All settings' } as const;
   const out: Note[] = [];
   for (const c of r.changes) {
     if (c.setting === 'sr') out.push({ id: 'reports-sr', topic: 'Board', title: 'Status reports set.', body: 'Run added what it needs to the board’s status reports.', detail: w35(), safety: 'W35', link: board, tone: 'info' });

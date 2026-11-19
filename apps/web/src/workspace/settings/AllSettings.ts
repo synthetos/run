@@ -13,6 +13,7 @@ import type { LiveView } from '../model.ts';
 import { allSettingsRows, readOnlyGroup, type SettingsGroupRows } from './allSettingsModel.ts';
 import { defsFor } from './defs.ts';
 import { SettingControl } from './SettingControl.ts';
+import { StatusFields } from './statusFields.ts';
 
 interface RowProps {
   readonly k: string;
@@ -57,16 +58,18 @@ function Group({ g, defs, view, advanced, open, setOpen }: { readonly g: Setting
     'tbody',
     { key: g.group.id, 'data-group': g.group.id },
     h('tr', { class: 'group-row' }, h('th', { colSpan: 2, scope: 'rowgroup' }, h('span', null, g.group.title), h('small', null, g.group.explanation))),
+    g.group.id === 'status-report' ? h('tr', { class: 'fields-row' }, h('td', { colSpan: 2 }, h(StatusFields, { view }))) : null,
     g.rows.map((k) => h(Row, { key: k, k, defs, view, advanced, lockTags, open: open === k, onInfo: () => setOpen(open === k ? null : k) })),
   );
 }
 
-function Chips({ defs, current, onPick }: { readonly defs: SettingsFile | null; readonly current: string | null; readonly onPick: (id: string | null) => void }): ComponentChild {
+function Chips({ defs, current, advanced, onPick }: { readonly defs: SettingsFile | null; readonly current: string | null; readonly advanced: boolean; readonly onPick: (id: string | null) => void }): ComponentChild {
   if (defs === null) return null;
+  const listed = defs.groups.filter((g) => advanced || g.level !== 'advanced');
   return h(
     'div',
     { class: 'chips settings-chips', role: 'group', 'aria-label': 'Groups' },
-    [{ id: null, title: 'All' }, ...defs.groups].map((g) => h('button', { key: g.id ?? 'all', type: 'button', class: `chip${current === g.id ? ' on' : ''}`, 'aria-pressed': current === g.id ? 'true' : 'false', onClick: () => onPick(g.id) }, g.title)),
+    [{ id: null, title: 'All' }, ...listed].map((g) => h('button', { key: g.id ?? 'all', type: 'button', class: `chip${current === g.id ? ' on' : ''}`, 'aria-pressed': current === g.id ? 'true' : 'false', onClick: () => onPick(g.id) }, g.title)),
   );
 }
 
@@ -78,7 +81,7 @@ export function AllSettings({ view, id = 'all-settings-title' }: { readonly view
   const settings = view?.readout.settings ?? {};
   const defs = defsFor(view);
   const advanced = uiLevel.value.value === 'advanced';
-  const groups = allSettingsRows(defs, settings, draftStore.value.value, { text, group, pendingOnly });
+  const groups = allSettingsRows(defs, settings, draftStore.value.value, { text, group, pendingOnly, level: advanced ? 'advanced' : 'simple' });
   const total = Object.keys(settings).length;
   return h(
     'section',
@@ -91,7 +94,7 @@ export function AllSettings({ view, id = 'all-settings-title' }: { readonly view
       h('label', { class: 'settings-filter' }, h('input', { type: 'checkbox', 'aria-label': 'Only pending changes', checked: pendingOnly, onChange: (e: Event) => setPendingOnly((e.currentTarget as HTMLInputElement).checked) }), ' Only pending'),
       h('span', { class: 'fine' }, total === 0 ? '' : `${total} settings`),
     ),
-    h(Chips, { defs, current: group, onPick: setGroup }),
+    h(Chips, { defs, current: group, advanced, onPick: setGroup }),
     total === 0
       ? null
       : h(

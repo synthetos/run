@@ -30,7 +30,6 @@ import { pendingByTab } from '../settings/pendingTabs.ts';
 import { ReviewPanel } from '../settings/ReviewPanel.ts';
 import { TabBar, TabPane } from '../ui.ts';
 import { AxesTab } from './board/axes.ts';
-import { CommsTab } from './board/comms.ts';
 import { InputsTab } from './board/inputs.ts';
 import { MotorsTab } from './board/motors.ts';
 import { OutputsTab } from './board/outputs.ts';
@@ -59,7 +58,6 @@ export function BoardView({ model }: { readonly model: WorkspaceModel | null }):
     { id: 'axes', label: 'Axes', ...badge('axes') },
     { id: 'inputs', label: 'Inputs', ...badge('inputs') },
     { id: 'io', label: 'Spindle and coolant', ...badge('io') },
-    { id: 'comms', label: 'Communications', ...badge('comms') },
     { id: 'settings', label: 'All settings', ...badge('settings') },
     { id: 'firmware', label: 'Firmware', ...(old === null ? {} : { badge: 'Update' }) },
     { id: 'backups', label: 'Backups' },
@@ -75,7 +73,6 @@ export function BoardView({ model }: { readonly model: WorkspaceModel | null }):
     pane('axes', h(AxesTab, { view })),
     pane('inputs', h(InputsTab, { view })),
     pane('io', h(OutputsTab, { view })),
-    pane('comms', h(CommsTab, { view })),
     pane('settings', h(SettingsTab, { model })),
     pane('firmware', h('div', { class: 'firmware-tab' }, h(FirmwareTab, { model }), h(BackupsHub, { model }))),
     pane('backups', h(BackupsSection, { model })),

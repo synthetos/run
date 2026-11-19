@@ -13,6 +13,8 @@ export interface AllSettingsQuery {
   readonly text: string;
   readonly group: string | null;
   readonly pendingOnly: boolean;
+  /** Groups the data marks `level: advanced` (settings Run owns) are listed at Advanced only. */
+  readonly level: 'simple' | 'advanced';
 }
 
 export interface SettingsGroupRows {
@@ -46,6 +48,7 @@ function grouped(defs: SettingsFile | null, settings: Settings): SettingsGroupRo
 export function allSettingsRows(defs: SettingsFile | null, settings: Settings, drafts: Drafts, q: AllSettingsQuery): readonly SettingsGroupRows[] {
   const text = q.text.trim().toLowerCase();
   return grouped(defs, settings)
+    .filter((g) => q.level === 'advanced' || g.group.level !== 'advanced')
     .filter((g) => q.group === null || g.group.id === q.group)
     .map((g) => ({ group: g.group, rows: g.rows.filter((k) => (!q.pendingOnly || drafts[k] !== undefined) && matches(defs, settings, k, text)) }))
     .filter((g) => g.rows.length > 0);

@@ -32,6 +32,20 @@ function convertRows(d: string): string[] {
   return [...each(['1', '2', '3', '4'], ['tr']), ...linear, 'ara', 'bra', 'cra', 'ja', 'ct', ...works, ...stored].sort();
 }
 
+const RUN_OWNS = 'Run sets this itself. Changing it could cut the connection.';
+const isConnectionGroup = (group: string): boolean => group === 'communications' || group === 'status-report';
+
+describe('settings Run owns (lead decision 2026-11-19: no Communications tab)', () => {
+  it.each(DIALECTS)('%s: every communication and status-report setting is read-only with the one reason, on All settings, at Advanced only', (d) => {
+    const f = settingsDefsFor(d)!;
+    const rows = [...f.tokens.values()].filter((t) => isConnectionGroup(t.group));
+    expect(rows.length).toBeGreaterThan(8);
+    expect(rows.filter((t) => t.write !== undefined || t.access === 'write' || t.reason !== RUN_OWNS || t.tab !== 'settings').map((t) => t.key)).toEqual([]);
+    expect(f.groups.filter((g) => isConnectionGroup(g.id)).map((g) => g.level)).toEqual(['advanced', 'advanced']);
+    expect([...f.tokens.values()].filter((t) => t.tab === 'comms').map((t) => t.key)).toEqual([]);
+  });
+});
+
 describe('tinyg-450.json coverage', () => {
   it('every file validates against settings.schema.json', () => {
     for (const f of [tinyg449, tinyg440, tinyg450]) expect(validateSchema(SETTINGS_FILE_SCHEMA, f)).toEqual([]);

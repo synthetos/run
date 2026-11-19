@@ -1,5 +1,5 @@
 /**
- * Spindle and coolant, Communications and the stale copy (Board settings spec §5.6b, §2.1 finding 9), plus motor
+ * Spindle and coolant, the status report fields and the stale copy (Board settings spec §5.6b, §2.1 finding 9), plus motor
  * idle time on Motors, and a dialect with no settings file (Review Focus 2).
  */
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -7,7 +7,7 @@ import { h, type ComponentChild } from 'preact';
 import { renderToString } from 'preact-render-to-string';
 import { clearDraft } from '../src/workspace/boardFacts.ts';
 import type { LiveView } from '../src/workspace/model.ts';
-import { CommsTab } from '../src/workspace/views/board/comms.ts';
+import { StatusFields } from '../src/workspace/settings/statusFields.ts';
 import { BoardFacts } from '../src/workspace/views/board/identity.ts';
 import { MotorsTab } from '../src/workspace/views/board/motors.ts';
 import { OutputsTab } from '../src/workspace/views/board/outputs.ts';
@@ -42,22 +42,12 @@ describe('Spindle and coolant', () => {
   });
 });
 
-describe('Communications', () => {
-  it('values spelled out from the data, with one sentence for why they are read only', () => {
-    const el = root(h(CommsTab, { view: boardView({ settings: COMMS }) }));
-    expect(text(el)).toContain('115 200 baud');
-    expect(text(el)).toContain('XON/XOFF');
-    expect(text(el)).toContain('250 ms');
-    expect(all(el, byAttr('data-comms-why'))).toHaveLength(1);
-    expect(all(el, (e) => ['input', 'select', 'button'].includes(e.tag) && e.props['disabled'] !== true)).toEqual([]);
-    expect(all(el, (e) => ['segmented', 'select', 'number'].includes(e.props['data-control-kind'] as string))).toEqual([]);
-  });
-
-  it('status report fields read in words from the data file, never a bare token (lead review, comms picture)', () => {
+describe('status report fields (now under All settings → Status report)', () => {
+  it('read in words from the data file, never a bare token', () => {
     const v = boardView({ settings: COMMS });
     const m = v.message as NonNullable<LiveView['message']>;
     const view = { ...v, message: { ...m, snapshot: { ...m.snapshot, live: { ...m.snapshot.live, srList: ['stat', 'posx', 'mpoa', 'spe', 'tool'] } } } } as LiveView;
-    const words = all(root(h(CommsTab, { view })), (e) => e.tag === 'li').map(ownText);
+    const words = all(root(h(StatusFields, { view })), (e) => e.tag === 'li').map(ownText);
     expect(words).toEqual(['Machine state', 'X position', 'A machine position', 'Spindle on', 'Tool']);
   });
 });
@@ -79,12 +69,9 @@ describe('stale copy and motor idle time', () => {
 });
 
 describe('a dialect with no settings file (Review Focus 2)', () => {
-  it('renders values raw and no control on Spindle and coolant and Communications', () => {
+  it('renders values raw and no control on Spindle and coolant', () => {
     const view = boardView({ dialectId: 'g2core-edge', settings: { ...IO, ...COMMS } });
-    for (const node of [h(OutputsTab, { view }), h(CommsTab, { view })]) {
-      const el = root(node);
-      expect(all(el, (e) => e.props['data-control-kind'] !== undefined && e.props['data-control-kind'] !== 'text')).toEqual([]);
-    }
-    expect(text(root(h(CommsTab, { view })))).toContain('No definition yet');
+    const el = root(h(OutputsTab, { view }));
+    expect(all(el, (e) => e.props['data-control-kind'] !== undefined && e.props['data-control-kind'] !== 'text')).toEqual([]);
   });
 });

@@ -14,7 +14,7 @@ import { boardView } from './boardViews.ts';
 
 const d450 = settingsDefsFor('tinyg-en')!;
 const SETTINGS = { '1mi': 2, '1ma': 0, xvm: 800, gun: 1, ex: 1, baud: 5, ej: 1, fb: 450.06, zz9: 4, g54x: 10 };
-const Q = { text: '', group: null, pendingOnly: false } as const;
+const Q = { text: '', group: null, pendingOnly: false, level: 'advanced' } as const;
 const html = (level: 'simple' | 'advanced', settings: Record<string, number> = SETTINGS): string => {
   uiLevel.set(level);
   return renderToString(h(AllSettings, { view: boardView({ settings }) }));
@@ -53,9 +53,9 @@ describe('allSettingsRows', () => {
 });
 
 describe('AllSettings', () => {
-  it('Simple and Advanced both list every reported key', () => {
-    for (const level of ['simple', 'advanced'] as const) expect([...html(level).matchAll(/data-key="/g)]).toHaveLength(Object.keys(SETTINGS).length);
-    expect(html('simple')).toContain(`${Object.keys(SETTINGS).length} settings`);
+  it('Advanced lists every reported key; Simple every key but the ones Run owns (ex, baud, ej)', () => {
+    expect([...html('advanced').matchAll(/data-key="/g)]).toHaveLength(Object.keys(SETTINGS).length);
+    expect([...html('simple').matchAll(/data-key="/g)]).toHaveLength(Object.keys(SETTINGS).length - 3);
   });
 
   it('Simple shows no token; Advanced puts the token beside the name, in the name cell (OD-44, review finding 5)', () => {
@@ -71,11 +71,26 @@ describe('AllSettings', () => {
     expect(html('simple')).not.toMatch(/<th[^>]*>On the board<\/th>/);
   });
 
-  it('the Communications header carries the H61 sentence once, and its rows have no lock tag', () => {
-    const out = html('simple');
-    expect(out.match(/Run never changes these/g)).toHaveLength(1);
+  it('the Status report group lists the report fields in words, from the data file (moved from the Communications tab)', () => {
+    uiLevel.set('advanced');
+    const v = boardView({ settings: { ...SETTINGS, si: 250 } });
+    const m = v.message as NonNullable<typeof v.message>;
+    const view = { ...v, message: { ...m, snapshot: { ...m.snapshot, live: { ...m.snapshot.live, srList: ['stat', 'posx', 'spe'] } } } };
+    const out = renderToString(h(AllSettings, { view }));
+    const sr = /<tbody[^>]*data-group="status-report"[\s\S]*?<\/tbody>/.exec(out)?.[0] ?? '';
+    expect(sr).toMatch(/data-status-fields[\s\S]*Machine state[\s\S]*X position[\s\S]*Spindle on/);
+  });
+
+  it('settings Run owns are listed at Advanced only, read-only, with the one reason in the group header (lead decision 2026-11-19)', () => {
+    const ids = (level: 'simple' | 'advanced'): string[] => allSettingsRows(d450, SETTINGS, {}, { ...Q, level }).map((g) => g.group.id);
+    expect(ids('simple')).not.toContain('communications');
+    expect(ids('advanced')).toContain('communications');
+    expect(html('simple')).not.toContain('data-group="communications"');
+    const out = html('advanced');
+    expect(out.match(/Run sets this itself\. Changing it could cut the connection\./g)).toHaveLength(1);
     const comms = /<tbody[^>]*data-group="communications"[\s\S]*?<\/tbody>/.exec(out)?.[0] ?? '';
     expect(comms).not.toContain('data-lock');
+    expect(comms).not.toMatch(/data-control-kind="(segmented|select|number)"/);
   });
 
   it('a read setting in a mixed group carries its reason; the footer points to the live readouts', () => {

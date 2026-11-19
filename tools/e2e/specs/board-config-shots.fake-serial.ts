@@ -12,7 +12,7 @@ import { PORT, session } from './jobFlow.ts';
 import { machineWorker, request } from './machineWorker.ts';
 
 const SHOTS = process.env['BOARD_CONFIG_SHOTS'];
-const TABS = ['overview', 'motors', 'axes', 'inputs', 'io', 'comms', 'settings', 'backups'] as const;
+const TABS = ['overview', 'motors', 'axes', 'inputs', 'io', 'settings', 'firmware', 'backups'] as const;
 const READ_ONLY = { build: { fb: 449.01, fv: 0.97, hv: 8, layout: 10002 } };
 
 async function connect(page: Page, board?: Record<string, unknown>): Promise<Worker> {

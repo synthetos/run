@@ -98,7 +98,7 @@ for (const theme of ['light', 'dark'] as const) {
     expect(CLEAR).not.toContain(stripe);
     expect(CLEAR).toContain(await background(plain));
     await shot(page, 'board-motors', theme);
-    for (const tab of ['axes', 'inputs', 'io', 'comms', 'settings']) {
+    for (const tab of ['axes', 'inputs', 'io', 'settings']) {
       await boardTab(page, tab);
       await shot(page, `board-${tab}`, theme);
     }
