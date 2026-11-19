@@ -11,11 +11,21 @@ async function library(page: Page): Promise<void> {
   await page.locator('[data-template="xcarve"] [data-action="copy-machine"]').click();
 }
 
-function eepromWrites(worker: Worker): Promise<number> {
+/**
+ * The key of every EEPROM write the simulated board made, in order, from its "EEPROM write of KEY" log. That covers a
+ * persisted setting and Run's own status-report list write (`sr`), so comparing two samples shows exactly what was
+ * written between them.
+ */
+function eepromWriteKeys(worker: Worker): Promise<string[]> {
   return worker.evaluate(() => {
-    const fake = (globalThis as unknown as { __RUN_FAKE_SERIAL__: { ports: { endpoint: { device: { eepromWrites: number } } }[] } }).__RUN_FAKE_SERIAL__;
-    return fake.ports.at(-1)?.endpoint.device.eepromWrites ?? -1;
+    const fake = (globalThis as unknown as { __RUN_FAKE_SERIAL__: { ports: { endpoint: { transcript: { entries(): readonly { kind: string; note: string }[] } } }[] } }).__RUN_FAKE_SERIAL__;
+    const notes = (fake.ports.at(-1)?.endpoint.transcript.entries() ?? []).filter((e) => e.kind === 'device').map((e) => e.note);
+    return notes.flatMap((n) => /^EEPROM write of ([^:]+):/.exec(n)?.slice(1, 2) ?? []);
   });
+}
+
+async function reportsPhase(worker: Worker): Promise<string> {
+  return ((await request(worker, { v: 3, kind: 'status' })) as { status: { session: { reports: { phase: string } } } }).status.session.reports.phase;
 }
 
 test('guided settings stage only, survive level changes, and reach the existing review and C5 flow', async ({ page }, testInfo) => {
@@ -31,7 +41,12 @@ test('guided settings stage only, survive level changes, and reach the existing 
   await expect(feed).toBeEnabled();
   await expect(feed).toHaveValue(/\d/);
   await expect(guided.locator('[data-guided-axis]')).toHaveCount(3);
-  const initial = await eepromWrites(worker);
+  // Run's connect-time setup writes the status-report list (`sr`, an EEPROM write) and may still be running when the
+  // field is enabled: sample only once it has finished, so the window below holds nothing but this test's actions.
+  await expect.poll(() => reportsPhase(worker), { timeout: 10_000 }).toBe('done');
+  const initial = await eepromWriteKeys(worker);
+  // At connect Run writes only the status report list (amendment 2026-11-02, H64): no setting.
+  expect(initial).toEqual(['sr']);
   const next = Number(await feed.inputValue()) - 100;
   await feed.fill(String(next));
   // A pushed live snapshot must preserve text that has not been committed by blur.
@@ -43,7 +58,8 @@ test('guided settings stage only, survive level changes, and reach the existing 
   await expect(feed).toHaveValue(String(next));
   await feed.press('Tab');
   await expect(screen.locator('[data-action="machine-review-settings"]')).toHaveText('Review 1 pending change');
-  expect(await eepromWrites(worker)).toBe(initial);
+  // Staging writes nothing: not the staged xfr, not any other key, not even `sr`.
+  expect(await eepromWriteKeys(worker)).toEqual(initial);
   await page.locator('[data-action="ui-level-advanced"]').click();
   await expect(guided).toHaveCount(0);
   await screen.getByText('All board settings', { exact: true }).click();
@@ -62,7 +78,8 @@ test('guided settings stage only, survive level changes, and reach the existing 
   await expect(page.locator('[data-region="pending-changes"] [data-pending-key="xfr"]')).toBeVisible();
   await page.locator('[data-action="apply-settings"]').click();
   await expect(page.locator('[data-dialog="apply-confirm"] [data-c5]')).toBeVisible();
-  expect(await eepromWrites(worker)).toBe(initial);
+  // Review and the C5 dialog still write nothing until it is confirmed.
+  expect(await eepromWriteKeys(worker)).toEqual(initial);
   await page.locator('[data-action="cancel-apply"]').click();
   await page.locator('[data-region="rail"] [data-view="library"]').click();
   await page.locator('[data-action="ui-level-advanced"]').click();
