@@ -83,7 +83,10 @@ only.
 ## Motors (owner picture 154)
 
 Owner: "1mi 2" should be spelled out. Built: one card per motor; "Microsteps: Half step (2)"; steps per mm, shown board
-→ new while a change is pending; motor idle time in one line above the cards.
+→ new while a change is pending; **Motor idle timeout** as one field above the cards, by the same name as in All
+settings. Each select is as wide as its longest option, so no value is cut off and the chevron never covers text. A
+motor that drives A, B or C reads its travel per turn in degrees ("360°") and its steps per degree. The data says so
+with `rotary` on `{m}tr`.
 
 | Owner | Built, read-only, dark | Built, approved, light |
 |---|---|---|
@@ -94,7 +97,8 @@ Owner: "1mi 2" should be spelled out. Built: one card per motor; "Microsteps: Ha
 Owner: "axes doesnt look like there is a good way to set anything either it looks confusing and terrible too".
 Built: an All axes card (soft limits, junction acceleration, chordal tolerance), one card per axis with Mode, Travel
 (and what the board does with it, in words), Speed and Homing. Unused axes that are Off collapse to one line. Switch
-modes are set on Inputs only. Each card has one link to Inputs, and none on a read-only board.
+modes are set on Inputs only. Each card has one link to Inputs, and none on a read-only board. The card has two
+independent columns: Speed follows Mode on the left, Homing follows Travel on the right, with no gap.
 
 | Owner | Built, approved, dark | Built, read-only, light |
 |---|---|---|
@@ -117,9 +121,12 @@ doesn't change this setting." with no promise.
 
 ## Backups (owner picture 156)
 
-Owner: the primary button floated mid-page, and two file actions meant different things. Built: Back up settings beside
-the heading, one **Add a backup file…**, a zebra list with Why, Firmware, Board and Settings, Compare in words, Restore…,
-Download and a quiet Delete that asks first. Compare shows each column in the units it was read in.
+Owner: the primary button floated mid-page, and two file actions meant different things. Built: one header line with
+the heading and both actions together at the right edge of the same box as the list (**Back up settings**, then **Add a
+backup file…** in the outlined style). The empty state is one sentence. The list is a zebra table with Why, Firmware,
+Board and Settings. Each row's Compare, Restore…, Download and Delete sit in one group, centred on the row, all in the
+same small style; Delete is quieter in colour and asks first. Compare shows each column in the units it was read in.
+On a read-only board the notice leaves out its own Back up settings on this tab, so there is only one.
 
 | Owner | Built, after one backup, dark | Built, after one backup, light |
 |---|---|---|
@@ -133,7 +140,17 @@ Download and a quiet Delete that asks first. Compare shows each column in the un
 
 Owner: the coolant row said "Reserved on this firmware" on 449, where that setting does not exist. Built: each output's
 polarity from the settings file ("No setting on this firmware" where the firmware has none), and what is wired to the
-coolant output from the machine record.
+coolant output from the machine record. The spindle speed (PWM) names fit on one line each.
+
+## Communications
+
+Every value is spelled out from the data, with one sentence for why Run never changes them. The status report fields
+read in words ("Machine state", "X machine position"), one chip per field. Fields that are not settings take their
+words from the settings file's `statusFields`.
+
+| Dark | Light |
+|---|---|
+| ![](screenshots/board-config/built/approved-comms-dark.png) | ![](screenshots/board-config/built/approved-comms-light.png) |
 
 | Owner | Built, read-only, dark | Built, approved, light |
 |---|---|---|
