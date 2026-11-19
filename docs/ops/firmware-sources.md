@@ -4,7 +4,19 @@ Owner decision, 2026-11-15: “i want to bring in the say top 5 releases from th
 
 The update page reads the latest five non-draft releases of `synthetos/TinyG`
 that each have exactly one `tinyg-*.hex` asset, including labelled pre-releases.
+"Latest" ranks by the firmware version in the hex name (`tinyg-450.06.hex`), then by
+date, so older builds uploaded later cannot push the newest out (owner, 2026-11-19).
 The run Worker reads the fixed GitHub API and caches its response for ten minutes.
+
+GitHub allows 60 keyless API calls an hour per address, and Cloudflare's shared
+addresses exhaust that, so hosted Run got only refusals (owner, 2026-11-19: "key").
+The Worker sends a read-only key for public repositories, the Worker secret
+`GITHUB_RELEASES_TOKEN` (5,000 calls an hour). It comes from the GitHub environment
+secret `RUN_GITHUB_RELEASES_TOKEN` in `staging` and `production` and is uploaded with
+each deploy (`wrangler deploy --secrets-file`), so a rollback keeps code and key
+together. The workflow policy admits that secret only in the pinned deploy step
+(`tools/gates/src/workflow/releasesKeyCredential.ts`). With no key saved, deploys
+leave the Worker's current key, if any, in place, and the Worker calls keyless.
 Release notes are displayed as plain text. No repository or upstream URL comes
 from the browser. Older releases fall out of the proxy allowlist on refresh.
 
