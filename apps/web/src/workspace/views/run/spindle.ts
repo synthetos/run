@@ -44,7 +44,8 @@ function spindleBody({ model, compact = false }: SpindleProps, hk: Hooks): Compo
   return h(
     'section',
     { class: `insp sec-spindle${compact ? ' compact' : ''}`, 'aria-labelledby': 'spindle-title' },
-    h('header', null, h('h2', { id: 'spindle-title' }, 'Spindle and coolant'), h('span', { class: 'tag' }, 'Commanded'), h(ContextHelp, { id: 'spindle-help', label: 'About spindle and coolant readouts', end: true }, SPINDLE_TITLE, ' ', COOLANT_TITLE)),
+    // The inspector panes hide this header (workspace.css .insp-pane > .insp > header), so nothing a person needs lives in it.
+    h('header', null, h('h2', { id: 'spindle-title' }, 'Spindle and coolant'), h('span', { class: 'tag' }, 'Commanded')),
     compact ? null : spindleReadout({ spindle, spindleLine, snapshot, coolant }),
     spindleControls({ ui, off, run, on, start, rpm, setRpm, asking, setAsking, skip, setSkip, coolantRow }),
     note === null ? null : h('p', { class: 'motion-note', role: 'status' }, note),
@@ -84,6 +85,8 @@ function spindleControls({ ui, off, run, on, start, rpm, setRpm, asking, setAski
       spindleSpeed({ rpm, on, setRpm }),
       h('small', null, 'rpm')
     ),
+    // The readouts' meaning ("commanded, never measured; never rely on it for safety") beside the controls, visible in every pane.
+    h(ContextHelp, { id: 'spindle-help', label: 'About spindle and coolant readouts', end: true }, SPINDLE_TITLE, ' ', COOLANT_TITLE),
     asking === null || !on
       ? null
       : spindleConfirmation({ asking, rpm, setAsking, skip, run, setSkip }),

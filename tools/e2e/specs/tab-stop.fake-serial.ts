@@ -119,11 +119,12 @@ test('Escape from any focus pauses through the worker; Space never does (T-S18)'
   await page.keyboard.press('Escape');
   await expect.poll(async () => bangs(await writes(worker))).toBe(before + 2);
   await expect(page.locator('[data-safety="W13"]')).toBeHidden();
-  await page.getByRole('button', { name: 'About spindle and coolant readouts' }).click();
-  await expect(page.locator('#spindle-help')).toBeVisible();
+  // An open help popover beside the machine controls (the coolant button's "?", OD-43).
+  await page.getByRole('button', { name: 'What the coolant button sends' }).click();
+  await expect(page.locator('#coolant-help')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect.poll(async () => bangs(await writes(worker))).toBe(before + 3);
-  await expect(page.locator('#spindle-help')).toBeHidden();
+  await expect(page.locator('#coolant-help')).toBeHidden();
   // The stop button stays visible and focusable.
   await expect(page.locator('.stop-button')).toBeVisible();
 });

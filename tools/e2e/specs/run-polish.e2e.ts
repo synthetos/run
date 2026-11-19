@@ -15,19 +15,20 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(stepChip).toBeVisible();
     expect(await stepChip.evaluate(el => { const s = getComputedStyle(el); return { solid: s.backgroundColor !== 'rgba(0, 0, 0, 0)', border: parseFloat(s.borderTopWidth) > 0, padded: parseFloat(s.paddingTop) >= 6 }; })).toEqual({ solid: true, border: true, padded: true });
     await page.screenshot({ animations: 'disabled', path: `${screens}/polish-machine-${theme}.png` });
-    const help = page.getByRole('button', { name: 'About spindle and coolant readouts' });
+    // The coolant row is one toggle named by the machine's wiring, with its own "?" (OD-43).
+    const help = page.getByRole('button', { name: 'What the coolant button sends' });
     const sameHeight = async (): Promise<void> => {
       const spindle = await page.getByRole('group', { name: 'Spindle direction', exact: true }).getByRole('button').first().boundingBox();
-      const coolant = await page.getByRole('group', { name: 'Coolant', exact: true }).getByRole('button').first().boundingBox();
+      const coolant = await page.getByRole('group', { name: 'Coolant output', exact: true }).getByRole('button').first().boundingBox();
       expect(coolant?.height).toBe(spindle?.height);
     };
     await sameHeight();
     await help.hover();
-    await expect(page.locator('#spindle-help')).toBeVisible();
+    await expect(page.locator('#coolant-help')).toBeVisible();
     await page.mouse.move(0, 0);
-    await expect(page.locator('#spindle-help')).not.toBeVisible();
+    await expect(page.locator('#coolant-help')).not.toBeVisible();
     await help.click();
-    const popover = page.locator('#spindle-help');
+    const popover = page.locator('#coolant-help');
     await expect(popover).toBeVisible();
     const checkBox = async (): Promise<void> => {
       // Resize events settle on the next browser frame after setViewportSize.

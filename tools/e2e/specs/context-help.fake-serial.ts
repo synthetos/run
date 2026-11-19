@@ -26,12 +26,14 @@ test('routine explanations stay in help, available by hover, focus and tap', asy
   // The spindle tab is in Advanced; Simple (the default, OD-13) shows one screen without tabs.
   await page.locator('[data-action="ui-level-advanced"]').click();
   await page.locator('.run-view [data-tab="spindle"]').click();
-  await expect(page.locator('.sec-spindle .help-copy')).toBeHidden();
+  // The section carries two helps since OD-43: the readouts' in the header and the coolant button's.
+  await expect(page.locator('.sec-spindle .help-copy')).toHaveCount(2);
+  await expect(page.locator('#spindle-help')).toBeHidden();
   await page.screenshot({ path: testInfo.outputPath('workspace.png') });
   await page.locator('.sec-spindle').screenshot({ path: testInfo.outputPath('spindle.png') });
   await expect(page.locator('.sec-spindle')).not.toContainText('J6.');
   await page.getByRole('button', { name: 'About spindle and coolant readouts' }).click();
-  await expect(page.locator('.sec-spindle .help-copy')).toBeVisible();
+  await expect(page.locator('#spindle-help')).toBeVisible();
   const size = await page.evaluate(() => ({ h: document.documentElement.scrollHeight, w: document.documentElement.scrollWidth, ih: innerHeight, iw: innerWidth }));
   expect(size.h).toBeLessThanOrEqual(size.ih);
   expect(size.w).toBeLessThanOrEqual(size.iw);
