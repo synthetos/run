@@ -105,6 +105,12 @@ async function openFirmware(page: Page, tab: 'firmware' | 'backups' = 'firmware'
   await page.locator(`[data-board-tab="${tab}"]`).click();
 }
 
+/** Firmware's own sub-tabs (owner walk 2026-11-19): Update, Firmware backups (images), Custom firmware. */
+async function firmwarePart(page: Page, part: 'update' | 'images' | 'custom'): Promise<void> {
+  await page.locator('[data-board-tab="firmware"]').click();
+  await page.locator(`#board-pane-firmware [data-subtab="${part}"]`).click();
+}
+
 /** Ticks the C6 boxes in order and confirms. */
 async function confirmFlash(page: Page): Promise<void> {
   const dialog = page.locator('[data-region="flash-confirm"]').first();
@@ -131,7 +137,8 @@ test('a full update across an EEPROM layout change: backups, progress, version c
   await openFirmware(page);
   const release = page.locator('[data-release="sim-edge-next-451.00.hex"]');
   await expect(release).toBeVisible({ timeout: 20_000 });
-  await expect(release.locator('.changelog')).toContainText('new EEPROM layout');
+  // At Simple the release notes are the title's tooltip (owner walk 2026-11-19: one fixed-height row per release).
+  await expect(release.locator('[data-release-title]')).toHaveAttribute('title', /new EEPROM layout/);
   await expect(release.locator('[data-action="update-release"]')).toBeEnabled({ timeout: 20_000 });
   await shot(page, 'update-panel-changelog');
   await release.locator('[data-action="update-release"]').click();
@@ -177,7 +184,7 @@ test('a full update across an EEPROM layout change: backups, progress, version c
   await page.locator('[data-board-tab="backups"]').click();
   await expect(page.locator('[data-backup-trigger="before-update"]').first()).toBeVisible();
   await shot(page, 'backups-hub');
-  await page.locator('[data-board-tab="firmware"]').click();
+  await firmwarePart(page, 'images');
   await expect(page.locator('[data-firmware-backups="1"]')).toBeVisible();
 });
 
@@ -220,7 +227,7 @@ test('put a firmware backup back: the image read before the update returns the b
   await confirmFlash(page);
   await waitDone(page);
   expect((await status(worker)).session.identity?.fb).toBe(450.02);
-  await page.locator('[data-board-tab="firmware"]').click();
+  await firmwarePart(page, 'images');
   const putBack = page.locator('[data-action="firmware-put-back"]').first();
   await expect(putBack).toBeEnabled({ timeout: 30_000 });
   await putBack.click();
@@ -239,6 +246,7 @@ test('custom firmware: labelled unsigned, read-only after the update; trusted on
   await flashableBoard(worker, { __layout: 10002 });
   await connect(page, worker);
   await openFirmware(page, 'firmware');
+  await firmwarePart(page, 'custom');
   // W47 is shown where the decision is made (the confirmation), not as a permanent banner (OD-9).
   await expect(page.locator('[data-safety="W47"]')).toHaveCount(0);
   const input = page.locator('[data-action="custom-file"]');
@@ -259,8 +267,8 @@ test('custom firmware: labelled unsigned, read-only after the update; trusted on
   await expect(page.locator('[data-safety="C38"]')).toContainText('you can revoke it in Board → Firmware.');
   await shot(page, 'custom-firmware-trust');
   await page.locator('[data-action="trust-confirm"]').click();
-  // C38 names where it is revoked: the Firmware tab lists the trusted build with Revoke.
-  await page.locator('[data-board-tab="firmware"]').click();
+  // C38 names where it is revoked: the Firmware tab lists the trusted build with Revoke (its Custom firmware sub-tab).
+  await firmwarePart(page, 'custom');
   await expect(page.locator('[data-trusted="1"]')).toBeVisible();
   await expect(page.locator('[data-trusted="1"] [data-action="trust-revoke"]')).toBeVisible();
   // The page sends the trust at Connect; here the spec reconnects the way the page does.
