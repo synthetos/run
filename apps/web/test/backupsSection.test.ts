@@ -72,6 +72,13 @@ describe('BackupsSection', () => {
     expect(text(diff)).toContain('Eighth step (8)');
   });
 
+  it('Compare: the board column in the board\'s units, the backup column in the backup\'s units (review finding 1)', () => {
+    const compare = { id: 'b1', changes: 1, same: 185, skipped: 0, keys: ['xvm'], backupInches: false, diffs: [{ key: 'xvm', backup: 16000, board: 630 }] };
+    const diff = one(render(withHub(HUB([ROW()], compare), { unit: 0 })), byAttr('data-compare', 'b1'));
+    expect(text(diff)).toContain('16 000 mm/min');
+    expect(text(diff)).toContain('630 in/min');
+  });
+
   it('Restore stages pending changes and switches to the tab of the first change', async () => {
     const staged: string[] = [];
     const el = render(withHub(HUB([ROW()])), staged);

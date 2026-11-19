@@ -69,6 +69,8 @@ export interface SettingDefinition {
   readonly verify?: string;
   /** Where this firmware differs from another family's meaning, with a citation. */
   readonly differs?: string;
+  /** A length (F_CONVERT): the board reports it in inches under G20. From the file, or from the write object. */
+  readonly convert?: true;
   readonly write?: WriteDef;
 }
 

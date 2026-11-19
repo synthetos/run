@@ -27,8 +27,10 @@ const WORDS: Readonly<Record<DefinitionUnit, string>> = Object.freeze({
   ms: 'ms',
 });
 
-export function unitWords(unit: DefinitionUnit | undefined): string {
-  return unit === undefined ? '' : WORDS[unit];
+/** The unit's symbol; with `inches`, a millimetre unit reads in inches (the board reports lengths in inches under G20). */
+export function unitWords(unit: DefinitionUnit | undefined, inches = false): string {
+  const words = unit === undefined ? '' : WORDS[unit];
+  return inches ? words.replace('mm', 'in') : words;
 }
 
 /** A number in plain digits: thin groups of three for whole numbers ("230 400"), at most `decimals` places otherwise. */
@@ -40,10 +42,10 @@ export function numberWords(v: number, decimals?: number): string {
   return frac === undefined ? grouped : `${whole === '-0' ? '-0' : grouped}.${frac}`;
 }
 
-/** A number with its unit: "1.25 mm", "1.8° per step", "20 million mm/min³". */
-export function withUnit(v: number, unit: DefinitionUnit | undefined, decimals?: number): string {
+/** A number with its unit: "1.25 mm", "1.8° per step", "20 million mm/min³"; "0.049 in" with `inches`. */
+export function withUnit(v: number, unit: DefinitionUnit | undefined, decimals?: number, inches = false): string {
   const n = numberWords(v, decimals);
-  const u = unitWords(unit);
+  const u = unitWords(unit, inches);
   if (u === '') return n;
   return u.startsWith('°') && !u.startsWith('°/') ? `${n}${u}` : `${n} ${u}`;
 }

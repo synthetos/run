@@ -21,7 +21,7 @@ import { draftStore, setDraft } from '../boardFacts.ts';
 import type { LiveView } from '../model.ts';
 import { boardBuild } from './defs.ts';
 import { editBlocked } from './editGate.ts';
-import { settingMeta, type SettingMeta } from './meta.ts';
+import { boardInches, settingMeta, type SettingMeta } from './meta.ts';
 import { writableKey } from './pending.ts';
 import { numberWords, unitWords } from './units.ts';
 
@@ -61,7 +61,7 @@ function words(c: Ctx, v: SettingValue | undefined): string {
   const d = c.meta.def;
   if (d?.values !== undefined) return d.values.find((e) => e.value === v)?.label ?? `Unknown value (${numberWords(v)})`;
   const n = numberWords(v, d?.display);
-  const unit = c.inches ? unitWords(d?.unit).replace('mm', 'in') : unitWords(d?.unit);
+  const unit = unitWords(d?.unit, c.inches);
   if (unit === '') return n;
   return unit.startsWith('°') && !unit.startsWith('°/') ? `${n}${unit}` : `${n} ${unit}`;
 }
@@ -108,7 +108,7 @@ function rangeWords(c: Ctx): string {
 function NumberField({ c }: { readonly c: Ctx }): ComponentChild {
   const r = c.meta.def?.write?.range;
   const shown = c.current === undefined ? '' : String(c.current);
-  const unit = unitWords(c.meta.def?.unit);
+  const unit = unitWords(c.meta.def?.unit, c.inches);
   return h(
     'span',
     { class: 'unit-input' },
@@ -157,7 +157,7 @@ function contextOf(k: string, view: LiveView | null, draft: number | undefined):
   const meta = settingMeta(k, view?.readout.dialectId ?? null, boardBuild(view));
   const board = view?.readout.settings[k];
   const current = draft ?? (typeof board === 'number' ? board : undefined);
-  const inches = view?.message?.snapshot.live.unit === 0 && meta.def?.write?.convert === true;
+  const inches = boardInches(view) && meta.def?.convert === true;
   return { k, meta, board, current, inches };
 }
 

@@ -9,6 +9,7 @@ import type { SettingValue, SettingsFile } from '@synthetos/schema';
 import { axisModeFact, type AxisModeView } from '../../../machine-ui/AxisModes.ts';
 import { boardTab } from '../../boardNavigation.ts';
 import type { LiveView } from '../../model.ts';
+import { boardInches } from '../../settings/meta.ts';
 import { SettingControl } from '../../settings/SettingControl.ts';
 import { numberWords, unitWords } from '../../settings/units.ts';
 import type { AxisCard } from './axesModel.ts';
@@ -55,7 +56,8 @@ function travelLength(p: CardProps): string | null {
   const tn = num(p.planned, `${a}tn`);
   const tm = num(p.planned, `${a}tm`);
   if (tn === null || tm === null || tn === tm) return null;
-  const u = unitWords(p.defs.tokens.get(`${a}tn`)?.unit);
+  const d = p.defs.tokens.get(`${a}tn`);
+  const u = unitWords(d?.unit, boardInches(p.view) && d?.convert === true);
   const n = numberWords(Number(Math.abs(tm - tn).toFixed(3)));
   return `Length ${u.startsWith('°') ? `${n}${u}` : `${n} ${u}`}.`;
 }

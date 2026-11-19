@@ -164,6 +164,7 @@
         "labelSrc": { "type": "string", "minLength": 1 },
         "verify": { "type": "string", "pattern": "^BC-[0-9]+$" },
         "differs": { "type": "string", "minLength": 1 },
+        "convert": { "$comment": "F_CONVERT: the board reports it in inches under G20. A write object's convert must agree.", "type": "boolean" },
         "write": { "$ref": "#/$defs/write" }
       }
     },
@@ -200,6 +201,7 @@
         "labelSrc": { "type": "string", "minLength": 1 },
         "verify": { "type": "string", "pattern": "^BC-[0-9]+$" },
         "differs": { "type": "string", "minLength": 1 },
+        "convert": { "type": "boolean" },
         "write": { "$ref": "#/$defs/write" }
       }
     }

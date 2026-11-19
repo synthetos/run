@@ -58,12 +58,17 @@ describe('AllSettings', () => {
     expect(html('simple')).toContain(`${Object.keys(SETTINGS).length} settings`);
   });
 
-  it('Simple has no token column; Advanced shows the token beside the name and value', () => {
+  it('Simple shows no token; Advanced puts the token beside the name, in the name cell (OD-44, review finding 5)', () => {
     expect(html('simple')).not.toContain('class="raw-key"');
-    expect(html('simple')).not.toMatch(/<th[^>]*>Token<\/th>/);
     const adv = html('advanced');
-    expect(adv).toMatch(/<th[^>]*>Token<\/th>/);
-    expect(adv).toMatch(/data-key="1mi"[\s\S]*?Motor 1 microsteps[\s\S]*?Half step \(2\)[\s\S]*?<code class="raw-key">1mi<\/code>/);
+    expect(adv).not.toMatch(/<th[^>]*>Token<\/th>/);
+    expect(adv).toMatch(/data-key="1mi"[^>]*><th scope="row">Motor 1 microsteps<code class="raw-key">1mi<\/code>/);
+  });
+
+  it('each value shows once in its row (review finding 10)', () => {
+    const fb = /<tr[^>]*data-key="fb"[\s\S]*?<\/tr>/.exec(html('simple'))?.[0] ?? '';
+    expect(fb.match(/450\.06/g)).toHaveLength(1);
+    expect(html('simple')).not.toMatch(/<th[^>]*>On the board<\/th>/);
   });
 
   it('the Communications header carries the H61 sentence once, and its rows have no lock tag', () => {
@@ -74,7 +79,8 @@ describe('AllSettings', () => {
   });
 
   it('a read setting in a mixed group carries its reason; the footer points to the live readouts', () => {
-    expect(html('simple', { ...SETTINGS, gco: 1 })).toMatch(/data-key="gco"[\s\S]*?data-lock[^>]*>Not changed by Run yet\./);
+    expect(html('simple', { ...SETTINGS, gco: 1 })).toMatch(/data-key="gco"[\s\S]*?data-lock[^>]*>Run doesn't change this setting\./);
+    expect(html('simple', { ...SETTINGS, gco: 1 })).not.toContain('yet.');
     expect(html('simple')).toContain('Live readouts (input states, homed axes, positions) are on Inputs, Axes and the Job view.');
   });
 

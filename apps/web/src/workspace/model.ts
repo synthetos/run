@@ -93,6 +93,8 @@ export interface FirmwareHubView {
     readonly skipped: number;
     readonly notes?: readonly string[];
     readonly keys: readonly string[];
+    /** The backup was read under G20, so its lengths are inches. */
+    readonly backupInches?: boolean;
     /** Each setting that differs: its value in the backup and on the board now. */
     readonly diffs?: readonly { readonly key: string; readonly backup: number; readonly board: SettingValue | undefined }[];
   } | null;

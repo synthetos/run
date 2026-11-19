@@ -480,7 +480,7 @@
       "rows": { "54x": 388, "54y": 389, "54z": 390, "55x": 395, "55y": 396, "55z": 397, "56x": 402, "56y": 403, "56z": 404, "57x": 409, "57y": 410, "57z": 411, "58x": 416, "58y": 417, "58z": 418, "59x": 423, "59y": 424, "59z": 425 },
       "src": "EN config_app.c:{row}",
       "label": "G{w} {A} offset", "short": "G{w} {A}", "description": "Where G{w} puts {A} zero, measured from machine zero.",
-      "unit": "mm", "display": 3, "group": "offsets", "tab": "settings", "access": "read", "reason": "Set from the Job view's zero tools.",
+      "unit": "mm", "convert": true, "display": 3, "group": "offsets", "tab": "settings", "access": "read", "reason": "Set from the Job view's zero tools.",
       "labelSrc": "EN canonical_machine.c:3180 fmt_cofs"
     },
     {
@@ -496,7 +496,7 @@
       "rows": { "28x": 438, "28y": 439, "28z": 440, "30x": 445, "30y": 446, "30z": 447 },
       "src": "EN config_app.c:{row}",
       "label": "G{w} {A} position", "short": "G{w} {A}", "description": "The {A} position that G{w} moves to.",
-      "unit": "mm", "display": 3, "group": "offsets", "tab": "settings", "access": "read", "reason": "Stored by G{w}.1, not here."
+      "unit": "mm", "convert": true, "display": 3, "group": "offsets", "tab": "settings", "access": "read", "reason": "Stored by G{w}.1, not here."
     },
     {
       "pattern": "g{w}{a}", "for": { "w": ["28", "30"], "a": ["a", "b", "c"] },
@@ -662,28 +662,28 @@
 
     "fb": { "label": "Firmware build", "short": "Firmware build", "description": "The build number of the firmware on the board.", "unit": "none", "display": 2, "group": "identity", "tab": "overview", "access": "read", "reason": "Reported by the firmware.", "src": "EN config_app.c:139", "labelSrc": "EN hardware.c:245 fmt_fb" },
     "fv": { "label": "Firmware version", "short": "Firmware version", "description": "The firmware version the build belongs to.", "unit": "none", "display": 2, "group": "identity", "tab": "overview", "access": "read", "reason": "Reported by the firmware.", "src": "EN config_app.c:140", "labelSrc": "EN hardware.c:246 fmt_fv" },
-    "hp": { "label": "Hardware platform", "short": "Hardware platform", "description": "The board family the firmware was built for.", "unit": "none", "group": "identity", "tab": "overview", "access": "read", "reason": "Not changed by Run.", "src": "EN config_app.c:141", "labelSrc": "EN hardware.c:247 fmt_hp" },
+    "hp": { "label": "Hardware platform", "short": "Hardware platform", "description": "The board family the firmware was built for.", "unit": "none", "group": "identity", "tab": "overview", "access": "read", "reason": "Run doesn't change this setting.", "src": "EN config_app.c:141", "labelSrc": "EN hardware.c:247 fmt_hp" },
     "hv": { "label": "Hardware version", "short": "Hardware version", "description": "The board revision. It decides which pins the firmware drives.", "unit": "none", "group": "identity", "tab": "overview", "access": "forbidden", "reason": "A wrong value changes the pins the firmware drives, so Run never writes it.", "src": "EN config_app.c:142", "labelSrc": "EN hardware.c:248 fmt_hv" },
     "id": { "label": "Board ID", "short": "Board ID", "description": "The serial number the board reports.", "unit": "text", "group": "identity", "tab": "overview", "access": "read", "reason": "Reported by the firmware.", "src": "EN config_app.c:143", "labelSrc": "EN hardware.c:249 fmt_id" },
 
-    "ja": { "label": "Junction acceleration", "short": "Junction acceleration", "description": "How hard the machine may accelerate through a corner. Larger is faster.", "unit": "mm/min2", "display": 0, "group": "all-axes", "tab": "axes", "access": "read", "reason": "Not changed by Run yet.", "src": "EN config_app.c:459", "labelSrc": "EN canonical_machine.c:3131 fmt_ja (prints only the length unit)", "verify": "BC-10" },
-    "ct": { "label": "Chordal tolerance", "short": "Chordal tolerance", "description": "How closely arcs follow the true curve. Smaller is more accurate and slower.", "unit": "mm", "display": 4, "group": "all-axes", "tab": "axes", "access": "read", "reason": "Not changed by Run yet.", "src": "EN config_app.c:460", "labelSrc": "EN canonical_machine.c:3132 fmt_ct" },
+    "ja": { "label": "Junction acceleration", "short": "Junction acceleration", "description": "How hard the machine may accelerate through a corner. Larger is faster.", "unit": "mm/min2", "convert": true, "display": 0, "group": "all-axes", "tab": "axes", "access": "read", "reason": "Run doesn't change this setting.", "src": "EN config_app.c:459", "labelSrc": "EN canonical_machine.c:3131 fmt_ja (prints only the length unit)", "verify": "BC-10" },
+    "ct": { "label": "Chordal tolerance", "short": "Chordal tolerance", "description": "How closely arcs follow the true curve. Smaller is more accurate and slower.", "unit": "mm", "convert": true, "display": 4, "group": "all-axes", "tab": "axes", "access": "read", "reason": "Run doesn't change this setting.", "src": "EN config_app.c:460", "labelSrc": "EN canonical_machine.c:3132 fmt_ct" },
 
     "gco": {
       "label": "Default work offset", "short": "Work offset at power-up", "description": "The work coordinate system selected at power-up and after a program end.",
-      "unit": "enum", "group": "system", "tab": "settings", "access": "read", "reason": "Not changed by Run yet.", "src": "EN config_app.c:522",
+      "unit": "enum", "group": "system", "tab": "settings", "access": "read", "reason": "Run doesn't change this setting.", "src": "EN config_app.c:522",
       "values": [{ "value": 1, "label": "G54" }, { "value": 2, "label": "G55" }, { "value": 3, "label": "G56" }, { "value": 4, "label": "G57" }, { "value": 5, "label": "G58" }, { "value": 6, "label": "G59" }],
       "labelSrc": "EN canonical_machine.c:3100 fmt_gco [1-6 (G54-G59)]"
     },
     "gpa": {
       "label": "Default path control", "short": "Path control at power-up", "description": "How the board joins moves at power-up and after a program end.",
-      "unit": "enum", "group": "system", "tab": "settings", "access": "read", "reason": "Not changed by Run yet.", "src": "EN config_app.c:523",
+      "unit": "enum", "group": "system", "tab": "settings", "access": "read", "reason": "Run doesn't change this setting.", "src": "EN config_app.c:523",
       "values": [{ "value": 0, "label": "Exact stop (G61)" }, { "value": 1, "label": "Exact path (G61.1)" }, { "value": 2, "label": "Continuous (G64)" }],
       "labelSrc": "EN canonical_machine.c:3101 fmt_gpa [0=G61,1=G61.1,2=G64]"
     },
     "gpl": {
       "label": "Default plane", "short": "Plane at power-up", "description": "The arc plane at power-up and after a program end.",
-      "unit": "enum", "group": "system", "tab": "settings", "access": "read", "reason": "Not changed by Run yet.", "src": "EN config_app.c:520",
+      "unit": "enum", "group": "system", "tab": "settings", "access": "read", "reason": "Run doesn't change this setting.", "src": "EN config_app.c:520",
       "values": [{ "value": 0, "label": "XY (G17)" }, { "value": 1, "label": "XZ (G18)" }, { "value": 2, "label": "YZ (G19)" }],
       "labelSrc": "EN canonical_machine.c:3098 fmt_gpl [0=G17,1=G18,2=G19]"
     },
@@ -706,8 +706,8 @@
       "values": [{ "value": 0, "label": "Character mode" }, { "value": 1, "label": "Line mode" }],
       "labelSrc": "EN config_app.c:1116 fmt_rxm [0=char_mode,1=line_mode]"
     },
-    "ec": { "label": "CR LF line endings", "short": "CR LF line endings", "description": "Whether the board ends each line it sends with CR LF instead of LF.", "unit": "enum", "enum": "offOn", "group": "communications", "tab": "comms", "access": "read", "reason": "Not changed by Run.", "src": "EN config_app.c:475", "labelSrc": "EN config_app.c:1113 fmt_ec [0=off,1=on]" },
-    "ee": { "label": "Echo", "short": "Echo", "description": "Whether the board sends back what it receives.", "unit": "enum", "enum": "offOn", "group": "communications", "tab": "comms", "access": "read", "reason": "Not changed by Run.", "src": "EN config_app.c:476", "labelSrc": "EN config_app.c:1114 fmt_ee [0=off,1=on]" },
+    "ec": { "label": "CR LF line endings", "short": "CR LF line endings", "description": "Whether the board ends each line it sends with CR LF instead of LF.", "unit": "enum", "enum": "offOn", "group": "communications", "tab": "comms", "access": "read", "reason": "Run doesn't change this setting.", "src": "EN config_app.c:475", "labelSrc": "EN config_app.c:1113 fmt_ec [0=off,1=on]" },
+    "ee": { "label": "Echo", "short": "Echo", "description": "Whether the board sends back what it receives.", "unit": "enum", "enum": "offOn", "group": "communications", "tab": "comms", "access": "read", "reason": "Run doesn't change this setting.", "src": "EN config_app.c:476", "labelSrc": "EN config_app.c:1114 fmt_ee [0=off,1=on]" },
     "ej": {
       "label": "JSON mode", "short": "JSON mode", "description": "Whether the board talks JSON or text.",
       "unit": "enum", "group": "communications", "tab": "comms", "access": "forbidden", "reason": "Run speaks JSON only, so Run never writes it.", "src": "EN config_app.c:467",
@@ -728,7 +728,7 @@
     },
     "tv": {
       "label": "Text verbosity", "short": "Text verbosity", "description": "How much the board says in text mode.",
-      "unit": "enum", "group": "communications", "tab": "comms", "access": "read", "reason": "Not changed by Run.", "src": "EN config_app.c:470",
+      "unit": "enum", "group": "communications", "tab": "comms", "access": "read", "reason": "Run doesn't change this setting.", "src": "EN config_app.c:470",
       "values": [{ "value": 0, "label": "Silent" }, { "value": 1, "label": "Verbose" }],
       "labelSrc": "EN text_parser.c:347 fmt_tv [0=silent,1=verbose]"
     },
@@ -741,26 +741,26 @@
     },
     "sv": {
       "label": "Status report verbosity", "short": "Status reports", "description": "Whether the board sends status reports, and whether each one holds only what changed.",
-      "unit": "enum", "group": "status-report", "tab": "comms", "access": "read", "reason": "Not changed by Run.", "src": "EN config_app.c:472",
+      "unit": "enum", "group": "status-report", "tab": "comms", "access": "read", "reason": "Run doesn't change this setting.", "src": "EN config_app.c:472",
       "values": [{ "value": 0, "label": "Off" }, { "value": 1, "label": "Only what changed" }, { "value": 2, "label": "Everything" }],
       "labelSrc": "EN report.c:719 fmt_sv [0=off,1=filtered,2=verbose]"
     },
-    "si": { "label": "Status report interval", "short": "Report interval", "description": "How often the board reports its state while it moves.", "unit": "ms", "display": 0, "group": "status-report", "tab": "comms", "access": "read", "reason": "Not changed by Run.", "src": "EN config_app.c:473", "labelSrc": "EN report.c:718 fmt_si (ms)" },
+    "si": { "label": "Status report interval", "short": "Report interval", "description": "How often the board reports its state while it moves.", "unit": "ms", "display": 0, "group": "status-report", "tab": "comms", "access": "read", "reason": "Run doesn't change this setting.", "src": "EN config_app.c:473", "labelSrc": "EN report.c:718 fmt_si (ms)" },
 
     "spph": { "label": "Spindle pause on hold", "short": "Spindle pause on hold", "description": "Whether a feed hold also stops the spindle.", "unit": "none", "group": "spindle-coolant", "tab": "io", "access": "reserved", "reason": "Reserved on this firmware: the board keeps it and does nothing with it.", "until": 450.05, "src": "EN config_app.c:653" },
     "spde": { "label": "Spindle restart delay", "short": "Spindle restart delay", "description": "How long the board waits after the spindle restarts.", "unit": "s", "group": "spindle-coolant", "tab": "io", "access": "reserved", "reason": "Reserved on this firmware: the board keeps it and does nothing with it.", "until": 450.05, "src": "EN config_app.c:654" },
     "coph": { "label": "Coolant pause on hold", "short": "Coolant pause on hold", "description": "Whether a feed hold also stops the coolant.", "unit": "none", "group": "spindle-coolant", "tab": "io", "access": "reserved", "reason": "Reserved on this firmware: the board keeps it and does nothing with it.", "until": 450.05, "src": "EN config_app.c:655" },
 
-    "p1frq": { "label": "Spindle PWM frequency", "short": "PWM frequency", "description": "The frequency of the spindle speed output.", "unit": "Hz", "display": 0, "group": "spindle-coolant", "tab": "io", "access": "read", "reason": "Not changed by Run yet.", "src": "EN config_app.c:376", "labelSrc": "EN pwm.c:256 fmt_p1frq" },
-    "p1csl": { "label": "Clockwise lowest speed", "short": "Clockwise lowest speed", "description": "The clockwise spindle speed that the lowest duty cycle gives.", "unit": "rpm", "display": 0, "group": "spindle-coolant", "tab": "io", "access": "read", "reason": "Not changed by Run yet.", "src": "EN config_app.c:377", "labelSrc": "EN pwm.c:257 fmt_p1csl" },
-    "p1csh": { "label": "Clockwise highest speed", "short": "Clockwise highest speed", "description": "The clockwise spindle speed that the highest duty cycle gives.", "unit": "rpm", "display": 0, "group": "spindle-coolant", "tab": "io", "access": "read", "reason": "Not changed by Run yet.", "src": "EN config_app.c:378", "labelSrc": "EN pwm.c:258 fmt_p1csh" },
-    "p1cpl": { "label": "Clockwise lowest duty", "short": "Clockwise lowest duty", "description": "The duty cycle, 0 to 1, at the lowest clockwise speed.", "unit": "ratio", "display": 3, "group": "spindle-coolant", "tab": "io", "access": "read", "reason": "Not changed by Run yet.", "src": "EN config_app.c:379", "labelSrc": "EN pwm.c:259 fmt_p1cpl" },
-    "p1cph": { "label": "Clockwise highest duty", "short": "Clockwise highest duty", "description": "The duty cycle, 0 to 1, at the highest clockwise speed.", "unit": "ratio", "display": 3, "group": "spindle-coolant", "tab": "io", "access": "read", "reason": "Not changed by Run yet.", "src": "EN config_app.c:380", "labelSrc": "EN pwm.c:260 fmt_p1cph" },
-    "p1wsl": { "label": "Counter-clockwise lowest speed", "short": "Counter-clockwise lowest speed", "description": "The counter-clockwise spindle speed that the lowest duty cycle gives.", "unit": "rpm", "display": 0, "group": "spindle-coolant", "tab": "io", "access": "read", "reason": "Not changed by Run yet.", "src": "EN config_app.c:381", "labelSrc": "EN pwm.c:261 fmt_p1wsl" },
-    "p1wsh": { "label": "Counter-clockwise highest speed", "short": "Counter-clockwise highest speed", "description": "The counter-clockwise spindle speed that the highest duty cycle gives.", "unit": "rpm", "display": 0, "group": "spindle-coolant", "tab": "io", "access": "read", "reason": "Not changed by Run yet.", "src": "EN config_app.c:382", "labelSrc": "EN pwm.c:262 fmt_p1wsh" },
-    "p1wpl": { "label": "Counter-clockwise lowest duty", "short": "Counter-clockwise lowest duty", "description": "The duty cycle, 0 to 1, at the lowest counter-clockwise speed.", "unit": "ratio", "display": 3, "group": "spindle-coolant", "tab": "io", "access": "read", "reason": "Not changed by Run yet.", "src": "EN config_app.c:383", "labelSrc": "EN pwm.c:263 fmt_p1wpl" },
-    "p1wph": { "label": "Counter-clockwise highest duty", "short": "Counter-clockwise highest duty", "description": "The duty cycle, 0 to 1, at the highest counter-clockwise speed.", "unit": "ratio", "display": 3, "group": "spindle-coolant", "tab": "io", "access": "read", "reason": "Not changed by Run yet.", "src": "EN config_app.c:384", "labelSrc": "EN pwm.c:264 fmt_p1wph" },
-    "p1pof": { "label": "Duty cycle when off", "short": "Duty when off", "description": "The duty cycle, 0 to 1, while the spindle is off.", "unit": "ratio", "display": 3, "group": "spindle-coolant", "tab": "io", "access": "read", "reason": "Not changed by Run yet.", "src": "EN config_app.c:385", "labelSrc": "EN pwm.c:265 fmt_p1pof" },
+    "p1frq": { "label": "Spindle PWM frequency", "short": "PWM frequency", "description": "The frequency of the spindle speed output.", "unit": "Hz", "display": 0, "group": "spindle-coolant", "tab": "io", "access": "read", "reason": "Run doesn't change this setting.", "src": "EN config_app.c:376", "labelSrc": "EN pwm.c:256 fmt_p1frq" },
+    "p1csl": { "label": "Clockwise lowest speed", "short": "Clockwise lowest speed", "description": "The clockwise spindle speed that the lowest duty cycle gives.", "unit": "rpm", "display": 0, "group": "spindle-coolant", "tab": "io", "access": "read", "reason": "Run doesn't change this setting.", "src": "EN config_app.c:377", "labelSrc": "EN pwm.c:257 fmt_p1csl" },
+    "p1csh": { "label": "Clockwise highest speed", "short": "Clockwise highest speed", "description": "The clockwise spindle speed that the highest duty cycle gives.", "unit": "rpm", "display": 0, "group": "spindle-coolant", "tab": "io", "access": "read", "reason": "Run doesn't change this setting.", "src": "EN config_app.c:378", "labelSrc": "EN pwm.c:258 fmt_p1csh" },
+    "p1cpl": { "label": "Clockwise lowest duty", "short": "Clockwise lowest duty", "description": "The duty cycle, 0 to 1, at the lowest clockwise speed.", "unit": "ratio", "display": 3, "group": "spindle-coolant", "tab": "io", "access": "read", "reason": "Run doesn't change this setting.", "src": "EN config_app.c:379", "labelSrc": "EN pwm.c:259 fmt_p1cpl" },
+    "p1cph": { "label": "Clockwise highest duty", "short": "Clockwise highest duty", "description": "The duty cycle, 0 to 1, at the highest clockwise speed.", "unit": "ratio", "display": 3, "group": "spindle-coolant", "tab": "io", "access": "read", "reason": "Run doesn't change this setting.", "src": "EN config_app.c:380", "labelSrc": "EN pwm.c:260 fmt_p1cph" },
+    "p1wsl": { "label": "Counter-clockwise lowest speed", "short": "Counter-clockwise lowest speed", "description": "The counter-clockwise spindle speed that the lowest duty cycle gives.", "unit": "rpm", "display": 0, "group": "spindle-coolant", "tab": "io", "access": "read", "reason": "Run doesn't change this setting.", "src": "EN config_app.c:381", "labelSrc": "EN pwm.c:261 fmt_p1wsl" },
+    "p1wsh": { "label": "Counter-clockwise highest speed", "short": "Counter-clockwise highest speed", "description": "The counter-clockwise spindle speed that the highest duty cycle gives.", "unit": "rpm", "display": 0, "group": "spindle-coolant", "tab": "io", "access": "read", "reason": "Run doesn't change this setting.", "src": "EN config_app.c:382", "labelSrc": "EN pwm.c:262 fmt_p1wsh" },
+    "p1wpl": { "label": "Counter-clockwise lowest duty", "short": "Counter-clockwise lowest duty", "description": "The duty cycle, 0 to 1, at the lowest counter-clockwise speed.", "unit": "ratio", "display": 3, "group": "spindle-coolant", "tab": "io", "access": "read", "reason": "Run doesn't change this setting.", "src": "EN config_app.c:383", "labelSrc": "EN pwm.c:263 fmt_p1wpl" },
+    "p1wph": { "label": "Counter-clockwise highest duty", "short": "Counter-clockwise highest duty", "description": "The duty cycle, 0 to 1, at the highest counter-clockwise speed.", "unit": "ratio", "display": 3, "group": "spindle-coolant", "tab": "io", "access": "read", "reason": "Run doesn't change this setting.", "src": "EN config_app.c:384", "labelSrc": "EN pwm.c:264 fmt_p1wph" },
+    "p1pof": { "label": "Duty cycle when off", "short": "Duty when off", "description": "The duty cycle, 0 to 1, while the spindle is off.", "unit": "ratio", "display": 3, "group": "spindle-coolant", "tab": "io", "access": "read", "reason": "Run doesn't change this setting.", "src": "EN config_app.c:385", "labelSrc": "EN pwm.c:265 fmt_p1pof" },
 
     "spe": { "label": "Spindle on", "short": "Spindle on", "description": "Whether the spindle output is on now.", "unit": "enum", "enum": "offOn", "group": "spindle-coolant", "tab": "io", "access": "readout", "src": "EN config_app.c:693" },
     "spd": { "label": "Spindle direction now", "short": "Direction now", "description": "The direction the spindle output is set to now.", "unit": "enum", "group": "spindle-coolant", "tab": "io", "access": "readout", "src": "EN config_app.c:694", "values": [{ "value": 0, "label": "Clockwise" }, { "value": 1, "label": "Counter-clockwise" }] },
@@ -784,8 +784,8 @@
     "mfc": { "label": "Feed override in effect", "short": "Feed override in effect", "description": "The feed factor the board applies now.", "unit": "ratio", "display": 2, "group": "overrides", "tab": "settings", "access": "readout", "since": 450.05, "src": "EN45005 config_app.c:703" },
     "mcp": { "label": "Feed capped", "short": "Feed capped", "description": "Whether the board is holding the overridden feed at an axis limit.", "unit": "enum", "enum": "noYes", "group": "overrides", "tab": "settings", "access": "readout", "since": 450.05, "src": "EN45005 config_app.c:709" },
     "mfe": { "label": "Feed override acting", "short": "Feed override acting", "description": "Whether feed override acts now: turned on and allowed by M48.", "unit": "enum", "enum": "noYes", "group": "overrides", "tab": "settings", "access": "readout", "since": 450.05, "src": "EN45005 config_app.c:710" },
-    "sso": { "label": "Spindle override", "short": "Spindle override", "description": "The spindle speed override factor asked for. 1 is 100 %.", "unit": "ratio", "display": 2, "group": "overrides", "tab": "settings", "access": "read", "reason": "Not changed by Run yet.", "since": 450.06, "src": "EN45006 config_app.c:702" },
-    "ssoe": { "label": "Spindle override switch", "short": "Spindle override switch", "description": "Whether spindle override is turned on.", "unit": "enum", "enum": "offOn", "group": "overrides", "tab": "settings", "access": "read", "reason": "Not changed by Run yet.", "since": 450.06, "src": "EN45006 config_app.c:713" },
+    "sso": { "label": "Spindle override", "short": "Spindle override", "description": "The spindle speed override factor asked for. 1 is 100 %.", "unit": "ratio", "display": 2, "group": "overrides", "tab": "settings", "access": "read", "reason": "Run doesn't change this setting.", "since": 450.06, "src": "EN45006 config_app.c:702" },
+    "ssoe": { "label": "Spindle override switch", "short": "Spindle override switch", "description": "Whether spindle override is turned on.", "unit": "enum", "enum": "offOn", "group": "overrides", "tab": "settings", "access": "read", "reason": "Run doesn't change this setting.", "since": 450.06, "src": "EN45006 config_app.c:713" },
     "ssc": { "label": "Spindle override in effect", "short": "Spindle override in effect", "description": "The spindle factor the board applies now.", "unit": "ratio", "display": 2, "group": "overrides", "tab": "settings", "access": "readout", "since": 450.06, "src": "EN45006 config_app.c:704" },
     "scp": { "label": "Spindle speed capped", "short": "Spindle speed capped", "description": "Whether the board is holding the overridden spindle speed at its limit.", "unit": "enum", "enum": "noYes", "group": "overrides", "tab": "settings", "access": "readout", "since": 450.06, "src": "EN45006 config_app.c:715" },
     "sse": { "label": "Spindle override acting", "short": "Spindle override acting", "description": "Whether spindle override acts now: turned on and allowed by M48.", "unit": "enum", "enum": "noYes", "group": "overrides", "tab": "settings", "access": "readout", "since": 450.06, "src": "EN45006 config_app.c:714" }

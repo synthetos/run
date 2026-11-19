@@ -5,10 +5,11 @@
  */
 import { h, type ComponentChild } from 'preact';
 import type { SettingValue, SettingsFile } from '@synthetos/schema';
-import { AXIS_NAMES, draftStore, plainValue, stepsPerUnit } from '../../boardFacts.ts';
+import { AXIS_NAMES, draftStore, stepsPerUnit } from '../../boardFacts.ts';
 import { boardTab } from '../../boardNavigation.ts';
 import type { LiveView } from '../../model.ts';
-import { boardBuild, defsFor } from '../../settings/defs.ts';
+import { defsFor } from '../../settings/defs.ts';
+import { boardInches, boardValueWords } from '../../settings/meta.ts';
 import { SettingControl } from '../../settings/SettingControl.ts';
 import { numberWords } from '../../settings/units.ts';
 
@@ -43,13 +44,12 @@ function Row({ k, short, view, planned }: { readonly k: string; readonly short: 
 /** A motor's values as text, for the Overview's motor pin panel; they are changed on Motors (one home per setting). */
 export function MotorFacts({ m, view }: { readonly m: number; readonly view: LiveView | null }): ComponentChild {
   const defs = defsFor(view);
-  const board: Settings = view?.readout.settings ?? {};
   if (defs === null) return null;
   const rows = [...defs.tokens.values()].filter((d) => d.group === `motor-${m}`);
   return h(
     'section',
     { class: 'insp', 'data-motor-facts': String(m) },
-    h('dl', { class: 'facts' }, rows.map((d) => h('div', { key: d.key }, h('dt', null, d.short), h('dd', null, plainValue(d.key, board[d.key], view?.readout.dialectId ?? null, boardBuild(view)) ?? 'Not read')))),
+    h('dl', { class: 'facts' }, rows.map((d) => h('div', { key: d.key }, h('dt', null, d.short), h('dd', null, boardValueWords(d.key, view) ?? 'Not read')))),
     h('button', { type: 'button', class: 'small', 'data-action': 'open-motors', onClick: () => { boardTab.value = 'motors'; } }, 'Change on Motors'),
   );
 }
@@ -78,7 +78,7 @@ export function MotorCard({ m, view, defs }: { readonly m: number; readonly view
         'tbody',
         null,
         rows.map((d) => h(Row, { key: d.key, k: d.key, short: d.short, view, planned })),
-        h('tr', { key: 'spu' }, h('th', { scope: 'row' }, rotary ? 'Steps per degree' : 'Steps per mm'), h('td', { class: 'num', 'data-steps-per-unit': '' }, stepsText(board, planned, m))),
+        h('tr', { key: 'spu' }, h('th', { scope: 'row' }, rotary ? 'Steps per degree' : boardInches(view) ? 'Steps per inch' : 'Steps per mm'), h('td', { class: 'num', 'data-steps-per-unit': '' }, stepsText(board, planned, m))),
       ),
     ),
   );

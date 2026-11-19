@@ -160,6 +160,14 @@ describe('describe-only files for stock 449 and 440 (safety: nothing becomes wri
     expect([...settingsSchemaFor(S449).settings.values()].filter((d) => d.overlay).length).toBe(0);
   });
 
+  it.each(DIALECTS)('%s: exactly the cfgArray F_CONVERT rows (_fipc, _fipnc) are marked as lengths', (d) => {
+    const lin = ['vm', 'fr', 'tn', 'tm', 'jm', 'jh', 'jd', 'sv', 'lv', 'lb', 'zb'];
+    const offsets = ['54', '55', '56', '57', '58', '59', ...(d === TG440 ? [] : ['28', '30'])].flatMap((w) => ['x', 'y', 'z'].map((a) => `g${w}${a}`));
+    const expected = [...['1', '2', '3', '4'].map((m) => `${m}tr`), ...['x', 'y', 'z'].flatMap((a) => lin.map((k) => `${a}${k}`)), 'ara', 'bra', 'cra', 'ja', 'ct', ...offsets].sort();
+    const marked = members(d).filter((k) => settingsDefsFor(d)!.tokens.get(k)?.convert === true).sort();
+    expect(marked).toEqual(expected);
+  });
+
   it.each([S449, TG440])('%s: every src cites its own pin', (d) => {
     const tag = d === S449 ? 'S449 ' : 'TG ';
     for (const t of settingsDefsFor(d)!.tokens.values()) expect({ key: t.key, src: t.src.startsWith(tag) }).toEqual({ key: t.key, src: true });

@@ -59,7 +59,8 @@ function compareView(c: { readonly id: string; readonly record: SettingsBackupRe
   const result = restoreChanges(c.dialect, c.record.file.tokens, c.board, c.fb);
   const notes = [...new Set(result.skipped.filter((skip) => skip.reason.startsWith('Not on 450.05:')).map((skip) => skip.reason))];
   const diffs = result.changes.map((ch) => ({ key: ch.key, backup: ch.value, board: c.board[ch.key] }));
-  return { id: c.id, changes: result.changes.length, same: result.same, skipped: result.skipped.length, keys: result.changes.map((ch) => ch.key), diffs, notes };
+  const backupInches = c.record.file.units?.unit === 0;
+  return { id: c.id, changes: result.changes.length, same: result.same, skipped: result.skipped.length, keys: result.changes.map((ch) => ch.key), backupInches, diffs, notes };
 }
 
 export async function mountFirmware(deps: FirmwareHubDeps): Promise<FirmwareHub> {

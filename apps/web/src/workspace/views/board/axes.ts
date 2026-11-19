@@ -12,8 +12,9 @@ import type { LiveView } from '../../model.ts';
 import { defsFor } from '../../settings/defs.ts';
 import { readOnlyNotice } from '../../settings/editGate.ts';
 import { guidedAxes } from '../../settings/GuidedSettings.ts';
+import { boardInches } from '../../settings/meta.ts';
 import { SettingControl } from '../../settings/SettingControl.ts';
-import { axisCards } from './axesModel.ts';
+import { axisCards, type AxisContext } from './axesModel.ts';
 import { AxisCardView } from './axisCardView.ts';
 import { Empty } from './shared.ts';
 
@@ -46,8 +47,13 @@ function names(axes: readonly string[]): string {
   return up.length === 1 ? (up[0] as string) : `${up.slice(0, -1).join(', ')} and ${up[up.length - 1] ?? ''}`;
 }
 
+/** The board the cards describe: its dialect, and whether it reports lengths in inches (G20). */
+function axisContext(view: LiveView | null): AxisContext {
+  return { dialectId: view?.readout.dialectId ?? '', inches: boardInches(view) };
+}
+
 function OffAxes({ defs, view, planned, axes, machine }: { readonly defs: SettingsFile; readonly view: LiveView | null; readonly planned: Settings; readonly axes: readonly string[]; readonly machine: readonly string[] }): ComponentChild {
-  const cards = axisCards(defs, planned, [...machine, ...axes], view?.readout.dialectId ?? '').cards.filter((c) => axes.includes(c.axis));
+  const cards = axisCards(defs, planned, [...machine, ...axes], axisContext(view)).cards.filter((c) => axes.includes(c.axis));
   return h(
     'details',
     { class: 'board-card axes-off', 'data-region': 'axes-off' },
@@ -76,7 +82,7 @@ export function AxesTab({ view }: { readonly view: LiveView | null }): Component
   if (defs === null) return h('div', root, h(RawAxes, { view, settings }));
   const planned: Settings = { ...settings, ...draftStore.value.value };
   const machine = guidedAxes(selectedMachine.value, settings);
-  const { cards, collapsedOff } = axisCards(defs, planned, machine, view?.readout.dialectId ?? '');
+  const { cards, collapsedOff } = axisCards(defs, planned, machine, axisContext(view));
   const narrow = typeof window !== 'undefined' && window.innerWidth < NARROW;
   return h(
     'div',

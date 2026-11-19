@@ -21,7 +21,8 @@ describe('AxesTab', () => {
   it('the All axes card holds soft limits, junction acceleration and chordal tolerance', () => {
     const all3 = one(render(), byAttr('data-region', 'all-axes'));
     expect(controls(all3)).toEqual(['sl', 'ja', 'ct']);
-    expect(text(all3)).toContain('Not changed by Run yet.');
+    expect(text(all3)).toContain("Run doesn't change this setting.");
+    expect(text(all3)).not.toContain('yet');
   });
 
   it('jerk renders 20 with unit million mm/min³', () => {
@@ -69,7 +70,7 @@ describe('AxesTab', () => {
 
   it('a read-only board renders every value as text or locked, with no enabled control, and does not repeat why per row', () => {
     const el = render(boardView({ ...OWNER_449, settings: OWNER_157 }));
-    expect(text(one(el, byAttr('data-region', 'all-axes')))).not.toMatch(/Read only on this firmware|Not changed by Run yet/);
+    expect(text(one(el, byAttr('data-region', 'all-axes')))).not.toMatch(/Read only on this firmware|Run doesn't change this setting/);
     expect(all(el, (e) => ['input', 'select', 'button'].includes(e.tag) && e.props['disabled'] !== true)).toEqual([]);
     expect(all(el, byAttr('data-control-kind')).every((e) => e.props['data-control-kind'] === 'text' || e.props['data-control-kind'] === 'locked')).toBe(true);
   });

@@ -15,7 +15,7 @@ import { Icon } from '../../icons.ts';
 import type { FirmwareActions, FirmwareHubView, LiveView, WorkspaceModel } from '../../model.ts';
 import { defsFor } from '../../settings/defs.ts';
 import { editBlocked } from '../../settings/editGate.ts';
-import { valueWordsOf } from '../../settings/meta.ts';
+import { boardInches, valueWordsOf } from '../../settings/meta.ts';
 
 type Row = FirmwareHubView['settings'][number];
 type Compare = NonNullable<FirmwareHubView['compare']>;
@@ -64,14 +64,15 @@ function restore(fw: FirmwareActions, id: string, view: LiveView | null): void {
 
 function CompareRows({ c, view }: { readonly c: Compare; readonly view: LiveView | null }): ComponentChild {
   const defs = defsFor(view);
-  const words = (key: string, v: unknown): string => (typeof v === 'number' ? valueWordsOf(defs?.tokens.get(key) ?? null, v) : v === undefined ? 'Not read' : String(v));
+  // Each column in the units it was read in: the backup's, and the board's now (G20 lengths are inches).
+  const words = (key: string, v: unknown, inches: boolean): string => (typeof v === 'number' ? valueWordsOf(defs?.tokens.get(key) ?? null, v, inches) : v === undefined ? 'Not read' : String(v));
   const notes = (c.notes ?? []).map((n) => h('p', { key: n, class: 'fine' }, n));
   if (c.changes === 0) return [...notes, h('p', { key: 'same', class: 'fine' }, `Matches the board (${c.same} settings).`)];
   return [...notes, h(
     'table',
     { class: 'cfg-table compare-table' },
     h('thead', null, h('tr', null, ...['Setting', 'In the backup', 'On the board now'].map((t) => h('th', { scope: 'col', key: t }, t)))),
-    h('tbody', null, (c.diffs ?? []).map((d) => h('tr', { key: d.key }, h('th', { scope: 'row' }, defs?.tokens.get(d.key)?.label ?? d.key), h('td', null, words(d.key, d.backup)), h('td', null, words(d.key, d.board))))),
+    h('tbody', null, (c.diffs ?? []).map((d) => h('tr', { key: d.key }, h('th', { scope: 'row' }, defs?.tokens.get(d.key)?.label ?? d.key), h('td', null, words(d.key, d.backup, c.backupInches === true)), h('td', null, words(d.key, d.board, boardInches(view)))))),
   )];
 }
 

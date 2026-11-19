@@ -6,6 +6,8 @@
  */
 import { settingsDefsFor, type DefinitionUnit, type SettingAccess, type SettingDefinition, type SettingValue, type ValueDef } from '@synthetos/schema';
 import { valueText } from '../../machine-ui/SettingsView.ts';
+import type { LiveView } from '../model.ts';
+import { boardBuild } from './defs.ts';
 import { numberWords, unitWords, withUnit } from './units.ts';
 
 export interface SettingMeta {
@@ -57,11 +59,27 @@ export function settingMeta(key: string, dialect: string | null = null, fb?: num
   return d === null ? rawMeta(key) : metaOf(d);
 }
 
-/** The words for one value of a definition: its value label, "Unknown value (n)" outside the list, or the number with its unit. */
-export function valueWordsOf(d: SettingDefinition | null, v: number): string {
+/**
+ * The words for one value of a definition: its value label, "Unknown value (n)" outside the list, or the number with
+ * its unit. With `inches` (the board reports G20), a length (`convert`) reads in inches: the board's number is inches.
+ */
+export function valueWordsOf(d: SettingDefinition | null, v: number, inches = false): string {
   if (d === null) return numberWords(v);
   if (d.values !== undefined) return d.values.find((e) => e.value === v)?.label ?? `Unknown value (${numberWords(v)})`;
-  return withUnit(v, d.unit, d.display);
+  return withUnit(v, d.unit, d.display, inches && d.convert === true);
+}
+
+/** The board reports inches (`unit` 0, G20). */
+export function boardInches(view: LiveView | null): boolean {
+  return view?.message?.snapshot.live.unit === 0;
+}
+
+/** A setting's value as the connected board reported it, in words and in the board's units, or null when not read. */
+export function boardValueWords(key: string, view: LiveView | null): string | null {
+  const v = view?.readout.settings[key];
+  if (v === undefined) return null;
+  if (typeof v !== 'number') return valueText(v);
+  return valueWordsOf(definition(key, view?.readout.dialectId ?? null, boardBuild(view)), v, boardInches(view));
 }
 
 /** A setting's value in plain words ("Homing and limit", "1.8° per step"), or null when not read. */

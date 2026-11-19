@@ -74,7 +74,16 @@ function resolve(key: string, t: RawToken, file: RawFile, groups: ReadonlySet<st
   if (values !== undefined) def['values'] = values;
   if (def['labelSrc'] === undefined && labelSrc !== undefined) def['labelSrc'] = labelSrc;
   if (t['write'] !== undefined) def['write'] = t['write'];
+  if (isLength(key, t)) def['convert'] = true;
   return deepFreeze(structuredClone(def)) as unknown as SettingDefinition;
+}
+
+/** F_CONVERT from the definition or its write object; when both say it, they must agree. */
+function isLength(key: string, t: RawToken): boolean {
+  const own = t['convert'] as boolean | undefined;
+  const write = (t['write'] as WriteDef | undefined)?.convert;
+  if (own !== undefined && write !== undefined && own !== write) throw new Error(`${key}: convert disagrees with its write object`);
+  return own ?? write ?? false;
 }
 
 function present(def: SettingDefinition, fb: number | undefined): boolean {

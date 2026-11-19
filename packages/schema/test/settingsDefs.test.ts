@@ -161,6 +161,16 @@ describe('expandSettingsFile: builds, families and the schema', () => {
     expect(expandSettingsFile({ ...mini(), firmware: { family: 'x', fb: {}, source: 'EN@a7489b79' } }).tokens.has('sso')).toBe(true);
   });
 
+  it('a length is marked `convert` from the definition or from its write object, and the two must agree', () => {
+    expect(expandSettingsFile(withToken('xsn', { convert: true })).tokens.get('xsn')?.convert).toBe(true);
+    expect(expandSettingsFile(mini()).tokens.get('1mi')?.convert).toBeUndefined();
+    const f = mini();
+    (((f['families'] as Raw[])[0] as Raw)['write'] as Raw)['convert'] = true;
+    expect(expandSettingsFile(f).tokens.get('2mi')?.convert).toBe(true);
+    ((f['families'] as Raw[])[0] as Raw)['convert'] = false;
+    expect(() => expandSettingsFile(f)).toThrow(/1mi: convert disagrees with its write object/);
+  });
+
   it('a file without families or enums loads its tokens', () => {
     const f = withToken('xsn', { values: [{ value: 0, label: 'Off' }] }, ['enum']);
     delete f['families'];

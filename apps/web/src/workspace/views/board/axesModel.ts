@@ -25,6 +25,12 @@ export interface AxisCard {
 
 const AXES: readonly Axis[] = ['x', 'y', 'z', 'a', 'b', 'c'];
 const DISABLE_SOFT_LIMIT = -1_000_000;
+
+/** The board the cards describe: its dialect (travel rules) and whether it reports lengths in inches (G20). */
+export interface AxisContext {
+  readonly dialectId: string;
+  readonly inches?: boolean;
+}
 const num = (s: Settings, k: string): number | null => (typeof s[k] === 'number' ? (s[k] as number) : null);
 const isHoming = (m: number | null): boolean => m === 1 || m === 3;
 const lowerFirst = (t: string): string => t.charAt(0).toLowerCase() + t.slice(1);
@@ -46,13 +52,16 @@ function label(defs: SettingsFile, key: string, v: number | null): string | null
   return defs.tokens.get(key)?.values?.find((x) => x.value === v)?.label ?? null;
 }
 
-function lengthUnit(defs: SettingsFile, a: string): string {
-  return unitWords(defs.tokens.get(`${a}tn`)?.unit);
+/** The unit of a token as the board reports it: a length (`convert`) in inches when the board reports G20. */
+function unitOf(defs: SettingsFile, key: string, ctx: AxisContext): string {
+  const d = defs.tokens.get(key);
+  return unitWords(d?.unit, ctx.inches === true && d?.convert === true);
 }
 
-function searchLine(defs: SettingsFile, s: Settings, a: string, equal: boolean): string {
+function searchLine(defs: SettingsFile, s: Settings, a: string, ctx: AxisContext & { readonly equal: boolean }): string {
+  const { equal } = ctx;
   const lb = num(s, `${a}lb`) ?? 0;
-  const u = lengthUnit(defs, a);
+  const u = unitOf(defs, `${a}tn`, ctx);
   const amount = (n: number): string => (u.startsWith('°') ? `${numberWords(n)}${u}` : `${numberWords(n)} ${u}`);
   if (!equal) return `Homing searches ${amount(Math.abs((num(s, `${a}tm`) ?? 0) - (num(s, `${a}tn`) ?? 0)) + lb)}.`;
   if (defs.homingTravel?.rule === 'radiusFullTurn' && num(s, `${a}am`) === 3) return 'Homing searches one full turn.';
@@ -69,12 +78,12 @@ function limitSentence(s: Settings, tn: number | null, tm: number | null, equal:
 }
 
 /** What the board does with an axis's travel, in words (spec §5.6 travel rules). */
-export function travelLine(defs: SettingsFile, planned: Settings, axis: string, dialectId: string): string {
+export function travelLine(defs: SettingsFile, planned: Settings, axis: string, ctx: AxisContext): string {
   const tn = num(planned, `${axis}tn`);
   const tm = num(planned, `${axis}tm`);
-  const equal = tn !== null && tm !== null && equalEnds(dialectId, tn, tm);
+  const equal = tn !== null && tm !== null && equalEnds(ctx.dialectId, tn, tm);
   const end = homingEnd(planned, axis);
-  const parts = [limitSentence(planned, tn, tm, equal), end === 'min' || end === 'max' ? searchLine(defs, planned, axis, equal) : null];
+  const parts = [limitSentence(planned, tn, tm, equal), end === 'min' || end === 'max' ? searchLine(defs, planned, axis, { ...ctx, equal }) : null];
   return parts.filter((p): p is string => p !== null).join(' ');
 }
 
@@ -93,9 +102,10 @@ function modeLine(defs: SettingsFile, s: Settings, a: string): string | null {
   return v === undefined ? null : `Mode ${v.label}${v.help === undefined ? '' : `: ${lowerFirst(v.help)}`}`;
 }
 
-function summaryOf(defs: SettingsFile, s: Settings, a: Axis, rotary: boolean): string {
+function summaryOf(defs: SettingsFile, s: Settings, a: Axis, ctx: AxisContext): string {
+  const rotary = a === 'a' || a === 'b' || a === 'c';
   const mode = label(defs, `${a}am`, num(s, `${a}am`)) ?? 'Mode not read';
-  const u = lengthUnit(defs, a);
+  const u = unitOf(defs, `${a}tn`, ctx);
   const tn = num(s, `${a}tn`);
   const tm = num(s, `${a}tm`);
   const vm = num(s, `${a}vm`);
@@ -104,32 +114,31 @@ function summaryOf(defs: SettingsFile, s: Settings, a: Axis, rotary: boolean): s
     `${a.toUpperCase()} axis`,
     rotary ? `Rotary, ${lowerFirst(mode)}` : mode,
     tn === null || tm === null ? null : `${numberWords(tn)} to ${numberWords(tm)} ${u}`.replace(' °', '°'),
-    vm === null ? null : `${numberWords(vm)} ${unitWords(defs.tokens.get(`${a}vm`)?.unit)}`,
+    vm === null ? null : `${numberWords(vm)} ${unitOf(defs, `${a}vm`, ctx)}`,
     end === null ? 'no homing switch' : end === 'both' ? 'homes on both ends' : `homes towards ${end}`,
   ].filter((p): p is string => p !== null).join(' · ');
 }
 
 /** A card for an axis that is listed (the machine uses it, or its mode is not Off): it starts open on a wide window. */
-function cardOf(defs: SettingsFile, s: Settings, a: Axis, dialectId: string): AxisCard {
-  const rotary = a === 'a' || a === 'b' || a === 'c';
+function cardOf(defs: SettingsFile, s: Settings, a: Axis, ctx: AxisContext): AxisCard {
   return {
     axis: a,
-    rotary,
+    rotary: a === 'a' || a === 'b' || a === 'c',
     mode: num(s, `${a}am`),
     open: true,
-    summary: summaryOf(defs, s, a, rotary),
-    travelLine: travelLine(defs, s, a, dialectId),
+    summary: summaryOf(defs, s, a, ctx),
+    travelLine: travelLine(defs, s, a, ctx),
     homingLine: homingLine(defs, s, a),
     modeLine: modeLine(defs, s, a),
     motor: motorFor(s, a).motor,
   };
 }
 
-export function axisCards(defs: SettingsFile, planned: Settings, machineAxes: readonly string[], dialectId: string): { readonly cards: readonly AxisCard[]; readonly collapsedOff: readonly string[] } {
+export function axisCards(defs: SettingsFile, planned: Settings, machineAxes: readonly string[], ctx: AxisContext): { readonly cards: readonly AxisCard[]; readonly collapsedOff: readonly string[] } {
   const axes = AXES.filter((a) => defs.tokens.has(`${a}am`));
   const used = (a: Axis): boolean => machineAxes.includes(a) || (num(planned, `${a}am`) ?? 0) !== 0;
   return {
-    cards: axes.filter(used).map((a) => cardOf(defs, planned, a, dialectId)),
+    cards: axes.filter(used).map((a) => cardOf(defs, planned, a, ctx)),
     collapsedOff: axes.filter((a) => !used(a)),
   };
 }

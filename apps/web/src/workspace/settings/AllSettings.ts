@@ -6,13 +6,12 @@
  */
 import { h, type ComponentChild } from 'preact';
 import { useState } from 'preact/hooks';
-import type { SettingDefinition, SettingValue, SettingsFile } from '@synthetos/schema';
+import type { SettingDefinition, SettingsFile } from '@synthetos/schema';
 import { draftStore } from '../boardFacts.ts';
 import { uiLevel } from '../jobWorkflow.ts';
 import type { LiveView } from '../model.ts';
 import { allSettingsRows, readOnlyGroup, type SettingsGroupRows } from './allSettingsModel.ts';
 import { defsFor } from './defs.ts';
-import { valueWordsOf } from './meta.ts';
 import { SettingControl } from './SettingControl.ts';
 
 interface RowProps {
@@ -27,33 +26,28 @@ interface RowProps {
 
 const LOCKED = new Set(['read', 'forbidden', 'reserved', 'readout']);
 
-function valueText(defs: SettingsFile | null, k: string, v: SettingValue | undefined): string {
-  if (v === undefined) return 'Not read';
-  return typeof v === 'number' ? valueWordsOf(defs?.tokens.get(k) ?? null, v) : v;
-}
-
 /** The reason a setting is not written, as a tag, unless its group header already says why. */
 function lockTag(d: SettingDefinition | null, show: boolean): ComponentChild {
   return show && d !== null && LOCKED.has(d.access) && d.reason !== undefined ? h('span', { class: 'tag', 'data-lock': '' }, d.reason) : null;
 }
 
-function NameCell({ d, k, open, onInfo }: { readonly d: SettingDefinition | null; readonly k: string; readonly open: boolean; readonly onInfo: () => void }): ComponentChild {
+/** The plain name; at Advanced the raw token beside it (OD-44: the token with the text, never alone). */
+function NameCell({ d, k, advanced, open, onInfo }: { readonly d: SettingDefinition | null; readonly k: string; readonly advanced: boolean; readonly open: boolean; readonly onInfo: () => void }): ComponentChild {
   if (d === null) return h('th', { scope: 'row' }, k);
-  return h('th', { scope: 'row' }, d.label, h('button', { type: 'button', class: 'icon-button quiet info-toggle', 'aria-label': `What ${d.label} does`, 'aria-expanded': open ? 'true' : 'false', onClick: onInfo }, 'i'));
+  return h('th', { scope: 'row' }, d.label, advanced ? h('code', { class: 'raw-key' }, k) : null, h('button', { type: 'button', class: 'icon-button quiet info-toggle', 'aria-label': `What ${d.label} does`, 'aria-expanded': open ? 'true' : 'false', onClick: onInfo }, 'i'));
 }
 
+/** One row: the name, then the value once (the same control as the tabs, in the board's units), then why it is locked. */
 function Row(p: RowProps): ComponentChild {
   const d = p.defs?.tokens.get(p.k) ?? null;
   return [
     h(
       'tr',
       { key: p.k, 'data-key': p.k, class: draftStore.value.value[p.k] === undefined ? undefined : 'drafted' },
-      h(NameCell, { d, k: p.k, open: p.open, onInfo: p.onInfo }),
-      h('td', { 'data-value': '' }, valueText(p.defs, p.k, p.view?.readout.settings[p.k])),
-      h('td', null, h(SettingControl, { k: p.k, view: p.view }), lockTag(d, p.lockTags)),
-      p.advanced ? h('td', null, h('code', { class: 'raw-key' }, p.k)) : null,
+      h(NameCell, { d, k: p.k, advanced: p.advanced, open: p.open, onInfo: p.onInfo }),
+      h('td', { 'data-value': '' }, h(SettingControl, { k: p.k, view: p.view }), lockTag(d, p.lockTags)),
     ),
-    p.open && d !== null ? h('tr', { key: `${p.k}-desc`, class: 'desc-row' }, h('td', { colSpan: p.advanced ? 4 : 3, class: 'settings-desc' }, d.description)) : null,
+    p.open && d !== null ? h('tr', { key: `${p.k}-desc`, class: 'desc-row' }, h('td', { colSpan: 2, class: 'settings-desc' }, d.description)) : null,
   ];
 }
 
@@ -62,7 +56,7 @@ function Group({ g, defs, view, advanced, open, setOpen }: { readonly g: Setting
   return h(
     'tbody',
     { key: g.group.id, 'data-group': g.group.id },
-    h('tr', { class: 'group-row' }, h('th', { colSpan: advanced ? 4 : 3, scope: 'rowgroup' }, h('span', null, g.group.title), h('small', null, g.group.explanation))),
+    h('tr', { class: 'group-row' }, h('th', { colSpan: 2, scope: 'rowgroup' }, h('span', null, g.group.title), h('small', null, g.group.explanation))),
     g.rows.map((k) => h(Row, { key: k, k, defs, view, advanced, lockTags, open: open === k, onInfo: () => setOpen(open === k ? null : k) })),
   );
 }
@@ -103,7 +97,7 @@ export function AllSettings({ view, id = 'all-settings-title' }: { readonly view
       : h(
           'table',
           { class: 'cfg-table all-settings' },
-          h('thead', null, h('tr', null, ...['Setting', 'On the board', 'Change', ...(advanced ? ['Token'] : [])].map((t) => h('th', { scope: 'col', key: t }, t)))),
+          h('thead', null, h('tr', null, ...['Setting', 'Value'].map((t) => h('th', { scope: 'col', key: t }, t)))),
           groups.map((g) => h(Group, { key: g.group.id, g, defs, view, advanced, open, setOpen })),
         ),
     h('p', { class: 'fine settings-foot' }, 'Live readouts (input states, homed axes, positions) are on Inputs, Axes and the Job view.'),
