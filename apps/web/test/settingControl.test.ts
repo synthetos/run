@@ -6,6 +6,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { h } from 'preact';
 import { clearDraft, draftStore, setDraft } from '../src/workspace/boardFacts.ts';
+import type { LiveView } from '../src/workspace/model.ts';
+import { editBlocked } from '../src/workspace/settings/editGate.ts';
 import { SettingControl } from '../src/workspace/settings/SettingControl.ts';
 import { all, byAttr, one, root, text, type El } from './tree.ts';
 import { boardView, OWNER_449 } from './boardViews.ts';
@@ -103,6 +105,20 @@ describe('SettingControl', () => {
     const el = render('xjd', boardView({ unit: 0 }));
     expect(el.props['data-control-kind']).toBe('locked');
     expect(text(el)).toBe('0.05 in');
+  });
+});
+
+describe('SettingControl while Apply runs (review finding 9)', () => {
+  it('every control is locked and still shows the change being written; edits and Restore wait for the write', () => {
+    setDraft('xsn', 3);
+    const writing = { ...boardView(), apply: { kind: 'writing', steps: [], backupName: 'b.json', mode: 'apply' } } as LiveView;
+    const el = render('xsn', writing);
+    expect(el.props['data-control-kind']).toBe('locked');
+    expect(enabled(el)).toEqual([]);
+    expect(el.props['data-pending']).toBe('true');
+    expect(segments(el).filter((s) => s.props['aria-current'] === 'true').map(text)).toEqual(['Homing and limit']);
+    expect(editBlocked(writing)).toBe('Wait for the settings write to finish.');
+    expect(editBlocked({ ...writing, apply: { kind: 'backingUp', done: 1, of: 3 } } as LiveView)).toBe('Wait for the settings write to finish.');
   });
 });
 

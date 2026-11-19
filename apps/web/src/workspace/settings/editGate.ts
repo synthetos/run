@@ -18,6 +18,7 @@ export { writableKey } from './pending.ts';
 type Message = NonNullable<LiveView['message']>;
 
 export const READING_BOARD = 'Reading the board…';
+export const APPLY_RUNNING = 'Wait for the settings write to finish.';
 
 function firmwareText(m: Message): string {
   const fb = numberOf(m.snapshot.identity?.fb);
@@ -46,9 +47,15 @@ export function editBlockedFor(m: Message | null, settings: Readonly<Record<stri
   return null;
 }
 
-/** Why settings cannot be made pending now, or null. */
+/** Apply is backing up or writing: verified keys leave the pending store when it ends (live/mount.ts). */
+export function applyRunning(view: LiveView | null): boolean {
+  return view?.apply.kind === 'backingUp' || view?.apply.kind === 'writing';
+}
+
+/** Why settings cannot be made pending now, or null. While Apply runs nothing is edited (review finding 9). */
 export function editBlocked(view: LiveView | null): string | null {
-  return view === null ? editBlockedFor(null, {}, null) : editBlockedFor(view.message, view.readout.settings, view.readout.dialectId);
+  if (view === null) return editBlockedFor(null, {}, null);
+  return editBlockedFor(view.message, view.readout.settings, view.readout.dialectId) ?? (applyRunning(view) ? APPLY_RUNNING : null);
 }
 
 function updateTarget(view: LiveView, m: Message): string | null {

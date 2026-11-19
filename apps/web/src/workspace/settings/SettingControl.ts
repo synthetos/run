@@ -20,7 +20,7 @@ import type { SettingValue, ValueDef } from '@synthetos/schema';
 import { draftStore, setDraft } from '../boardFacts.ts';
 import type { LiveView } from '../model.ts';
 import { boardBuild } from './defs.ts';
-import { editBlocked } from './editGate.ts';
+import { APPLY_RUNNING, editBlocked } from './editGate.ts';
 import { boardInches, settingMeta, type SettingMeta } from './meta.ts';
 import { writableKey } from './pending.ts';
 import { numberWords, unitWords } from './units.ts';
@@ -161,9 +161,12 @@ function contextOf(k: string, view: LiveView | null): Ctx {
   const meta = settingMeta(k, view?.readout.dialectId ?? null, boardBuild(view));
   const board = view?.readout.settings[k];
   const inches = boardInches(view) && meta.def?.convert === true;
-  const canEdit = !inches && writableKey(k, view?.readout.dialectId ?? null) && editBlocked(view) === null;
-  // A pending change shows only where it can still be written; elsewhere the board's own value (review finding 4).
-  const draft = canEdit ? draftStore.value.value[k] : undefined;
+  const blocked = editBlocked(view);
+  const writable = !inches && writableKey(k, view?.readout.dialectId ?? null) && (blocked === null || blocked === APPLY_RUNNING);
+  // Locked while Apply runs, still showing the change being written (finding 9). A pending change shows only where it
+  // can still be written; elsewhere the board's own value (finding 4).
+  const canEdit = writable && blocked === null;
+  const draft = writable ? draftStore.value.value[k] : undefined;
   const current = draft ?? (typeof board === 'number' ? board : undefined);
   return { k, meta, board, current, inches, canEdit, draft };
 }

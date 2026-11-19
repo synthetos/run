@@ -87,7 +87,7 @@ export function PendingBar({ model }: { readonly model: WorkspaceModel | null })
     high === 0 ? null : h('span', { class: 'tag danger' }, `${high} high risk`),
     one === null ? null : h('span', { class: 'pending-one', 'data-pending-one': '', title: one }, one),
     s.refused === 0 ? null : h('span', { class: 'pending-refused', 'data-pending-refused': '', role: 'status' }, refusedWords(s.refused)),
-    s.blocked === null ? null : h('span', { class: 'pending-why fine' }, s.blocked),
+    s.blocked === null || s.apply.kind !== 'idle' ? null : h('span', { class: 'pending-why fine' }, s.blocked),
     h('span', { class: 'grow' }),
     h(BarActions, { s }),
   );
