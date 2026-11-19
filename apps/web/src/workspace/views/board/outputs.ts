@@ -16,6 +16,7 @@ import { SettingControl } from '../../settings/SettingControl.ts';
 import { coolantText, displayReadouts, spindleText } from '../../status.ts';
 import { CHOOSE_MACHINE_FIRST } from './CoolantWiring.ts';
 import { Empty } from './shared.ts';
+import { SubTabs, subTabChoice, type SubTab } from './subTabs.ts';
 
 /** The setting that decides each output's polarity. */
 const POLARITY: Readonly<Record<string, string>> = { 'out.spindleEnable': 'spep', 'out.spindleDirection': 'spdp', 'out.spindlePwm': 'spph', 'out.coolant': 'coph' };
@@ -63,33 +64,40 @@ function Readouts({ view }: { readonly view: LiveView | null }): ComponentChild 
   );
 }
 
+/** The PWM values in three short columns (general, clockwise, counter-clockwise), so the card fits without scrolling. */
+const PWM_COLUMNS: readonly { readonly title: string; readonly test: (k: string) => boolean }[] = [
+  { title: 'General', test: (k) => !/^p1[cw]/.test(k) },
+  { title: 'Clockwise', test: (k) => k.startsWith('p1c') },
+  { title: 'Counter-clockwise', test: (k) => k.startsWith('p1w') },
+];
+
 function Pwm({ view, keys }: { readonly view: LiveView | null; readonly keys: readonly string[] }): ComponentChild {
-  if (keys.length === 0) return null;
   const dialect = view?.readout.dialectId ?? null;
+  const table = (ks: readonly string[]): ComponentChild => h('table', { class: 'cfg-table axis-table pwm-table' }, h('tbody', null, ks.map((k) => h('tr', { key: k }, h('th', { scope: 'row' }, settingMeta(k, dialect).label), h('td', null, h(SettingControl, { k, view }))))));
+  return h(
+    'section',
+    { class: 'board-card', 'data-region': 'pwm' },
+    h('div', { class: 'sec-head' }, h('h3', { class: 'card-title' }, 'Spindle speed output (PWM)')),
+    h('div', { class: 'pwm-columns' }, PWM_COLUMNS.map((c) => h('div', { key: c.title, class: 'axis-section' }, h('h4', { class: 'tan-label' }, c.title), table(keys.filter(c.test))))),
+  );
+}
+
+function J6({ view }: { readonly view: LiveView | null }): ComponentChild {
   return h(
     'section',
     { class: 'board-card' },
-    h('div', { class: 'sec-head' }, h('h3', { class: 'card-title' }, 'Spindle speed output (PWM)')),
-    h('table', { class: 'cfg-table axis-table pwm-table' }, h('tbody', null, keys.map((k) => h('tr', { key: k }, h('th', { scope: 'row' }, settingMeta(k, dialect).label), h('td', null, h(SettingControl, { k, view })))))),
+    h('div', { class: 'sec-head' }, h('h3', { class: 'card-title' }, 'J6 spindle and coolant')),
+    h('table', { class: 'cfg-table outputs-table' }, h('thead', null, h('tr', null, ...['Pin', 'What it does', 'Polarity'].map((t) => h('th', { scope: 'col', key: t }, t)))), h('tbody', null, connectorPins('J6').map((p) => h(PinRow, { key: p.ref, pin: p, view })))),
+    h(Dismissable, { id: 'board/coolant-shared', label: 'the coolant note', inNotes: false }, h('p', { class: 'fine' }, 'Mist and flood share the one coolant output on this board.')),
   );
 }
 
 export function OutputsTab({ view }: { readonly view: LiveView | null }): ComponentChild {
   const settings = settingsOf(view);
   if (Object.keys(settings).length === 0) return h('div', { class: 'scroll-region' }, h(Empty, { view }));
-  const pins = connectorPins('J6');
   const pwm = Object.keys(settings).filter((k) => /^p1/.test(k)).sort();
-  return h(
-    'div',
-    { tabindex: 0, class: 'scroll-region cfg-scroll outputs-tab' },
-    h(
-      'section',
-      { class: 'board-card' },
-      h('div', { class: 'sec-head' }, h('h3', { class: 'card-title' }, 'J6 spindle and coolant')),
-      h('table', { class: 'cfg-table outputs-table' }, h('thead', null, h('tr', null, ...['Pin', 'What it does', 'Polarity'].map((t) => h('th', { scope: 'col', key: t }, t)))), h('tbody', null, pins.map((p) => h(PinRow, { key: p.ref, pin: p, view })))),
-      h(Dismissable, { id: 'board/coolant-shared', label: 'the coolant note', inNotes: false }, h('p', { class: 'fine' }, 'Mist and flood share the one coolant output on this board.')),
-    ),
-    h(Readouts, { view }),
-    h(Pwm, { view, keys: pwm }),
-  );
+  // Two views, so neither scrolls (owner walk 2026-11-19): the J6 outputs with the readouts, then the PWM values.
+  const tabs: readonly SubTab[] = [{ id: 'outputs', label: 'Outputs' }, ...(pwm.length === 0 ? [] : [{ id: 'pwm', label: 'Spindle speed (PWM)' }])];
+  const part = (id: string): ComponentChild => (id === 'pwm' ? h(Pwm, { view, keys: pwm }) : [h(J6, { key: 'j6', view }), h(Readouts, { key: 'now', view })]);
+  return h('div', { tabindex: 0, class: 'scroll-region cfg-scroll outputs-tab' }, h(SubTabs, { name: 'Spindle and coolant', prefix: 'board-io', tabs, choice: subTabChoice.io, render: part }));
 }

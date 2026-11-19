@@ -11,6 +11,7 @@ import { StatusFields } from '../src/workspace/settings/statusFields.ts';
 import { BoardFacts } from '../src/workspace/views/board/identity.ts';
 import { MotorsTab } from '../src/workspace/views/board/motors.ts';
 import { OutputsTab } from '../src/workspace/views/board/outputs.ts';
+import { subTabChoice } from '../src/workspace/views/board/subTabs.ts';
 import { all, byAttr, one, root, text, type El } from './tree.ts';
 import { boardView, OWNER_449 } from './boardViews.ts';
 
@@ -19,6 +20,13 @@ const IO = { spep: 1, spdp: 0, p1frq: 100, p1csl: 1000, p1csh: 2000, p1cpl: 0.12
 const ownText = (el: El): string => el.children.filter((c): c is string => typeof c === 'string').join('');
 const COMMS = { baud: 5, ex: 1, ec: 0, ee: 0, ej: 1, jv: 4, js: 1, tv: 1, qv: 1, sv: 1, si: 250 };
 const polarity = (node: ComponentChild, ref: string): string => text(one(root(node), byAttr('data-polarity', ref)));
+/** Spindle and coolant on its PWM sub-tab. */
+const pwmTab = (): El => {
+  subTabChoice.io.value = 'pwm';
+  const el = root(h(OutputsTab, { view: boardView({ settings: IO }) }));
+  subTabChoice.io.value = null;
+  return el;
+};
 
 beforeEach(() => clearDraft());
 
@@ -32,9 +40,18 @@ describe('Spindle and coolant', () => {
   it('the spindle enable polarity is a control on an approved board; the PWM values come from the data', () => {
     const el = root(h(OutputsTab, { view: boardView({ settings: IO }) }));
     expect(one(el, byAttr('data-setting-control', 'spep')).props['data-control-kind']).toBe('segmented');
-    expect(text(el)).toContain('Spindle PWM frequency');
-    expect(text(el)).toContain('100 Hz');
     expect(all(el, byAttr('data-action', 'toggle-edit'))).toEqual([]);
+    const pwm = pwmTab();
+    expect(text(pwm)).toContain('Spindle PWM frequency');
+    expect(text(pwm)).toContain('100 Hz');
+  });
+
+  it('two sub-tabs, Outputs then Spindle speed (PWM); PWM in three short columns (owner walk 2026-11-19: no scrolling)', () => {
+    const el = root(h(OutputsTab, { view: boardView({ settings: IO }) }));
+    expect(all(el, byAttr('data-subtab')).map((t) => t.props['data-subtab'])).toEqual(['outputs', 'pwm']);
+    expect(all(el, byAttr('data-region', 'pwm'))).toEqual([]);
+    const cols = all(one(pwmTab(), byAttr('data-region', 'pwm')), (e) => e.tag === 'h4').map(text);
+    expect(cols).toEqual(['General', 'Clockwise', 'Counter-clockwise']);
   });
 
   it('the coolant row shows what is wired to the output, from the machine record', () => {
