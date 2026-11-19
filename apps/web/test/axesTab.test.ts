@@ -17,6 +17,15 @@ const card = (el: El, a: string): El => one(el, byAttr('data-axis-card', a));
 
 beforeEach(() => clearDraft());
 
+describe('AxesTab layout', () => {
+  it('two independent columns: Speed follows Mode, Homing follows Travel (lead review, Axes)', () => {
+    const x = card(render(), 'x');
+    const titles = (col: string): string[] => all(one(x, byAttr('data-axis-col', col)), (e) => e.tag === 'h4').map(text);
+    expect(titles('left')).toEqual(['Mode', 'Speed']);
+    expect(titles('right')).toEqual(['Travel', 'Homing']);
+  });
+});
+
 describe('AxesTab', () => {
   it('the All axes card holds soft limits, junction acceleration and chordal tolerance', () => {
     const all3 = one(render(), byAttr('data-region', 'all-axes'));

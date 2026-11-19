@@ -86,11 +86,16 @@ export function AxisCardView(p: CardProps): ComponentChild {
     h('summary', null, h('strong', null, `${a.toUpperCase()} axis`), ' ', h('span', { class: 'fine axis-summary' }, c.summary.split(' · ').slice(1).join(' · ')), c.motor === null ? null : h('span', { class: 'tag' }, `motor ${c.motor}`)),
     fact === null ? null : h('p', { class: 'note', 'data-axis': fact.axis, 'data-axis-fact': fact.code }, fact.text),
     c.modeLine === null ? null : h('p', { class: 'note info' }, c.modeLine),
+    // Two independent columns, so a tall Travel or Homing never leaves a gap under Mode.
     h('div', { class: 'axis-sections' },
-      h(Section, { title: 'Mode', keys: radius ? [`${a}am`, `${a}ra`] : [`${a}am`], p }),
-      h(Section, { title: 'Travel', keys: [`${a}tn`, `${a}tm`], p }, length === null ? null : h('p', { class: 'fine' }, length), h('p', { class: 'fine travel-line', 'data-travel-line': '' }, c.travelLine)),
-      h(Section, { title: 'Speed', keys: [`${a}vm`, `${a}fr`, `${a}jm`, `${a}jd`], p }),
-      h(Homing, { p }),
+      h('div', { class: 'axis-col', 'data-axis-col': 'left' },
+        h(Section, { title: 'Mode', keys: radius ? [`${a}am`, `${a}ra`] : [`${a}am`], p }),
+        h(Section, { title: 'Speed', keys: [`${a}vm`, `${a}fr`, `${a}jm`, `${a}jd`], p }),
+      ),
+      h('div', { class: 'axis-col', 'data-axis-col': 'right' },
+        h(Section, { title: 'Travel', keys: [`${a}tn`, `${a}tm`], p }, length === null ? null : h('p', { class: 'fine' }, length), h('p', { class: 'fine travel-line', 'data-travel-line': '' }, c.travelLine)),
+        h(Homing, { p }),
+      ),
     ),
   );
 }

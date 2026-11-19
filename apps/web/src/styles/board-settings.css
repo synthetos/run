@@ -47,7 +47,8 @@
 .axis-card > summary strong { font-size: 15px; }
 .axis-card[open] > summary { margin-bottom: 8px; }
 .axes-off .axis-card { margin: 12px 0 0; }
-.axis-sections { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 4px 24px; }
+.axis-sections { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 4px 24px; align-items: start; }
+.axis-col { min-width: 0; }
 .axis-section h4 { margin: 10px 0 4px; }
 .cfg-table.axis-table :is(td, th) { vertical-align: middle; height: 38px; padding-top: 4px; padding-bottom: 4px; }
 .cfg-table.axis-table tbody th { font-weight: 400; width: 11em; }
