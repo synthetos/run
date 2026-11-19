@@ -4,13 +4,17 @@
  * file (unclassified, g2core today) has none, and nothing of it is described
  * or writable.
  */
+import tinyg440 from '../../settings/tinyg-440.json' with { type: 'json' };
+import tinyg449 from '../../settings/tinyg-449.json' with { type: 'json' };
 import tinyg450 from '../../settings/tinyg-450.json' with { type: 'json' };
 import { expandSettingsFile } from './expand.ts';
 import type { SettingsFile } from './types.ts';
 
-/** Dialect id → raw file. */
+/** Dialect id → raw file. 449 and 440 are describe-only (readOnly, no write objects). */
 const FILES: Readonly<Record<string, unknown>> = Object.freeze({
   'tinyg-en': tinyg450,
+  'tinyg-449-stock': tinyg449,
+  'tinyg-440': tinyg440,
 });
 
 const cache = new Map<string, SettingsFile>();

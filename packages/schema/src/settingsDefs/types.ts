@@ -103,6 +103,8 @@ export interface SettingsFile {
   /** Axes a probe input may be on (449 switch.c:258-280). */
   readonly probeAllowed?: readonly string[];
   readonly probeAllowedSrc?: string;
+  /** How the probe contact is set: a token (`prbp`), or fixed by the firmware (449, with its citation). */
+  readonly probeContact?: { readonly token?: string; readonly fixed?: string; readonly src?: string };
   /** How far homing searches when an axis's ends are equal. */
   readonly homingTravel?: { readonly rule: 'radiusFullTurn' | 'backoffOnly'; readonly src: string };
   readonly tokens: ReadonlyMap<string, SettingDefinition>;

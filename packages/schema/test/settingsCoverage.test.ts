@@ -6,25 +6,30 @@
  */
 import { describe, expect, it } from 'vitest';
 import { DEN, SETTINGS_FILE_SCHEMA, getterClass, isForbiddenKey, setterClass, settingsDefsFor, settingsReadGroups, settingsSchemaFor, validateSchema } from '../src/index.ts';
+import tinyg440 from '../settings/tinyg-440.json' with { type: 'json' };
+import tinyg449 from '../settings/tinyg-449.json' with { type: 'json' };
 import tinyg450 from '../settings/tinyg-450.json' with { type: 'json' };
 
 const EN = 'tinyg-en';
+const S449 = 'tinyg-449-stock';
+const TG440 = 'tinyg-440';
+const DIALECTS = [S449, TG440, EN] as const;
 
 function members(dialect: string): string[] {
   return settingsReadGroups(dialect).flatMap((g) => g.members);
 }
 
 describe('tinyg-450.json coverage', () => {
-  it('validates against settings.schema.json', () => {
-    expect(validateSchema(SETTINGS_FILE_SCHEMA, tinyg450)).toEqual([]);
+  it('every file validates against settings.schema.json', () => {
+    for (const f of [tinyg449, tinyg440, tinyg450]) expect(validateSchema(SETTINGS_FILE_SCHEMA, f)).toEqual([]);
   });
 
-  it.each([EN])('%s: every read-group member has a definition', (d) => {
+  it.each(DIALECTS)('%s: every read-group member has a definition', (d) => {
     const f = settingsDefsFor(d)!;
     expect(members(d).filter((k) => !f.tokens.has(k))).toEqual([]);
   });
 
-  it.each([EN])('%s: every access write token is in the table with a value setter and not forbidden', (d) => {
+  it.each(DIALECTS)('%s: every access write token is in the table with a value setter and not forbidden', (d) => {
     const schema = settingsSchemaFor(d);
     for (const def of settingsDefsFor(d)!.tokens.values()) {
       if (def.access !== 'write') continue;
@@ -34,7 +39,7 @@ describe('tinyg-450.json coverage', () => {
     }
   });
 
-  it.each([EN])('%s: a read member is forbidden in the file exactly when a forbidden rule names it, with a reason', (d) => {
+  it.each(DIALECTS)('%s: a read member is forbidden in the file exactly when a forbidden rule names it, with a reason', (d) => {
     const f = settingsDefsFor(d)!;
     const schema = settingsSchemaFor(d);
     const ruled = members(d).filter((k) => isForbiddenKey(schema.forbidden, k)).sort();
@@ -109,5 +114,54 @@ describe('tinyg-450.json inputs, sources and words', () => {
     for (const d of settingsDefsFor(EN)!.tokens.values()) {
       for (const v of d.values ?? []) expect(v.label, d.key).toMatch(/[A-Za-z]/);
     }
+  });
+});
+
+describe('describe-only files for stock 449 and 440 (safety: nothing becomes writable)', () => {
+  const words = (key: string, d: string): unknown => settingsDefsFor(d)!.tokens.get(key)?.values?.map((v) => [v.value, v.label]);
+
+  it.each([S449, TG440])('%s: shared tokens agree on value meanings with 450 unless marked differs', (d) => {
+    const own = settingsDefsFor(d)!;
+    const en = settingsDefsFor(EN)!;
+    for (const [key, def] of own.tokens) {
+      if (!en.tokens.has(key) || def.differs !== undefined) continue;
+      expect({ key, values: words(key, d) }).toEqual({ key, values: words(key, EN) });
+    }
+  });
+
+  it.each([S449, TG440])('%s: the file is readOnly with no write object and no access write', (d) => {
+    const f = settingsDefsFor(d)!;
+    expect(f.mode).toBe('readOnly');
+    expect([...f.tokens.values()].filter((t) => t.write !== undefined || t.access === 'write').map((t) => t.key)).toEqual([]);
+  });
+
+  it('449 has no prbp, no reserved hold keys, and a fixed probe contact', () => {
+    const f = settingsDefsFor(S449)!;
+    for (const k of ['prbp', 'coph', 'spph', 'spde', 'os']) expect({ k, has: f.tokens.has(k) }).toEqual({ k, has: false });
+    expect(f.probeContact).toEqual({ fixed: 'Normally open. Fixed on this firmware.', src: 'S449 switch.c:126-128 (a probe input always reads as normally open)' });
+    expect(f.probeAllowed).toEqual(['x', 'y', 'z']);
+    expect(settingsDefsFor(EN)!.probeContact).toEqual({ token: 'prbp' });
+  });
+
+  it('449 inputs read the same pins and live states as 450', () => {
+    expect(settingsDefsFor(S449)!.inputs).toEqual(settingsDefsFor(EN)!.inputs);
+  });
+
+  it('440 has no probe switch mode and no live input state', () => {
+    const f = settingsDefsFor(TG440)!;
+    expect(f.tokens.get('xsn')?.values?.map((v) => v.value)).toEqual([0, 1, 2, 3]);
+    expect(f.tokens.get('xsn')?.differs).toMatch(/TG canonical_machine\.c:1976/);
+    expect(f.tokens.has('in1')).toBe(false);
+    expect(f.inputs.every((i) => i.state === undefined)).toBe(true);
+  });
+
+  it('440 adds no writable key to the 440 schema, and 449 none to the 449 schema', () => {
+    expect([...settingsSchemaFor(TG440).settings.values()].filter((d) => d.overlay).length).toBe(0);
+    expect([...settingsSchemaFor(S449).settings.values()].filter((d) => d.overlay).length).toBe(0);
+  });
+
+  it.each([S449, TG440])('%s: every src cites its own pin', (d) => {
+    const tag = d === S449 ? 'S449 ' : 'TG ';
+    for (const t of settingsDefsFor(d)!.tokens.values()) expect({ key: t.key, src: t.src.startsWith(tag) }).toEqual({ key: t.key, src: true });
   });
 });

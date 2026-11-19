@@ -168,6 +168,17 @@ describe('expandSettingsFile: builds, families and the schema', () => {
     expect([...expandSettingsFile(f).tokens.keys()]).toEqual(['xsn', 'ex']);
   });
 
+});
+
+describe('expandSettingsFile: file-level rules', () => {
+  it('probeContact names a defined token, or a fixed sentence, never both or neither', () => {
+    expect(expandSettingsFile({ ...mini(), probeContact: { token: 'xsn' } }).probeContact).toEqual({ token: 'xsn' });
+    expect(expandSettingsFile({ ...mini(), probeContact: { fixed: 'Normally open.', src: 'x' } }).probeContact?.fixed).toBe('Normally open.');
+    expect(() => expandSettingsFile({ ...mini(), probeContact: { token: 'prbp' } })).toThrow(/probeContact: token "prbp" is not defined/);
+    expect(() => expandSettingsFile({ ...mini(), probeContact: {} })).toThrow(/probeContact: exactly one of token or fixed/);
+    expect(() => expandSettingsFile({ ...mini(), probeContact: { token: 'xsn', fixed: 'x' } })).toThrow(/exactly one/);
+  });
+
   it('a root-level schema error names the root', () => {
     const f = mini();
     delete f['groups'];

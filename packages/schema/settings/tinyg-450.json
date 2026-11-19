@@ -37,6 +37,7 @@
   ],
   "probeAllowed": ["x", "y", "z"],
   "probeAllowedSrc": "EN switch.c:285-322 find_probe_switch (a probe on A refused, -3; two probe inputs refused, -2); bench check BC-5",
+  "probeContact": { "token": "prbp" },
   "families": [
     {
       "pattern": "{m}ma", "for": { "m": ["1", "2", "3", "4"] }, "rows": { "1": 211, "2": 221, "3": 232, "4": 243 }, "src": "EN config_app.c:{row}",

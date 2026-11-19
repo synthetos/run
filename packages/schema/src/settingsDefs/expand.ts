@@ -82,6 +82,13 @@ function present(def: SettingDefinition, fb: number | undefined): boolean {
   return (def.since === undefined || fb >= def.since) && (def.until === undefined || fb < def.until);
 }
 
+function checkProbeContact(file: RawFile, defined: ReadonlySet<string>): void {
+  const pc = file.probeContact;
+  if (pc === undefined) return;
+  if ((pc.token === undefined) === (pc.fixed === undefined)) throw new Error('probeContact: exactly one of token or fixed');
+  if (pc.token !== undefined && !defined.has(pc.token)) throw new Error(`probeContact: token "${pc.token}" is not defined`);
+}
+
 function rawTokens(file: RawFile): [string, RawToken][] {
   return [...(file.families ?? []).flatMap(expandFamily), ...Object.entries(file.tokens)];
 }
@@ -99,6 +106,7 @@ export function expandSettingsFile(raw: unknown, fb?: number): SettingsFile {
     const def = resolve(key, t, file, groups);
     if (present(def, at)) tokens.push([key, def]);
   }
+  checkProbeContact(file, seen);
   const { enums: _enums, families: _families, tokens: _raw, ...header } = file;
   return Object.freeze({ ...deepFreeze(structuredClone(header)), tokens: frozenMap(tokens) });
 }

@@ -40,6 +40,16 @@
     "inputs": { "type": "array", "items": { "$ref": "#/$defs/input" } },
     "probeAllowed": { "type": "array", "uniqueItems": true, "items": { "enum": ["x", "y", "z", "a", "b", "c"] } },
     "probeAllowedSrc": { "type": "string", "minLength": 1 },
+    "probeContact": {
+      "$comment": "How the probe input's contact is set: by a token (450: prbp), or fixed by the firmware (449). Exactly one of token or fixed (loader rule).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "token": { "type": "string", "pattern": "^[a-z0-9]+$" },
+        "fixed": { "type": "string", "minLength": 1 },
+        "src": { "type": "string", "minLength": 1 }
+      }
+    },
     "homingTravel": {
       "type": "object",
       "additionalProperties": false,
