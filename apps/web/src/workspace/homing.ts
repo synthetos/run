@@ -169,8 +169,13 @@ export function HomeSection(props: HomeProps = {}): ComponentChild {
   return isLive(props.model) ? h(HomeLive, props) : homeBody(props, STATIC);
 }
 
-/** True when the UNKNOWN banner applies: connected, classified, UNKNOWN the highest overlay, nothing moving. */
+/**
+ * True when the UNKNOWN question applies: connected, classified, UNKNOWN the highest overlay, nothing moving, and
+ * not READ_ONLY. READ_ONLY allows reads and stops only (SAFETY §4.1), so the session refuses "It hasn't moved" and
+ * the question could never close (owner 164). There the card's Update firmware is the way out; the update restarts
+ * the board, so UNKNOWN and the question come back on a board that can answer it.
+ */
 export function unknownApplies(view: LiveView | null): boolean {
   const s = view !== null && connected(view) ? (view.message?.snapshot ?? null) : null;
-  return s !== null && s.primaryOverlay === 'UNKNOWN' && s.base === 'CONNECTED_UNKNOWN' && s.classification !== null;
+  return s !== null && s.primaryOverlay === 'UNKNOWN' && s.base === 'CONNECTED_UNKNOWN' && s.classification !== null && !s.overlays.includes('READ_ONLY');
 }

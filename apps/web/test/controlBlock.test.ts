@@ -155,12 +155,15 @@ describe('the Position panel', () => {
     expect(modal).toContain('data-action="unknown-later"');
   });
 
-  it('read only and UNKNOWN together: the card, and "I’ve checked the machine" still clears UNKNOWN without motion', () => {
+  // Owner 164 (2026-11-19): READ_ONLY allows reads and stops only (SAFETY §4.1), so the session refuses "It hasn't
+  // moved" there and the question could never close. The card's Update firmware is the way out; the update restarts
+  // the board, so the question comes back on a board that can answer it.
+  it('read only and UNKNOWN together: the card only, no question it could not answer and no way back to one', () => {
     const m = model(snap({ ...READ_ONLY, overlays: ['READ_ONLY', 'UNKNOWN'], primaryOverlay: 'UNKNOWN' }));
-    expect(renderToString(h(PositionPanel, { model: m }))).toContain('data-block="not-approved"');
-    const modal = renderToString(h(UnknownModal, { model: m }));
-    expect(modal).toContain('data-action="unknown-verify"');
-    expect(modal).not.toContain('data-action="unknown-home"');
+    const panel = renderToString(h(PositionPanel, { model: m }));
+    expect(panel).toContain('data-block="not-approved"');
+    expect(panel).not.toContain('data-action="unknown-ask"');
+    expect(renderToString(h(UnknownModal, { model: m }))).toBe('');
   });
 
   it('another tab controls the machine: the card says so', () => {

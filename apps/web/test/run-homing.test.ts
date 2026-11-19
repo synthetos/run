@@ -82,6 +82,9 @@ describe('amendment 2026-11-02: homing, offsets and the ways out of UNKNOWN (T-S
     expect(p1).not.toContain('data-action="unknown-home"');
     expect(p1).not.toContain('data-action="unknown-position"');
     expect(renderToString(h(UnknownModal, { model: model(withSettings(snap(), HOMING)) }))).toBe('');
+    // READ_ONLY denies positionVerify (SAFETY §4.1): no question whose answer the session refuses (owner 164).
+    const readOnly = withSettings(snap({ base: 'CONNECTED_UNKNOWN', overlays: ['READ_ONLY', 'UNKNOWN'], primaryOverlay: 'UNKNOWN', classification: { dialectId: 'tinyg-en', mode: 'readOnly' } }), HOMING);
+    expect(unknownApplies(readOnly)).toBe(false);
     expect(stripStatus(view(snap({ base: 'HOMING' })), null).title).toBe('Homing');
     expect(stripStatus(view(snap({ overlays: ['STALE'] })), null).title).toBe('No reports from the board');
   });
