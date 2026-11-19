@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Board settings: Axes</title>
+<link rel="stylesheet" href="2026-11-18-board-config.css">
+<style>
+  .axis td:first-child { width: 190px; color: var(--muted); }
+  .axis td.pend { width: 170px; text-align: right; }
+  .axis tr.sub th { text-align: left; font: 500 12px var(--cond); letter-spacing: .06em; text-transform: uppercase; color: var(--tan); height: 30px; background: transparent; }
+  .card h3 { margin: 0; font: 600 15px var(--sans); }
+  .global { display: grid; grid-template-columns: 200px auto 1fr; gap: 10px 16px; align-items: center; }
+  .collapsed { display: flex; align-items: center; gap: 12px; }
+  .link { color: var(--blue); }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="head">
+    <h1>Board</h1>
+    <div class="tabs"><span>Overview</span><span>Motors</span><span class="on">Axes <span class="badge">1</span></span><span>Inputs</span><span>Spindle and coolant</span><span>Communications</span><span>All settings</span><span>Firmware</span><span>Backups</span></div>
+  </div>
+
+  <div class="card">
+    <div class="sec-head"><span class="tan-label">All axes</span></div>
+    <div class="global">
+      <span>Soft limits</span>
+      <span class="seg"><span class="on">Off</span><span>On</span></span>
+      <span class="fine">Off: the board does not check moves against each axis's travel. On: a move past a homed axis's travel is refused.</span>
+      <span>Junction acceleration</span>
+      <span>100 000 mm/min²</span>
+      <span class="fine">How fast the machine may take corners. <span class="tag lock">Not changed by Run yet</span></span>
+      <span>Chordal tolerance</span>
+      <span>0.01 mm</span>
+      <span class="fine">How closely arcs are followed. <span class="tag lock">Not changed by Run yet</span></span>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <div class="sec-head"><h3>X axis</h3><span class="tag">Standard</span><span class="fine">motor 1</span></div>
+      <table class="rows axis"><tbody>
+        <tr><td>Mode</td><td><span class="seg"><span>Off</span><span class="on">Standard</span><span>Inhibited</span></span></td><td class="pend"></td></tr>
+        <tr class="sub"><th colspan="3">Travel</th></tr>
+        <tr><td>Start</td><td><span class="input">0 <i>mm</i></span></td><td class="pend"></td></tr>
+        <tr class="pending"><td>End</td><td><span class="input changed">300 <i>mm</i></span> <span class="fine">300 mm long</span></td><td class="pend"><span class="was">was <b>150 mm</b></span> <span class="tag danger">High risk</span></td></tr>
+        <tr><td colspan="3" class="fine">Soft limits are off, so these ends are not checked. Homing searches 305 mm.</td></tr>
+        <tr class="sub"><th colspan="3">Speed</th></tr>
+        <tr><td>Rapid speed</td><td><span class="input">800 <i>mm/min</i></span></td><td class="pend"></td></tr>
+        <tr><td>Feed speed limit</td><td><span class="input">800 <i>mm/min</i></span></td><td class="pend"></td></tr>
+        <tr><td>Jerk</td><td><span class="input">20 <i>million mm/min³</i></span></td><td class="pend"></td></tr>
+        <tr><td>Junction deviation</td><td><span class="input">0.05 <i>mm</i></span> <span class="fine">larger is faster</span></td><td class="pend"></td></tr>
+        <tr class="sub"><th colspan="3">Homing</th></tr>
+        <tr><td colspan="3">Homes towards <b>min</b> at the X min switch, J7.3. <span class="link">Change switches on Inputs</span></td></tr>
+        <tr><td>Search speed</td><td><span class="input">500 <i>mm/min</i></span></td><td class="pend"></td></tr>
+        <tr><td>Latch speed</td><td><span class="input">100 <i>mm/min</i></span></td><td class="pend"></td></tr>
+        <tr><td>Latch backoff</td><td><span class="input">5 <i>mm</i></span></td><td class="pend"></td></tr>
+        <tr><td>Zero backoff</td><td><span class="input">1 <i>mm</i></span></td><td class="pend"></td></tr>
+        <tr><td>Homing jerk</td><td><span class="input">40 <i>million mm/min³</i></span></td><td class="pend"></td></tr>
+      </tbody></table>
+    </div>
+
+    <div class="card">
+      <div class="sec-head"><h3>A axis</h3><span class="tag">Rotary, radius mode</span><span class="fine">motor 4</span></div>
+      <table class="rows axis"><tbody>
+        <tr><td>Mode</td><td><span class="seg"><span>Off</span><span>Standard</span><span>Inhibited</span><span class="on">Radius</span></span></td><td class="pend"></td></tr>
+        <tr><td>Radius</td><td><span class="input">10 <i>mm</i></span> <span class="fine">turns feed in mm into degrees</span></td><td class="pend"></td></tr>
+        <tr class="sub"><th colspan="3">Travel</th></tr>
+        <tr><td>Start and end</td><td>−1° and −1°</td><td class="pend"></td></tr>
+        <tr><td colspan="3" class="fine"><b>No travel limit: the axis turns freely.</b> Start and end are the same, so the board never checks this axis. Homing searches one full turn.</td></tr>
+        <tr class="sub"><th colspan="3">Speed</th></tr>
+        <tr><td>Rapid speed</td><td><span class="input">230 400 <i>°/min</i></span> <span class="fine">640 turns a minute</span></td><td class="pend"></td></tr>
+        <tr><td>Feed speed limit</td><td><span class="input">230 400 <i>°/min</i></span></td><td class="pend"></td></tr>
+        <tr><td>Jerk</td><td><span class="input">5 760 <i>million °/min³</i></span></td><td class="pend"></td></tr>
+        <tr><td>Junction deviation</td><td><span class="input">0.05 <i>°</i></span></td><td class="pend"></td></tr>
+        <tr class="sub"><th colspan="3">Homing</th></tr>
+        <tr><td colspan="3">Homes towards <b>min</b> at the A min switch, J8.5. <span class="link">Change switches on Inputs</span></td></tr>
+        <tr><td>Search speed</td><td><span class="input">600 <i>°/min</i></span></td><td class="pend"></td></tr>
+        <tr><td>Latch speed</td><td><span class="input">100 <i>°/min</i></span></td><td class="pend"></td></tr>
+        <tr><td>Latch backoff</td><td><span class="input">5 <i>°</i></span></td><td class="pend"></td></tr>
+        <tr><td>Zero backoff</td><td><span class="input">2 <i>°</i></span></td><td class="pend"></td></tr>
+        <tr><td>Homing jerk</td><td><span class="input">11 520 <i>million °/min³</i></span></td><td class="pend"></td></tr>
+      </tbody></table>
+    </div>
+  </div>
+
+  <div class="card" style="padding:10px 16px">
+    <div class="collapsed"><strong>Y axis</strong><span class="tag">Standard</span><span class="fine">0 to 150 mm · 800 mm/min · homes towards min</span><span class="grow"></span><span class="btn small">Show</span></div>
+  </div>
+  <div class="card" style="padding:10px 16px">
+    <div class="collapsed"><strong>Z axis</strong><span class="tag">Standard</span><span class="fine">0 to 75 mm · 800 mm/min · homes towards max</span><span class="grow"></span><span class="btn small">Show</span></div>
+  </div>
+  <div class="card" style="padding:10px 16px">
+    <div class="collapsed"><strong>B and C</strong><span class="tag">Off</span><span class="fine">Not used on this machine.</span><span class="grow"></span><span class="btn small quiet">Show</span></div>
+  </div>
+
+  <p class="annot">Mockup notes: owner's values (screenshot 157) on an approved 450 board, one pending change (X travel end). Every axis card can be opened; the mockup shows X and A open. On firmware 449 the A card instead says "Homing searches only 5°: start and end are the same on this firmware. Set a travel range before homing A." Switch modes are set on Inputs only; the Homing line links there. Motor idle time moved to Motors; switch contact to Inputs. The old "Axis modes (read only)" box is gone: an axis whose mode stops it from moving says so in its own card.</p>
+</div>
+<div class="applybar">
+  <strong>1 change pending</strong><span class="tag danger">1 high risk</span>
+  <span class="fine">X travel end: 150 mm → 300 mm. Check the machine really travels that far before turning soft limits on.</span>
+  <span class="grow"></span>
+  <span class="btn quiet">Discard</span><span class="btn primary">Review and apply…</span>
+</div>
+</body>
+</html>
