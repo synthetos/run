@@ -12,10 +12,10 @@ import type { SettingsFile } from '@synthetos/schema';
 import { draftStore } from '../boardFacts.ts';
 import { uiLevel } from '../jobWorkflow.ts';
 import type { LiveView } from '../model.ts';
-import { allSettingsRows, pageOf, settingsItems, type SettingsGroupRows } from './allSettingsModel.ts';
+import { Pager, pageOf, usePageSize } from '../paging.ts';
+import { allSettingsRows, settingsItems, type SettingsGroupRows } from './allSettingsModel.ts';
 import { SettingsTable } from './allSettingsTable.ts';
 import { defsFor } from './defs.ts';
-import { usePageSize } from './pageSize.ts';
 import { StatusFields } from './statusFields.ts';
 
 /** The group shown (null: the first one), kept across visits to other tabs. */
@@ -41,18 +41,6 @@ function Chips({ groups, current }: { readonly groups: readonly SettingsGroupRow
 function GroupHead({ g, view }: { readonly g: SettingsGroupRows | undefined; readonly view: LiveView | null }): ComponentChild {
   if (g === undefined) return null;
   return h('div', { class: 'settings-group-head', 'data-group': g.group.id }, h('h3', null, g.group.title), h('small', null, g.group.explanation), g.group.id === 'status-report' ? h(StatusFields, { view }) : null);
-}
-
-function Pager({ page, pages }: { readonly page: number; readonly pages: number }): ComponentChild {
-  const go = (p: number): void => { settingsPage.value = p; };
-  return h(
-    'div',
-    // Always there, so showing it never changes the space the rows get; hidden by class (no inline style: CSP).
-    { class: `settings-pager${pages === 1 ? ' single' : ''}`, 'data-pages': String(pages) },
-    h('button', { type: 'button', class: 'small', 'data-action': 'settings-page-back', disabled: page === 0, onClick: () => go(page - 1) }, 'Back'),
-    h('span', { class: 'fine' }, `Page ${page + 1} of ${pages}`),
-    h('button', { type: 'button', class: 'small', 'data-action': 'settings-page-next', disabled: page >= pages - 1, onClick: () => go(page + 1) }, 'Next'),
-  );
 }
 
 /** One line under the list: the open setting's description, else where the live readouts are. */
@@ -95,7 +83,7 @@ export function AllSettings({ view, id = 'all-settings-title' }: { readonly view
     h(Chips, { groups, current: across ? null : current }),
     across ? null : h(GroupHead, { g: shown[0], view }),
     h('div', { class: 'settings-page', ref: box }, h(SettingsTable, { items: page.items, defs, view, advanced, open, setOpen })),
-    h(Pager, { page: page.page, pages: page.pages }),
+    h(Pager, { name: 'settings', page: page.page, pages: page.pages, onPage: (p) => { settingsPage.value = p; } }),
     h(Description, { defs, open }),
   );
 }

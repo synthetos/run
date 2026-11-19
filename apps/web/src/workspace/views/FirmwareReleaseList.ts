@@ -1,11 +1,19 @@
-/** Release list presentation, separate from the stateful firmware workflow. */
+/**
+ * Release list presentation, separate from the stateful firmware workflow. Owner walk 2026-11-19 (no scrolling):
+ * each release is one fixed-height row (version and tags, title and one line of detail, its actions), and the rows
+ * page to fit the panel. The technical notes are the title's tooltip at Simple, one line at Advanced.
+ */
 import { h, type ComponentChild } from 'preact';
+import { useRef, useState } from 'preact/hooks';
 import { releasesForHardware, supportsFirmware, type FirmwareRelease } from '@synthetos/protocol';
 import type { FirmwareHubView } from '../model.ts';
+import { Pager, pageOf, usePageSize } from '../paging.ts';
 import { releaseTitle } from '../../firmware/releaseTitle.ts';
 export const DOWNGRADE_NOTE = 'An older build starts with every setting at its default. Run backs your settings up first and puts them back afterwards; check them before you cut.';
 const fbText = (fb: number): string => fb.toFixed(2);
 const shortSha = (sha: string): string => `${sha.slice(0, 4)}…${sha.slice(-4)}`;
+/** Row heights (CSS `.releases li`, `.releases.adv li`): Advanced shows two more lines. */
+const ROW_PX = { simple: 76, advanced: 104 } as const;
 interface Props {
   readonly hub: FirmwareHubView | null;
   readonly shown: { readonly fb: number | null; readonly hv: number | null; readonly kind: string };
@@ -27,8 +35,7 @@ function Version({ r, older }: RowProps): ComponentChild {
     older && !r.recommended ? h('span', { class: 'tag' }, 'Older') : null,
     r.simulatorOnly ? h('span', { class: 'tag mock' }, 'Simulated board only') : null);
 }
-function ImageDetails({ r, installed, advanced }: RowProps): ComponentChild {
-  if (!advanced) return installed ? h('p', { class: 'installed' }, 'Installed on this board') : null;
+function ImageDetails({ r, installed }: RowProps): ComponentChild {
   const source = r.repo !== null && r.tag !== null ? `GitHub Releases: ${r.repo} ${r.tag}` : r.simulatorOnly ? 'simulated image' : 'bundled with this site';
   return h('p', { class: 'installed' }, `${r.file} · sha256 ${shortSha(r.sha256)} · ${Math.round(r.size / 1024)} KB · ${source}${installed ? ' · installed' : ''}`);
 }
@@ -45,15 +52,20 @@ function RowActions({ r, blocked, running, fetching, enabled, installed, older, 
         input.value = '';
       } })));
 }
+/** The one line under the title that matters most for this release. */
+function Detail({ r, installed, older }: RowProps): ComponentChild {
+  if (r.unavailable) return h('p', { role: 'status' }, r.unavailable);
+  if (!supportsFirmware(r.dialect, r.fb) && !r.simulatorOnly) return h('p', null, 'Run will connect read-only to this version until Run is updated.');
+  if (older) return h('p', { class: 'fine', 'data-release-note': 'downgrade', title: DOWNGRADE_NOTE }, DOWNGRADE_NOTE);
+  return installed ? h('p', { class: 'installed' }, 'Installed on this board') : null;
+}
 function Notes(props: RowProps): ComponentChild {
-  const { r, advanced, older } = props;
+  const { r, advanced } = props;
   return h('div', { class: 'rel-notes' },
-    h('h3', { 'data-release-title': '' }, `${releaseTitle(r)}${advanced ? ` · fv ${r.fv}` : ''}`),
-    !supportsFirmware(r.dialect, r.fb) && !r.simulatorOnly ? h('p', null, 'Run will connect read-only to this version until Run is updated.') : null,
-    r.unavailable ? h('p', { role: 'status' }, r.unavailable) : null,
-    advanced ? h('p', { class: 'changelog' }, r.changelog) : h('details', { class: 'changelog-more' }, h('summary', null, 'What changed (technical notes)'), h('p', { class: 'changelog' }, r.changelog)),
-    h(ImageDetails, props), h(RowActions, props),
-    older ? h('p', { class: 'fine', 'data-release-note': 'downgrade' }, DOWNGRADE_NOTE) : null);
+    h('h3', { 'data-release-title': '', title: r.changelog }, `${releaseTitle(r)}${advanced ? ` · fv ${r.fv}` : ''}`),
+    h(Detail, props),
+    advanced ? h('p', { class: 'changelog', title: r.changelog }, r.changelog) : null,
+    advanced ? h(ImageDetails, props) : null);
 }
 function ReleaseRow(props: Props & { readonly r: FirmwareRelease }): ComponentChild {
   const { r, shown, focusRelease } = props;
@@ -61,8 +73,20 @@ function ReleaseRow(props: Props & { readonly r: FirmwareRelease }): ComponentCh
   const older = shown.fb !== null && Math.round(r.fb * 100) < Math.round(shown.fb * 100);
   const row = { ...props, installed, older };
   return h('li', { key: r.file, 'data-release': r.file, 'data-release-age': installed ? 'installed' : older ? 'older' : 'newer', 'data-release-source': r.repo === null ? 'site' : 'github',
-    ...(focusRelease === r.file ? { class: 'release-focus', 'data-release-focus': '', ref: (el: HTMLElement | null) => el?.scrollIntoView({ block: 'center' }) } : {}),
-  }, h(Version, row), h(Notes, row));
+    ...(focusRelease === r.file ? { class: 'release-focus', 'data-release-focus': '' } : {}),
+  }, h(Version, row), h(Notes, row), h(RowActions, row));
+}
+/** The releases, one page at a time; the page holding a release asked for (the update offer) comes first. */
+function Rows(props: Props & { readonly releases: readonly FirmwareRelease[] }): ComponentChild {
+  const box = useRef<HTMLDivElement | null>(null);
+  const size = usePageSize(box, props.advanced ? ROW_PX.advanced : ROW_PX.simple);
+  const [page, setPage] = useState(0);
+  const focus = props.releases.findIndex((r) => r.file === props.focusRelease);
+  const shown = pageOf(props.releases, focus >= 0 && Number.isFinite(size) ? Math.floor(focus / size) : page, size);
+  return [
+    h('div', { key: 'rows', class: 'releases-page', ref: box }, h('ul', { class: `releases${props.advanced ? ' adv' : ''}` }, shown.items.map((r) => h(ReleaseRow, { ...props, r, key: r.file })))),
+    h(Pager, { key: 'pager', name: 'releases', page: shown.page, pages: shown.pages, onPage: setPage }),
+  ];
 }
 export function FirmwareReleaseList(props: Props): ComponentChild {
   const { hub, shown } = props;
@@ -71,6 +95,6 @@ export function FirmwareReleaseList(props: Props): ComponentChild {
     ? h('p', { class: 'fine pad', 'data-releases': 'none' }, hub === null || hub.releases.ok ? 'Loading the GitHub release list…' : `No GitHub release list for this site: ${hub.releases.reason}.`)
     : hw === null || hw.releases.length === 0
       ? h('p', { class: 'fine pad', 'data-releases': 'empty' }, shown.kind !== 'none' ? `No release for hardware version ${shown.hv ?? 'unknown'} yet.` : 'Connect a board to see the releases for its hardware.')
-      : h('ul', { class: 'releases' }, hw.releases.map(r => h(ReleaseRow, { ...props, r, key: r.file })));
-  return h('div', null, h('div', { class: 'section-heading tight' }, h('h2', null, 'Releases'), h('span', { class: 'fine' }, 'GitHub releases for this board’s hardware')), content);
+      : h(Rows, { ...props, releases: hw.releases });
+  return h('div', { class: 'release-list' }, h('div', { class: 'section-heading tight' }, h('h2', null, 'Releases'), h('span', { class: 'fine' }, 'GitHub releases for this board’s hardware')), content);
 }

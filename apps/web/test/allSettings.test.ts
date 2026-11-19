@@ -11,7 +11,8 @@ import { settingsDefsFor } from '@synthetos/schema';
 import { clearDraft, setDraft } from '../src/workspace/boardFacts.ts';
 import { uiLevel } from '../src/workspace/jobWorkflow.ts';
 import { AllSettings, settingsGroup } from '../src/workspace/settings/AllSettings.ts';
-import { allSettingsRows, pageOf, settingsItems } from '../src/workspace/settings/allSettingsModel.ts';
+import { pageOf } from '../src/workspace/paging.ts';
+import { allSettingsRows, settingsItems } from '../src/workspace/settings/allSettingsModel.ts';
 import { boardView } from './boardViews.ts';
 
 const d450 = settingsDefsFor('tinyg-en')!;

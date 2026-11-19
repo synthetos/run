@@ -22,7 +22,7 @@
  */
 import { h, type ComponentChild } from 'preact';
 import { useState } from 'preact/hooks';
-import { boardTab, type BoardTab as Tab } from '../boardNavigation.ts';
+import { boardTab, openFirmwareUpdate, type BoardTab as Tab } from '../boardNavigation.ts';
 import { type WorkspaceModel } from '../model.ts';
 import { BoardNotices } from '../settings/BoardNotices.ts';
 import { PendingBar } from '../settings/PendingBar.ts';
@@ -36,7 +36,7 @@ import { OutputsTab } from './board/outputs.ts';
 import { OverviewTab } from './board/overview.ts';
 import { BackupsSection } from './board/backups.ts';
 import { SettingsTab } from './board/settings.ts';
-import { BackupsHub, FirmwareTab } from './FirmwareViews.ts';
+import { FirmwareSection } from './board/firmwareTabs.ts';
 
 export function BoardView({ model }: { readonly model: WorkspaceModel | null }): ComponentChild {
   const view = model?.live.value ?? null;
@@ -48,7 +48,7 @@ export function BoardView({ model }: { readonly model: WorkspaceModel | null }):
   const oldKey = old === null ? null : `${view?.message?.snapshot.epoch ?? 0}`;
   if (oldKey !== null && oldKey !== oldSeen) {
     setOldSeen(oldKey);
-    if (tab !== 'firmware') setTab('firmware');
+    openFirmwareUpdate();
   }
   const pending = pendingByTab(view);
   const badge = (id: Tab): { badge?: string } => (pending[id] === undefined ? {} : { badge: String(pending[id]) });
@@ -67,14 +67,14 @@ export function BoardView({ model }: { readonly model: WorkspaceModel | null }):
     'div',
     { class: 'board-view' },
     h('div', { class: 'view-head' }, h('div', { class: 'title-block' }, h('h1', null, 'Board')), h('div', { class: 'view-actions board-tabs' }, h(TabBar<Tab>, { label: 'Board', prefix: 'board', attr: 'data-board-tab', current: tab, onSelect: setTab, tabs }))),
-    h(BoardNotices, { model, onUpdate: () => setTab('firmware') }),
+    h(BoardNotices, { model, onUpdate: openFirmwareUpdate }),
     pane('overview', h(OverviewTab, { view })),
     pane('motors', h(MotorsTab, { view })),
     pane('axes', h(AxesTab, { view })),
     pane('inputs', h(InputsTab, { view })),
     pane('io', h(OutputsTab, { view })),
     pane('settings', h(SettingsTab, { model })),
-    pane('firmware', h('div', { class: 'firmware-tab' }, h(FirmwareTab, { model }), h(BackupsHub, { model }))),
+    pane('firmware', h(FirmwareSection, { model })),
     pane('backups', h(BackupsSection, { model })),
     h('div', { class: 'pending-dock' }, h(ReviewPanel, { model }), h(PendingBar, { model })),
   );

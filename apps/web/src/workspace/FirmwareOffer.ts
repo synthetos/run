@@ -10,7 +10,7 @@ import { h, type ComponentChild } from 'preact';
 import { useRef, useState } from 'preact/hooks';
 import { offerText, fbText, updateOffer } from '../firmware/updateOffer.ts';
 import { dismissOffer, offerDismissed } from '../firmware/offerMemory.ts';
-import { boardTab, releaseRequest, viewRequest } from './boardNavigation.ts';
+import { openFirmwareUpdate, releaseRequest, viewRequest } from './boardNavigation.ts';
 import { jobStep } from './jobWorkflow.ts';
 import { currentFile } from './fileBridge.ts';
 import type { WorkspaceModel } from './model.ts';
@@ -89,7 +89,7 @@ export function FirmwareOffer({ model, role, live }: FirmwareOfferProps): Compon
             'data-action': 'firmware-offer-go',
             onClick: () => {
               close();
-              boardTab.value = 'firmware';
+              openFirmwareUpdate();
               releaseRequest.value = offer.release.file;
               viewRequest.value = 'board';
             },

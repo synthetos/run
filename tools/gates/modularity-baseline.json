@@ -323,11 +323,8 @@
       "complexity $/FunctionDeclaration:AnalyzeView#1": 29
     },
     "apps/web/src/workspace/views/FirmwareViews.ts": {
-      "complexity $/FunctionDeclaration:BackupsHub#1": 29,
       "complexity $/FunctionDeclaration:FirmwareTab#1": 94,
       "complexity $/FunctionDeclaration:flashBlocked#1": 19,
-      "max-lines $file": 406,
-      "max-lines-per-function $/FunctionDeclaration:BackupsHub#1": 109,
       "max-lines-per-function $/FunctionDeclaration:FirmwareTab#1": 134
     },
     "apps/web/src/workspace/views/JobStatusCard.ts": {

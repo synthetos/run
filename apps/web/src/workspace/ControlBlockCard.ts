@@ -7,7 +7,7 @@
 import { h, type ComponentChild } from 'preact';
 import { useState } from 'preact/hooks';
 import { c13 } from '@synthetos/safety';
-import { boardTab, viewRequest } from './boardNavigation.ts';
+import { boardTab, openFirmwareUpdate, viewRequest } from './boardNavigation.ts';
 import { NotesPill } from './notes/NotesPill.ts';
 import { usePublishNotes } from './notes/usePublishNotes.ts';
 import { controlBlock, type BlockActionId, type ControlBlock } from './controlBlock.ts';
@@ -32,7 +32,7 @@ export function blockAction(id: BlockActionId, model: WorkspaceModel | null): 'a
   switch (id) {
     case 'trust':
     case 'update':
-      boardTab.value = 'firmware';
+      openFirmwareUpdate();
       viewRequest.value = 'board';
       return null;
     case 'review':

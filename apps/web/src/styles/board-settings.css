@@ -91,8 +91,34 @@
 .settings-tab .all-settings tbody :is(th, td) { height: 34px; padding-top: 0; padding-bottom: 0; white-space: nowrap; }
 .settings-tab .all-settings .group-row th { padding: 8px 0 2px; font: 700 12.5px var(--cond); color: var(--tan); text-transform: uppercase; }
 .settings-tab .all-settings .option-list { flex-wrap: nowrap; }
-.settings-pager { display: flex; align-items: center; justify-content: flex-end; gap: 10px; height: 32px; flex: none; }
-.settings-pager.single { visibility: hidden; }
+/* ---------- Board → Firmware in sub-tabs (views/board/firmwareTabs.ts): the Update part fills the pane ---------- */
+.firmware-tab > .subtabs { flex: 1; min-height: 0; }
+.firmware-tab .subtab-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.firmware-tab .subtab-pane > .configure-grid { flex: 1; min-height: 0; padding: 0; grid-template-rows: minmax(0, 1fr); }
+.firmware-tab .releases-panel { overflow: hidden; display: flex; flex-direction: column; padding-bottom: 6px; }
+.release-list { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.release-list .releases-page { flex: 1; min-height: 0; overflow: hidden; }
+.release-list .pager { padding: 0 18px; }
+/* One fixed-height row per release (FirmwareReleaseList.ts ROW_PX), so a page of them fits. */
+.release-list .releases li { grid-template-columns: 120px minmax(0, 1fr) auto; gap: 16px; height: 76px; padding: 8px 0; align-items: center; overflow: hidden; }
+.release-list .releases.adv li { height: 104px; }
+.release-list .rel-ver { display: flex; flex-wrap: wrap; gap: 2px 6px; align-items: baseline; align-self: center; }
+.release-list .rel-ver strong { flex-basis: 100%; }
+.release-list .rel-ver .tag { margin-top: 2px; }
+.release-list .rel-notes { min-width: 0; }
+.release-list .rel-notes > * { margin: 0 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.release-list .rel-notes .changelog { white-space: nowrap; }
+.release-list .row-actions { margin: 0; flex-direction: column; align-items: stretch; flex-wrap: nowrap; }
+
+/* ---------- Overview → This board: fits the inspector at 1280 × 800 at both levels (owner walk 2026-11-19) ---------- */
+.board-facts > div { padding-top: 3px; padding-bottom: 3px; }
+/* The approval is a sentence: on its own line under its label, in the body font, so it takes two lines, not four. */
+.board-facts > div:has(> dd[data-board-fact="approval"]) { display: block; }
+.board-facts dd[data-board-fact="approval"] { font-family: var(--sans); font-size: 12.5px; text-align: left; margin-top: 2px; }
+
+/* Back / Page n of m / Next under a paged list (workspace/paging.ts); always laid out, hidden when one page. */
+.pager { display: flex; align-items: center; justify-content: flex-end; gap: 10px; height: 32px; flex: none; }
+.pager.single { visibility: hidden; }
 .settings-tab .settings-desc { margin: 2px 0 0; flex: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chip.on { background: var(--blue-wash); border-color: var(--blue); color: var(--blue-dk); }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }

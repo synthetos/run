@@ -5,6 +5,7 @@
  */
 import { h, type ComponentChild } from 'preact';
 import { signal, type Signal } from '@preact/signals';
+import { firmwareSubTab } from '../../boardNavigation.ts';
 import { TabBar } from '../../ui.ts';
 
 export interface SubTab {
@@ -19,7 +20,7 @@ export const subTabChoice: Readonly<Record<'axes' | 'motors' | 'inputs' | 'io' |
   motors: signal(null),
   inputs: signal(null),
   io: signal(null),
-  firmware: signal(null),
+  firmware: firmwareSubTab,
 };
 
 /** The chosen sub-tab, or the first one when nothing (or something no longer listed) is chosen. */

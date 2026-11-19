@@ -178,7 +178,7 @@ describe('Phase 1 control allowlist', () => {
     /^action:job-(step-(machine|stock|place|check|run|back|next)|close|library-machines|use-machine)$/,
     /^view:(job|library|board|projects|analyze|settings|safety)$/,
     /^tab:(machines|tools|materials|gcode|terminal|live|notes|spindle|jog|home|zero|overrides|details|buy|cutting|overview|links|basics|safety|stock|fixture|bed|board|pin|mine|tinyg|settings|catalogue|catalog)$/,
-    /^board-tab:(overview|motors|axes|inputs|io|settings|backups|firmware)$/,
+    /^board-tab:(overview|motors|axes|inputs|io|settings|backups|firmware)$/, /^button:(Update|Firmware backups|Custom firmware)$/, // Firmware's sub-tabs: views only
     // Length units in the tool catalog and tool window: display only, stored values stay in mm.
     /^action:(catalog|tool)-units-(mm|in)$/,
     // Catalog preview, opening a local tool, and draft dismissal are UI/library only; no machine access.
@@ -267,7 +267,7 @@ describe('Phase 1 control allowlist', () => {
     expect(seen.has('read')).toBe(true);
     // Board settings (spec 2026-11-18 §5.2, §5.8): Apply, Revert and Restore exist only with a connected, writable board.
     expect(seen.has('settings-write')).toBe(false);
-    expect(seen.has('flash')).toBe(true);
+    expect(seen.has('flash')).toBe(false); // Custom firmware is behind Firmware's own sub-tab (owner walk 2026-11-19).
   });
 
   it('Disconnect: absent from the prerendered strip; in the machine strip, enabled with a handler, while a port is open or opening', () => {
