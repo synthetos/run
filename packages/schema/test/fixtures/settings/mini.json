@@ -1,0 +1,104 @@
+{
+  "format": "synthetos-settings@1",
+  "dialect": "tinyg-en",
+  "firmware": { "family": "TinyG edge-next", "fb": { "min": 450.02 }, "source": "EN@a7489b79" },
+  "mode": "writable",
+  "enums": {
+    "switchMode": {
+      "labelSrc": "EN canonical_machine.c:3174 fmt_Xsn; switch.h:42-47",
+      "values": [
+        { "value": 0, "label": "Off", "help": "The input is ignored." },
+        { "value": 1, "label": "Homing", "help": "Used only to find home." },
+        { "value": 2, "label": "Limit", "help": "Stops the machine with an alarm when pressed." },
+        { "value": 3, "label": "Homing and limit", "help": "Finds home, and stops the machine at other times." },
+        { "value": 4, "label": "Probe", "help": "The touch plate input. One per board." }
+      ]
+    }
+  },
+  "groups": [
+    { "id": "system", "title": "System", "explanation": "Units and modes at power-up." },
+    { "id": "motor-1", "title": "Motor 1", "explanation": "Motor 1." },
+    { "id": "motor-2", "title": "Motor 2", "explanation": "Motor 2." },
+    { "id": "inputs", "title": "Inputs", "explanation": "What each switch does." }
+  ],
+  "inputs": [
+    { "id": "xmin", "label": "X min switch", "pin": "J7.3", "function": "xsn", "contact": "st", "state": "in1" }
+  ],
+  "families": [
+    {
+      "pattern": "{m}mi",
+      "for": { "m": ["1", "2"] },
+      "rows": { "1": 214, "2": 221 },
+      "src": "EN config_app.c:{row}",
+      "label": "Motor {m} microsteps",
+      "short": "Microsteps",
+      "description": "How finely the driver divides each full step.",
+      "unit": "microsteps",
+      "group": "motor-{m}",
+      "tab": "motors",
+      "values": [
+        { "value": 1, "label": "Full step (1)" },
+        { "value": 2, "label": "Half step (2)" },
+        { "value": 4, "label": "Quarter step (4)" },
+        { "value": 8, "label": "Eighth step (8)" }
+      ],
+      "labelSrc": "EN stepper.c:1653 fmt_0mi [1,2,4,8]",
+      "access": "write",
+      "write": {
+        "valueType": "integer",
+        "range": { "min": 1, "max": 8 },
+        "rangeSource": "EN stepper.c:1511-1530",
+        "hwAllowed": [1, 2, 4, 8],
+        "e158": true,
+        "convert": false,
+        "scope": "persisted",
+        "risk": "high",
+        "typedConfirm": { "kind": "never" },
+        "afterWrite": "W20",
+        "invalidates": ["scale.*", "homing.*", "softlimits"],
+        "whatGoesWrong": "Motor {m} moves the wrong distance."
+      }
+    }
+  ],
+  "tokens": {
+    "xsn": {
+      "label": "X min switch",
+      "short": "X min",
+      "description": "What the X min switch input does.",
+      "unit": "enum",
+      "enum": "switchMode",
+      "group": "inputs",
+      "tab": "inputs",
+      "access": "read",
+      "reason": "Not changed by Run yet.",
+      "src": "EN config_app.c:284"
+    },
+    "ex": {
+      "label": "Flow control",
+      "short": "Flow control",
+      "description": "How the board paces the serial link.",
+      "unit": "enum",
+      "values": [
+        { "value": 0, "label": "Off" },
+        { "value": 1, "label": "XON/XOFF" },
+        { "value": 2, "label": "RTS/CTS" }
+      ],
+      "group": "system",
+      "tab": "comms",
+      "access": "forbidden",
+      "reason": "Changes how the board and Run talk; never written (H61).",
+      "src": "EN config_app.c:500"
+    },
+    "sso": {
+      "label": "Spindle speed override",
+      "short": "Speed override",
+      "description": "The spindle speed override factor.",
+      "unit": "none",
+      "group": "system",
+      "tab": "settings",
+      "access": "readout",
+      "since": 450.06,
+      "src": "EN config_app.c:702"
+    }
+  }
+}

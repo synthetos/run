@@ -51,6 +51,9 @@ export type { ForbiddenRule, ForbiddenWhen, ForbiddenWrites, WriteContext } from
 export { FACT_ROOTS } from './overlays/types.ts';
 export type { EnumValue, FactPattern, OverlayEntry, Range, Risk, SourceRef, TypedConfirm, Unit } from './overlays/types.ts';
 export { TINYG_EN_OVERLAY } from './overlays/tinygEn.ts';
+export { SETTINGS_FILE_SCHEMA, expandSettingsFile } from './settingsDefs/expand.ts';
+export { settingsDefsFor } from './settingsDefs/load.ts';
+export type { DefinitionUnit, GroupDefinition, InputDefinition, SettingAccess, SettingDefinition, SettingsFile, ValueDef, WriteDef } from './settingsDefs/types.ts';
 export { SETTINGS_SCHEMAS, TINYG_REPO_URL, buildSettingsSchema, settingsSchemaFor, sourceUrl } from './settingsSchema.ts';
 export type { SettingDef, SettingsSchema } from './settingsSchema.ts';
 export { boardSettingsFrom, canonicalSettings, deviceHash, settingsDrift, settingsReadGroups } from './settingsRead.ts';

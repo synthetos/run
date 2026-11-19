@@ -26,6 +26,8 @@ export default defineConfig({
         'src/validate.ts': FULL,
         'src/travel.ts': FULL,
         'src/writePlan.ts': FULL,
+        // Board settings: the definitions carry the reviewed write fields (spec §4).
+        'src/settingsDefs/**/*.ts': FULL,
         // TB-01: MachineProfile v2, the fact engine, invalidation rules and the gate DSL.
         'src/profile/**/*.ts': FULL,
         'src/facts/**/*.ts': FULL,

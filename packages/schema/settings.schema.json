@@ -1,0 +1,196 @@
+{
+  "$comment": "Setting definitions per firmware family (Board settings spec §4). Uses only the keywords src/jsonSchema.ts implements; cross-field rules (access write iff write, readOnly files carry no write, values iff unit enum, placeholders resolved) are the loader's (src/settingsDefs/expand.ts). CODEOWNERS: the owner reviews every change.",
+  "$id": "https://synthetos.com/schemas/synthetos-settings@1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "dialect", "firmware", "mode", "groups", "inputs", "tokens"],
+  "properties": {
+    "$comment": { "type": "string" },
+    "format": { "const": "synthetos-settings@1" },
+    "dialect": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "firmware": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["family", "fb", "source"],
+      "properties": {
+        "family": { "type": "string", "minLength": 1 },
+        "fb": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "min": { "type": "number" }, "max": { "type": "number" } }
+        },
+        "source": { "type": "string", "pattern": "^[A-Z0-9]+@[0-9a-f]{8}$" }
+      }
+    },
+    "mode": { "enum": ["writable", "readOnly"] },
+    "enums": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[A-Za-z][A-Za-z0-9]*$" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["values"],
+        "properties": {
+          "labelSrc": { "type": "string" },
+          "values": { "$ref": "#/$defs/values" }
+        }
+      }
+    },
+    "groups": { "type": "array", "items": { "$ref": "#/$defs/group" } },
+    "inputs": { "type": "array", "items": { "$ref": "#/$defs/input" } },
+    "probeAllowed": { "type": "array", "uniqueItems": true, "items": { "enum": ["x", "y", "z", "a", "b", "c"] } },
+    "homingTravel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rule", "src"],
+      "properties": { "rule": { "enum": ["radiusFullTurn", "backoffOnly"] }, "src": { "type": "string", "minLength": 1 } }
+    },
+    "families": { "type": "array", "items": { "$ref": "#/$defs/family" } },
+    "tokens": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z0-9]+$" },
+      "additionalProperties": { "$ref": "#/$defs/token" }
+    }
+  },
+  "$defs": {
+    "values": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["value", "label"],
+        "properties": {
+          "value": { "type": "number" },
+          "label": { "type": "string", "minLength": 1 },
+          "help": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "explanation"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "title": { "type": "string", "minLength": 1 },
+        "explanation": { "type": "string", "minLength": 1 }
+      }
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "pin", "function"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "label": { "type": "string", "minLength": 1 },
+        "pin": { "type": "string", "minLength": 1 },
+        "function": { "type": "string", "minLength": 1 },
+        "contact": { "type": "string", "minLength": 1 },
+        "state": { "type": "string", "minLength": 1 },
+        "action": { "type": "string", "minLength": 1 },
+        "note": { "type": "string", "minLength": 1 }
+      }
+    },
+    "unit": {
+      "enum": ["mm", "mm/min", "mm/rev", "deg", "deg/min", "deg/step", "Mmm/min3", "Mdeg/min3", "microsteps", "s", "enum", "none", "text", "Hz", "mm/min2", "ratio"]
+    },
+    "access": { "enum": ["write", "read", "forbidden", "readout", "reserved"] },
+    "range": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["min", "max"],
+      "properties": { "min": { "type": "number" }, "max": { "type": "number" }, "minExclusive": { "const": true } }
+    },
+    "typedConfirm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "enum": ["always", "never", "whenValue", "increaseFactor"] },
+        "value": { "type": "number" },
+        "factor": { "type": "number" }
+      }
+    },
+    "write": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["valueType", "range", "rangeSource", "convert", "scope", "risk", "typedConfirm", "afterWrite", "invalidates", "whatGoesWrong"],
+      "properties": {
+        "valueType": { "enum": ["integer", "number"] },
+        "range": { "$ref": "#/$defs/range" },
+        "rangeSource": { "type": "string", "minLength": 1 },
+        "hwAllowed": { "type": "array", "minItems": 1, "items": { "type": "number" } },
+        "e158": { "const": true },
+        "convert": { "type": "boolean" },
+        "scope": { "enum": ["persisted", "session"] },
+        "risk": { "enum": ["low", "medium", "high", "polarity"] },
+        "typedConfirm": { "$ref": "#/$defs/typedConfirm" },
+        "afterWrite": { "enum": ["W20", null] },
+        "invalidates": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "whatGoesWrong": { "type": "string", "minLength": 1 }
+      }
+    },
+    "token": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "short", "description", "unit", "group", "tab", "access", "src"],
+      "properties": {
+        "label": { "type": "string", "minLength": 1 },
+        "short": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "unit": { "$ref": "#/$defs/unit" },
+        "display": { "type": "integer", "minimum": 0, "maximum": 6 },
+        "values": { "$ref": "#/$defs/values" },
+        "enum": { "type": "string", "minLength": 1 },
+        "group": { "type": "string", "minLength": 1 },
+        "tab": { "type": "string", "pattern": "^[a-z-]+$" },
+        "access": { "$ref": "#/$defs/access" },
+        "reason": { "type": "string", "minLength": 1 },
+        "since": { "type": "number" },
+        "until": { "type": "number" },
+        "src": { "type": "string", "pattern": "^[A-Z0-9]+ [a-z_]+\\.[ch]:[0-9]+$" },
+        "labelSrc": { "type": "string", "minLength": 1 },
+        "verify": { "type": "string", "pattern": "^BC-[0-9]+$" },
+        "differs": { "type": "string", "minLength": 1 },
+        "write": { "$ref": "#/$defs/write" }
+      }
+    },
+    "family": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pattern", "for", "rows", "src", "label", "short", "description", "unit", "group", "tab", "access"],
+      "properties": {
+        "pattern": { "type": "string", "pattern": "^[a-z0-9{}A-Z]+$" },
+        "for": {
+          "type": "object",
+          "propertyNames": { "pattern": "^[a-z]$" },
+          "additionalProperties": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^[a-z0-9]+$" } }
+        },
+        "rows": {
+          "$comment": "cfgArray line per instance, keyed by the instance's placeholder values joined in 'for' order (\"1\", \"x\", \"54x\").",
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 1 }
+        },
+        "src": { "type": "string", "pattern": "^[A-Z0-9]+ [a-z_]+\\.[ch]:\\{row\\}$" },
+        "label": { "type": "string", "minLength": 1 },
+        "short": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "unit": { "$ref": "#/$defs/unit" },
+        "display": { "type": "integer", "minimum": 0, "maximum": 6 },
+        "values": { "$ref": "#/$defs/values" },
+        "enum": { "type": "string", "minLength": 1 },
+        "group": { "type": "string", "minLength": 1 },
+        "tab": { "type": "string", "pattern": "^[a-z-]+$" },
+        "access": { "$ref": "#/$defs/access" },
+        "reason": { "type": "string", "minLength": 1 },
+        "since": { "type": "number" },
+        "until": { "type": "number" },
+        "labelSrc": { "type": "string", "minLength": 1 },
+        "verify": { "type": "string", "pattern": "^BC-[0-9]+$" },
+        "differs": { "type": "string", "minLength": 1 },
+        "write": { "$ref": "#/$defs/write" }
+      }
+    }
+  }
+}
