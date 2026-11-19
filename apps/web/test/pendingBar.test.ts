@@ -144,6 +144,17 @@ describe('ReviewPanel', () => {
     expect(confirming.value).toBe(false);
   });
 
+  it('a microstep change shows steps per mm before and after, before Apply (owner walk 2026-11-19)', () => {
+    const motors = { ...BOARD, '1ma': 0, '1sa': 1.8, '1tr': 1.25, '4ma': 3, '4sa': 1.8, '4tr': 360, '4mi': 8 };
+    setDraft('1mi', 4);
+    setDraft('4mi', 4);
+    reviewOpen.value = true;
+    const panel = rootUntil(h(ReviewPanel, { model: fakeModel(boardView({ settings: motors })).model }), [ApplyConfirm]);
+    expect(text(one(one(panel, byAttr('data-pending-key', '1mi')), byAttr('data-steps-change')))).toBe('Steps per mm: 1 280 → 640');
+    expect(text(one(one(panel, byAttr('data-pending-key', '4mi')), byAttr('data-steps-change')))).toBe('Steps per degree: 4.444 → 2.222');
+    expect(all(one(panel, byAttr('data-pending-key', '1mi')), (e) => e.props['class'] === 'tag danger')).toHaveLength(1);
+  });
+
   it('keeps the remove action per row and the ready line', () => {
     setDraft('xjd', 0.02);
     reviewOpen.value = true;

@@ -17,6 +17,13 @@ import { editBlocked, readOnlyNotice } from './editGate.ts';
 import { pendingPlan, settingsWriteBlocked } from './pending.ts';
 import { confirming, reviewOpen } from './reviewState.ts';
 import { ApplyConfirm } from './SettingsUi.ts';
+import { stepsChange } from './stepsChange.ts';
+
+/** The steps-per-unit result of a scale change, so it is seen before Apply. */
+function StepsLine({ k, view }: { readonly k: string; readonly view: LiveView | null }): ComponentChild {
+  const line = stepsChange(k, view);
+  return line === null ? null : h('strong', { class: 'block steps-change', 'data-steps-change': '' }, line);
+}
 
 function DiffTable({ changes, view, running }: { readonly changes: readonly PlannedChange[]; readonly view: LiveView | null; readonly running: boolean }): ComponentChild {
   const dialect = view?.readout.dialectId ?? null;
@@ -35,7 +42,7 @@ function DiffTable({ changes, view, running }: { readonly changes: readonly Plan
           h('th', { scope: 'row' }, c.label, h('code', { class: 'raw-key' }, c.key)),
           h('td', null, plainValue(c.key, c.from ?? undefined, dialect, fb) ?? 'Not read'),
           h('td', { class: 'new-value' }, plainValue(c.key, c.to, dialect, fb) ?? String(c.to)),
-          h('td', { class: 'change-words' }, riskTag(c), c.risk.consequence === null ? null : h('small', { class: 'block' }, c.risk.consequence)),
+          h('td', { class: 'change-words' }, riskTag(c), h(StepsLine, { k: c.key, view }), c.risk.consequence === null ? null : h('small', { class: 'block' }, c.risk.consequence)),
           h('td', null, h('button', { type: 'button', class: 'icon-button quiet', 'data-action': 'remove-pending', 'aria-label': `Remove the change to ${c.label}`, disabled: running, onClick: () => setDraft(c.key, null) }, '×')),
         ),
       ),
