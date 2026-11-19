@@ -59,6 +59,9 @@
 /packages/schema/src/tables/**           @ril3y
 /packages/schema/src/generated/**        @ril3y
 /packages/schema/src/overlays/**         @ril3y
+/packages/schema/settings/**             @ril3y
+/packages/schema/settings.schema.json    @ril3y
+/packages/schema/src/settingsDefs/**     @ril3y
 /packages/schema/src/forbiddenWrites.ts  @ril3y
 /packages/schema/src/settingsSchema.ts   @ril3y
 /packages/schema/src/validate.ts         @ril3y

@@ -982,12 +982,6 @@
       "max-params $/FunctionDeclaration:checkArray#1": 5,
       "max-params $/FunctionDeclaration:checkObject#1": 5
     },
-    "packages/schema/src/overlays/tinygEn.ts": {
-      "max-lines $file": 577,
-      "max-lines-per-function $/FunctionDeclaration:axisCore#1": 117,
-      "max-lines-per-function $/FunctionDeclaration:axisHoming#1": 102,
-      "max-lines-per-function $/FunctionDeclaration:motor#1": 109
-    },
     "packages/schema/src/profile/migrate.ts": {
       "complexity $/FunctionDeclaration:migrateV1#1": 56,
       "max-lines-per-function $/FunctionDeclaration:migrateV1#1": 87

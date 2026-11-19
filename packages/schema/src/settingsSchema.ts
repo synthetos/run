@@ -6,9 +6,12 @@
  * group, type, persist flag and accessors. A key can be validated or written
  * only if it also has an overlay entry: the overlay carries the reviewed
  * range, risk and invalidation rules, and a key without one has never been
- * reviewed. Today only `tinyg-en` has an overlay; `tinyg-440` keys can be
- * read and shown but not written (fail closed until its overlay exists), and
- * `tinyg-449-stock` is always read-only.
+ * reviewed. The overlay is the `write` objects of the dialect's settings
+ * file (settings/tinyg-450.json; Board settings spec §4.3). Today only
+ * `tinyg-en` has write objects; `tinyg-440` keys can be read and shown but
+ * not written (fail closed until its review), and `tinyg-449-stock` is always
+ * read-only. The 450.05 and 450.06 table deltas (firmware45005.ts,
+ * firmware45006.ts) add no write object, so every build shares the overlay.
  */
 import { SPINDLE_OVERRIDE_SETTINGS } from './firmware45006.ts';
 import { REMOVED_HOLD_KEYS, OVERRIDE_SETTINGS } from './firmware45005.ts';
@@ -18,8 +21,9 @@ import { frozenMap } from './frozen.ts';
 import { D440 } from './generated/d440.ts';
 import { D449 } from './generated/d449.ts';
 import { DEN } from './generated/den.ts';
-import { TINYG_EN_OVERLAY } from './overlays/tinygEn.ts';
 import type { OverlayEntry, SourceRef } from './overlays/types.ts';
+import { requireSettingsDefs } from './settingsDefs/load.ts';
+import { overlayFromDefs } from './settingsDefs/overlay.ts';
 import { setterClass } from './tables/accessors.ts';
 import { buildTable } from './tables/table.ts';
 import type { GeneratedTable, HilTable, TinyGDialectId, TokenDef } from './tables/types.ts';
@@ -82,7 +86,7 @@ export function buildSettingsSchema(gen: GeneratedTable, mode: SettingsSchema['m
 }
 
 export const SETTINGS_SCHEMAS: Readonly<Record<TinyGDialectId, SettingsSchema>> = Object.freeze({
-  'tinyg-en': buildSettingsSchema(DEN, 'writable', TINYG_EN_OVERLAY),
+  'tinyg-en': buildSettingsSchema(DEN, 'writable', overlayFromDefs(requireSettingsDefs('tinyg-en'))),
   'tinyg-440': buildSettingsSchema(D440, 'writable', []),
   'tinyg-449-stock': buildSettingsSchema(D449, 'readOnly', []),
 });

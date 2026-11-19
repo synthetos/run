@@ -1,0 +1,575 @@
+{
+  "$comment": "TinyG edge-next settings (Board settings spec §4). The write objects are the reviewed overlay that was packages/schema/src/overlays/tinygEn.ts, moved field for field (test/settingsGolden.test.ts). Ranges are the firmware's own checks where it has them (cited), otherwise a host bound (host:). Units are millimetres: every write happens under G21 (SAFETY §4.6 step 5). CODEOWNERS: the owner reviews every change.",
+  "format": "synthetos-settings@1",
+  "dialect": "tinyg-en",
+  "firmware": { "family": "TinyG edge-next", "fb": { "min": 450.02 }, "source": "EN@a7489b79" },
+  "mode": "writable",
+  "groups": [
+    { "id": "system", "title": "System", "explanation": "Units and distance mode at power-up, work offsets and planes at power-up, optional stop, motor idle time." },
+    { "id": "identity", "title": "Board identity", "explanation": "What the board reports about itself: firmware build and version, hardware platform and version, and its serial number." },
+    { "id": "communications", "title": "Communications", "explanation": "How the board talks to Run: baud rate, flow control, receive mode, echo, line endings and the JSON and text formats." },
+    { "id": "status-report", "title": "Status report", "explanation": "How often the board reports its state, and how much of the queue it reports." },
+    { "id": "motor-1", "title": "Motor 1", "explanation": "Which axis motor 1 drives, its step angle, travel per turn, microsteps, direction and power." },
+    { "id": "motor-2", "title": "Motor 2", "explanation": "Which axis motor 2 drives, its step angle, travel per turn, microsteps, direction and power." },
+    { "id": "motor-3", "title": "Motor 3", "explanation": "Which axis motor 3 drives, its step angle, travel per turn, microsteps, direction and power." },
+    { "id": "motor-4", "title": "Motor 4", "explanation": "Which axis motor 4 drives, its step angle, travel per turn, microsteps, direction and power." },
+    { "id": "all-axes", "title": "All axes", "explanation": "Settings that belong to no single axis: soft limits, cornering and arc accuracy." },
+    { "id": "axis-x", "title": "X axis", "explanation": "How the X axis moves: its mode, travel, speeds and jerk, and its homing speeds." },
+    { "id": "axis-y", "title": "Y axis", "explanation": "How the Y axis moves: its mode, travel, speeds and jerk, and its homing speeds." },
+    { "id": "axis-z", "title": "Z axis", "explanation": "How the Z axis moves: its mode, travel, speeds and jerk, and its homing speeds." },
+    { "id": "axis-a", "title": "A axis (rotary)", "explanation": "How the rotary A axis moves: its mode, radius, travel, speeds and jerk, and its homing speeds." },
+    { "id": "axis-b", "title": "B axis (rotary)", "explanation": "How the rotary B axis moves: its mode, radius, travel, speeds and jerk." },
+    { "id": "axis-c", "title": "C axis (rotary)", "explanation": "How the rotary C axis moves: its mode, radius, travel, speeds and jerk." },
+    { "id": "inputs", "title": "Inputs", "explanation": "What each switch input does, and whether the switches and the probe are normally open or normally closed." },
+    { "id": "spindle-coolant", "title": "Spindle and coolant", "explanation": "The spindle and coolant outputs: their polarity, and the PWM output that sets spindle speed." },
+    { "id": "offsets", "title": "Offsets", "explanation": "The stored G54 to G59 work offsets and the G28 and G30 positions. Set them from the Job view's zero tools." }
+  ],
+  "inputs": [],
+  "families": [
+    {
+      "pattern": "{m}ma", "for": { "m": ["1", "2", "3", "4"] }, "rows": { "1": 211, "2": 221, "3": 232, "4": 243 }, "src": "EN config_app.c:{row}",
+      "label": "Motor {m} axis", "short": "Drives", "description": "The axis motor {m} drives.",
+      "unit": "enum", "group": "motor-{m}", "tab": "motors", "access": "write",
+      "values": [
+        { "value": 0, "label": "X" }, { "value": 1, "label": "Y" }, { "value": 2, "label": "Z" },
+        { "value": 3, "label": "A" }, { "value": 4, "label": "B" }, { "value": 5, "label": "C" }
+      ],
+      "labelSrc": "EN stepper.c:1650 fmt_0ma",
+      "write": {
+        "valueType": "integer", "range": { "min": 0, "max": 5 },
+        "rangeSource": "EN config_app.c:1087-1095 (set_ma refuses an axis index of 6 or more, E112)",
+        "convert": false, "scope": "persisted", "risk": "high", "typedConfirm": { "kind": "always" }, "afterWrite": "W20",
+        "invalidates": ["dir.*", "homing.*"],
+        "whatGoesWrong": "A motor mapped to the wrong axis moves the wrong part of the machine, and a jog or homing move drives that part into its end stop."
+      }
+    },
+    {
+      "pattern": "{m}sa", "for": { "m": ["1", "2", "3", "4"] }, "rows": { "1": 212, "2": 222, "3": 233, "4": 244 }, "src": "EN config_app.c:{row}",
+      "label": "Motor {m} step angle", "short": "Step angle", "description": "Degrees per full step of motor {m} (1.8 for a 200-step motor).",
+      "unit": "deg/step", "group": "motor-{m}", "tab": "motors", "access": "write",
+      "write": {
+        "valueType": "number", "range": { "min": 0, "max": 360, "minExclusive": true },
+        "rangeSource": "EN stepper.c:1481 (E158: 0 or less refused with 108); host: at most one revolution",
+        "e158": true, "convert": false, "scope": "persisted", "risk": "high", "typedConfirm": { "kind": "never" }, "afterWrite": "W20",
+        "invalidates": ["scale.*", "homing.*", "softlimits"],
+        "whatGoesWrong": "A wrong step angle scales every move on the axes this motor drives: the machine travels further or less than commanded and can leave its envelope."
+      }
+    },
+    {
+      "pattern": "{m}tr", "for": { "m": ["1", "2", "3", "4"] }, "rows": { "1": 213, "2": 223, "3": 234, "4": 245 }, "src": "EN config_app.c:{row}",
+      "label": "Motor {m} travel per revolution", "short": "Travel per turn",
+      "description": "Millimetres (or degrees, on a rotary axis) the axis moves per motor revolution: screw lead, or belt pitch × pulley teeth.",
+      "unit": "mm/rev", "group": "motor-{m}", "tab": "motors", "access": "write",
+      "write": {
+        "valueType": "number", "range": { "min": 0, "max": 1000, "minExclusive": true },
+        "rangeSource": "EN stepper.c:1499 (E158: 0 or less refused with 108); host: at most 1000 per revolution",
+        "e158": true, "convert": true, "scope": "persisted", "risk": "high", "typedConfirm": { "kind": "never" }, "afterWrite": "W20",
+        "invalidates": ["scale.*", "homing.*", "softlimits"],
+        "whatGoesWrong": "A wrong travel per revolution scales every move: a 5 mm lead entered as 8 makes every move 60% too long."
+      }
+    },
+    {
+      "pattern": "{m}mi", "for": { "m": ["1", "2", "3", "4"] }, "rows": { "1": 214, "2": 224, "3": 235, "4": 246 }, "src": "EN config_app.c:{row}",
+      "label": "Motor {m} microsteps", "short": "Microsteps", "description": "Microstep setting of the motor {m} driver.",
+      "unit": "microsteps", "group": "motor-{m}", "tab": "motors", "access": "write",
+      "write": {
+        "valueType": "integer", "range": { "min": 1, "max": 8 },
+        "rangeSource": "EN stepper.c:1511-1530 (0 refused with 108, E158; from 450.02 any value other than 1, 2, 4, 8 is refused with a range error and nothing changes)",
+        "hwAllowed": [1, 2, 4, 8], "e158": true, "convert": false, "scope": "persisted", "risk": "high", "typedConfirm": { "kind": "never" }, "afterWrite": "W20",
+        "invalidates": ["scale.*", "homing.*", "softlimits"],
+        "whatGoesWrong": "The TinyG v8 drivers support only 1, 2, 4 and 8 microsteps. Older builds stored any other value anyway, so the scale no longer matched what the driver did; 450.02 refuses it."
+      }
+    },
+    {
+      "pattern": "{m}po", "for": { "m": ["1", "2", "3", "4"] }, "rows": { "1": 215, "2": 225, "3": 236, "4": 247 }, "src": "EN config_app.c:{row}",
+      "label": "Motor {m} polarity", "short": "Direction", "description": "Direction of motor {m}: 0 normal, 1 reversed.",
+      "unit": "enum", "group": "motor-{m}", "tab": "motors", "access": "write",
+      "values": [{ "value": 0, "label": "normal" }, { "value": 1, "label": "reversed" }],
+      "labelSrc": "EN stepper.c:1654 fmt_0po [0=normal,1=reverse]",
+      "write": {
+        "valueType": "integer", "range": { "min": 0, "max": 1 },
+        "rangeSource": "EN stepper.c:1654 [0=normal,1=reverse] (set_01)",
+        "convert": false, "scope": "persisted", "risk": "high", "typedConfirm": { "kind": "always" }, "afterWrite": "W20",
+        "invalidates": ["dir.*", "homing.*"],
+        "whatGoesWrong": "A reversed motor drives the axis the wrong way: homing runs away from its switch into the opposite end, and soft limits protect the wrong side."
+      }
+    },
+    {
+      "pattern": "{m}pm", "for": { "m": ["1", "2", "3", "4"] }, "rows": { "1": 216, "2": 226, "3": 237, "4": 248 }, "src": "EN config_app.c:{row}",
+      "label": "Motor {m} power management", "short": "Power", "description": "When motor {m} is energized.",
+      "unit": "enum", "group": "motor-{m}", "tab": "motors", "access": "write",
+      "values": [
+        { "value": 0, "label": "disabled" }, { "value": 1, "label": "always on" },
+        { "value": 2, "label": "on in cycle" }, { "value": 3, "label": "on when moving" }
+      ],
+      "labelSrc": "EN stepper.c:1655 fmt_0pm",
+      "write": {
+        "valueType": "integer", "range": { "min": 0, "max": 3 },
+        "rangeSource": "EN stepper.c:1535-1541 (st_set_pm refuses MOTOR_POWER_MODE_MAX_VALUE = 4 or more, stepper.h:266-272)",
+        "convert": false, "scope": "persisted", "risk": "medium", "typedConfirm": { "kind": "never" }, "afterWrite": null,
+        "invalidates": [],
+        "whatGoesWrong": "Modes 0, 2 and 3 de-energize the motor when it is not moving: holding torque is lost, and an unbraked Z axis can fall under its own weight."
+      }
+    },
+
+    {
+      "pattern": "{a}am", "for": { "a": ["x", "y", "z"] }, "rows": { "x": 276, "y": 291, "z": 306 }, "src": "EN config_app.c:{row}",
+      "label": "{A} axis mode", "short": "Mode", "description": "How the {A} axis takes part in motion.",
+      "unit": "enum", "group": "axis-{a}", "tab": "axes", "access": "write",
+      "values": [{ "value": 0, "label": "disabled" }, { "value": 1, "label": "standard" }, { "value": 2, "label": "inhibited" }],
+      "labelSrc": "EN canonical_machine.c:2356-2360 msg_am",
+      "write": {
+        "valueType": "integer", "range": { "min": 0, "max": 2 },
+        "rangeSource": "EN canonical_machine.c:2756-2770 (linear axes up to 2, rotary up to 3; canonical_machine.h:287-293)",
+        "convert": false, "scope": "persisted", "risk": "high", "typedConfirm": { "kind": "never" }, "afterWrite": null,
+        "invalidates": ["homing.{a}", "job.*.preflight"],
+        "whatGoesWrong": "Disabled, the {A} axis ignores its words while jobs and the preview assume it moves. Inhibited, its position follows the program but its motor is held at step 0: the next move of ANY axis drives the motor there, so inhibiting {A} away from 0 moves it back to 0, and leaving inhibited mode away from 0 moves it out to its position."
+      }
+    },
+    {
+      "pattern": "{a}vm", "for": { "a": ["x", "y", "z"] }, "rows": { "x": 277, "y": 292, "z": 307 }, "src": "EN config_app.c:{row}",
+      "label": "{A} maximum velocity", "short": "Rapid speed", "description": "Velocity of {A} rapid (G0) moves.",
+      "unit": "mm/min", "group": "axis-{a}", "tab": "axes", "access": "write",
+      "write": {
+        "valueType": "number", "range": { "min": 0, "max": 200000, "minExclusive": true },
+        "rangeSource": "host: greater than 0 (450.02 refuses 0 and below too, EN canonical_machine.c:2821-2840); 200 000 per minute is far above any TinyG machine",
+        "convert": true, "scope": "persisted", "risk": "high", "typedConfirm": { "kind": "increaseFactor", "factor": 2 }, "afterWrite": null,
+        "invalidates": ["job.*.preflight"],
+        "whatGoesWrong": "Too high, the motors stall and lose position without any error; every later move is offset by the lost steps."
+      }
+    },
+    {
+      "pattern": "{a}fr", "for": { "a": ["x", "y", "z"] }, "rows": { "x": 278, "y": 293, "z": 308 }, "src": "EN config_app.c:{row}",
+      "label": "{A} maximum feed rate", "short": "Feed speed limit", "description": "Highest feed (G1, G2, G3) velocity on {A}.",
+      "unit": "mm/min", "group": "axis-{a}", "tab": "axes", "access": "write",
+      "write": {
+        "valueType": "number", "range": { "min": 0, "max": 200000, "minExclusive": true },
+        "rangeSource": "host: greater than 0 (450.02 refuses 0 and below too, EN canonical_machine.c:2821-2840); 200 000 per minute is far above any TinyG machine",
+        "convert": true, "scope": "persisted", "risk": "high", "typedConfirm": { "kind": "increaseFactor", "factor": 2 }, "afterWrite": null,
+        "invalidates": ["job.*.preflight"],
+        "whatGoesWrong": "Too high, feed moves can stall the motors and lose position; too low, jobs run slower than programmed."
+      }
+    },
+    {
+      "pattern": "{a}tn", "for": { "a": ["x", "y", "z"] }, "rows": { "x": 279, "y": 294, "z": 309 }, "src": "EN config_app.c:{row}",
+      "label": "{A} travel minimum", "short": "Start", "description": "Lowest {A} machine coordinate: the soft-limit and homing-search bound.",
+      "unit": "mm", "group": "axis-{a}", "tab": "axes", "access": "write",
+      "write": {
+        "valueType": "number", "range": { "min": -100000, "max": 100000 },
+        "rangeSource": "host: a finite position within ±100 m (or ±100 000°); across keys tn < tm, at least 0.01 apart, and a range the firmware soft-limit test sees as one (float32, not fp_EQ, both ends above DISABLE_SOFT_LIMIT; travel.ts)",
+        "convert": true, "scope": "persisted", "risk": "high", "typedConfirm": { "kind": "always" }, "afterWrite": "W20",
+        "invalidates": ["softlimits", "job.*.preflight"],
+        "whatGoesWrong": "A travel range larger than the machine lets soft limits and preflight pass moves that crash into the frame; homing searches that far before it gives up."
+      }
+    },
+    {
+      "pattern": "{a}tm", "for": { "a": ["x", "y", "z"] }, "rows": { "x": 280, "y": 295, "z": 310 }, "src": "EN config_app.c:{row}",
+      "label": "{A} travel maximum", "short": "End", "description": "Highest {A} machine coordinate: the soft-limit and homing-search bound.",
+      "unit": "mm", "group": "axis-{a}", "tab": "axes", "access": "write",
+      "write": {
+        "valueType": "number", "range": { "min": -100000, "max": 100000 },
+        "rangeSource": "host: a finite position within ±100 m (or ±100 000°); across keys tn < tm, at least 0.01 apart, and a range the firmware soft-limit test sees as one (float32, not fp_EQ, both ends above DISABLE_SOFT_LIMIT; travel.ts)",
+        "convert": true, "scope": "persisted", "risk": "high", "typedConfirm": { "kind": "always" }, "afterWrite": "W20",
+        "invalidates": ["softlimits", "job.*.preflight"],
+        "whatGoesWrong": "A travel range larger than the machine lets soft limits and preflight pass moves that crash into the frame; homing searches that far before it gives up."
+      }
+    },
+    {
+      "pattern": "{a}jm", "for": { "a": ["x", "y", "z"] }, "rows": { "x": 281, "y": 296, "z": 311 }, "src": "EN config_app.c:{row}",
+      "label": "{A} maximum jerk", "short": "Jerk", "description": "Jerk limit of {A} moves, in millions (5000 = 5 000 000 000 per minute³).",
+      "unit": "Mmm/min3", "group": "axis-{a}", "tab": "axes", "access": "write",
+      "write": {
+        "valueType": "number", "range": { "min": 0, "max": 100000, "minExclusive": true },
+        "rangeSource": "EN canonical_machine.c:2897 (E158: 0 or less refused with 108); host: at most 100 000 (millions), so the firmware never applies its divide-by-a-million path for values above 1 000 000 (canonical_machine.c:2900-2902), which would change the meaning of the number",
+        "e158": true, "convert": true, "scope": "persisted", "risk": "high", "typedConfirm": { "kind": "increaseFactor", "factor": 2 }, "afterWrite": null,
+        "invalidates": ["job.*.preflight"],
+        "whatGoesWrong": "Too high, acceleration exceeds what the motors can deliver and they lose steps silently; a stop also takes longer to come to rest than the overrun bound assumes."
+      }
+    },
+    {
+      "pattern": "{a}jd", "for": { "a": ["x", "y", "z"] }, "rows": { "x": 283, "y": 298, "z": 313 }, "src": "EN config_app.c:{row}",
+      "label": "{A} junction deviation", "short": "Junction deviation", "description": "How far the path may round a corner at speed on {A} (larger is faster).",
+      "unit": "mm", "group": "axis-{a}", "tab": "axes", "access": "write",
+      "write": {
+        "valueType": "number", "range": { "min": 0, "max": 5, "minExclusive": true },
+        "rangeSource": "host: greater than 0 and at most 5 (typical values are hundredths of a millimetre); 450.02 refuses below 0.00001 (EN canonical_machine.c:2881-2892)",
+        "convert": true, "scope": "persisted", "risk": "medium", "typedConfirm": { "kind": "never" }, "afterWrite": null,
+        "invalidates": ["job.*.preflight"],
+        "whatGoesWrong": "Too large, corners are taken too fast and the motors can lose steps."
+      }
+    },
+    {
+      "pattern": "{a}jh", "for": { "a": ["x", "y", "z"] }, "rows": { "x": 282, "y": 297, "z": 312 }, "src": "EN config_app.c:{row}",
+      "label": "{A} homing jerk", "short": "Homing jerk", "description": "Jerk used when homing and when stopping at a switch on {A}, in millions.",
+      "unit": "Mmm/min3", "group": "axis-{a}", "tab": "axes", "access": "write",
+      "write": {
+        "valueType": "number", "range": { "min": 0, "max": 100000, "minExclusive": true },
+        "rangeSource": "EN canonical_machine.c:2897 (E158: 0 or less refused with 108); host: at most 100 000 (millions), so the firmware never applies its divide-by-a-million path for values above 1 000 000 (canonical_machine.c:2900-2902), which would change the meaning of the number",
+        "e158": true, "convert": true, "scope": "persisted", "risk": "medium", "typedConfirm": { "kind": "increaseFactor", "factor": 2 }, "afterWrite": null,
+        "invalidates": ["homing.{a}"],
+        "whatGoesWrong": "Too low, the axis overruns its switch before it stops; too high, the motors lose steps while homing."
+      }
+    },
+    {
+      "pattern": "{a}sn", "for": { "a": ["x", "y", "z", "a"] }, "rows": { "x": 284, "y": 299, "z": 314, "a": 330 }, "src": "EN config_app.c:{row}",
+      "label": "{A} minimum switch mode", "short": "{A} min switch", "description": "What the {A} minimum switch input does.",
+      "unit": "enum", "enum": "switchMode", "group": "inputs", "tab": "inputs", "access": "write",
+      "write": {
+        "valueType": "integer", "range": { "min": 0, "max": 4 },
+        "rangeSource": "EN switch.c:365-378 (sw_set_sw refuses more than SW_MODE_MAX_VALUE = 4, switch.h:42-47)",
+        "convert": false, "scope": "persisted", "risk": "high", "typedConfirm": { "kind": "always" }, "afterWrite": null,
+        "invalidates": ["switch.*", "homing.*"],
+        "whatGoesWrong": "A limit switch set to off no longer stops the machine at the end of travel. A homing switch on the wrong end, or on both ends, makes homing fail or drive into the far end."
+      }
+    },
+    {
+      "pattern": "{a}sx", "for": { "a": ["x", "y", "z", "a"] }, "rows": { "x": 285, "y": 300, "z": 315, "a": 331 }, "src": "EN config_app.c:{row}",
+      "label": "{A} maximum switch mode", "short": "{A} max switch", "description": "What the {A} maximum switch input does.",
+      "unit": "enum", "enum": "switchMode", "group": "inputs", "tab": "inputs", "access": "write",
+      "write": {
+        "valueType": "integer", "range": { "min": 0, "max": 4 },
+        "rangeSource": "EN switch.c:365-378 (sw_set_sw refuses more than SW_MODE_MAX_VALUE = 4, switch.h:42-47)",
+        "convert": false, "scope": "persisted", "risk": "high", "typedConfirm": { "kind": "always" }, "afterWrite": null,
+        "invalidates": ["switch.*", "homing.*"],
+        "whatGoesWrong": "A limit switch set to off no longer stops the machine at the end of travel. A homing switch on the wrong end, or on both ends, makes homing fail or drive into the far end."
+      }
+    },
+    {
+      "pattern": "{a}sv", "for": { "a": ["x", "y", "z"] }, "rows": { "x": 286, "y": 301, "z": 316 }, "src": "EN config_app.c:{row}",
+      "label": "{A} homing search velocity", "short": "Search speed", "description": "Velocity of the {A} homing search towards the switch.",
+      "unit": "mm/min", "group": "axis-{a}", "tab": "axes", "access": "write",
+      "write": {
+        "valueType": "number", "range": { "min": 0, "max": 200000, "minExclusive": true },
+        "rangeSource": "host: greater than 0 (450.02 refuses 0 and below too, EN canonical_machine.c:2821-2840); 200 000 per minute is far above any TinyG machine (0 fails homing with 242, EN error.h:358)",
+        "convert": true, "scope": "persisted", "risk": "medium", "typedConfirm": { "kind": "never" }, "afterWrite": null,
+        "invalidates": ["homing.{a}"],
+        "whatGoesWrong": "Too fast, the axis hits the switch hard and overruns it before it can stop."
+      }
+    },
+    {
+      "pattern": "{a}lv", "for": { "a": ["x", "y", "z"] }, "rows": { "x": 287, "y": 302, "z": 317 }, "src": "EN config_app.c:{row}",
+      "label": "{A} homing latch velocity", "short": "Latch speed", "description": "Velocity of the slow {A} move off the switch that sets the home position.",
+      "unit": "mm/min", "group": "axis-{a}", "tab": "axes", "access": "write",
+      "write": {
+        "valueType": "number", "range": { "min": 0, "max": 200000, "minExclusive": true },
+        "rangeSource": "host: greater than 0 (450.02 refuses 0 and below too, EN canonical_machine.c:2821-2840); 200 000 per minute is far above any TinyG machine (0 fails homing with 243, EN error.h:359)",
+        "convert": true, "scope": "persisted", "risk": "medium", "typedConfirm": { "kind": "never" }, "afterWrite": null,
+        "invalidates": ["homing.{a}"],
+        "whatGoesWrong": "Too fast, the home position repeats poorly from one homing to the next."
+      }
+    },
+    {
+      "pattern": "{a}lb", "for": { "a": ["x", "y", "z"] }, "rows": { "x": 288, "y": 303, "z": 318 }, "src": "EN config_app.c:{row}",
+      "label": "{A} latch backoff", "short": "Latch backoff", "description": "How far {A} backs off the switch to release it while homing.",
+      "unit": "mm", "group": "axis-{a}", "tab": "axes", "access": "write",
+      "write": {
+        "valueType": "number", "range": { "min": 0, "max": 1000 },
+        "rangeSource": "host: 0 to 1000; a negative latch backoff fails homing with 245 (EN error.h:361)",
+        "convert": true, "scope": "persisted", "risk": "medium", "typedConfirm": { "kind": "never" }, "afterWrite": null,
+        "invalidates": ["homing.{a}"],
+        "whatGoesWrong": "Too short, the switch never releases and homing fails; too long, the axis moves further than expected after touching the switch."
+      }
+    },
+    {
+      "pattern": "{a}zb", "for": { "a": ["x", "y", "z"] }, "rows": { "x": 289, "y": 304, "z": 319 }, "src": "EN config_app.c:{row}",
+      "label": "{A} zero backoff", "short": "Zero backoff", "description": "How far {A} moves off the switch after homing before it sets zero.",
+      "unit": "mm", "group": "axis-{a}", "tab": "axes", "access": "write",
+      "write": {
+        "valueType": "number", "range": { "min": 0, "max": 1000 },
+        "rangeSource": "host: 0 to 1000; a negative latch backoff fails homing with 245 (EN error.h:361)",
+        "convert": true, "scope": "persisted", "risk": "medium", "typedConfirm": { "kind": "never" }, "afterWrite": null,
+        "invalidates": ["homing.{a}", "job.*.preflight"],
+        "whatGoesWrong": "Zero stays on the switch: a limit switch can then trip during the first move of a job."
+      }
+    },
+
+    {
+      "pattern": "{a}am", "for": { "a": ["a", "b", "c"] }, "rows": { "a": 321, "b": 337, "c": 356 }, "src": "EN config_app.c:{row}",
+      "label": "{A} axis mode", "short": "Mode", "description": "How the {A} axis takes part in motion.",
+      "unit": "enum", "group": "axis-{a}", "tab": "axes", "access": "write",
+      "values": [{ "value": 0, "label": "disabled" }, { "value": 1, "label": "standard" }, { "value": 2, "label": "inhibited" }, { "value": 3, "label": "radius" }],
+      "labelSrc": "EN canonical_machine.c:2356-2360 msg_am",
+      "write": {
+        "valueType": "integer", "range": { "min": 0, "max": 3 },
+        "rangeSource": "EN canonical_machine.c:2756-2770 (linear axes up to 2, rotary up to 3; canonical_machine.h:287-293)",
+        "convert": false, "scope": "persisted", "risk": "high", "typedConfirm": { "kind": "always" }, "afterWrite": null,
+        "invalidates": ["homing.{a}", "job.*.preflight"],
+        "whatGoesWrong": "Disabled, the {A} axis ignores its words while jobs and the preview assume it moves. Inhibited, its position follows the program but its motor is held at step 0: the next move of ANY axis drives the motor there, so inhibiting {A} away from 0 moves it back to 0, and leaving inhibited mode away from 0 moves it out to its position. In radius mode every {A} word is read as a length and turned into degrees, so {A} turns 360 / (2π × radius) degrees per mm (about 57× at radius 1)."
+      }
+    },
+    {
+      "pattern": "{a}vm", "for": { "a": ["a", "b", "c"] }, "rows": { "a": 322, "b": 338, "c": 357 }, "src": "EN config_app.c:{row}",
+      "label": "{A} maximum velocity", "short": "Rapid speed", "description": "Velocity of {A} rapid (G0) moves.",
+      "unit": "deg/min", "group": "axis-{a}", "tab": "axes", "access": "write",
+      "write": {
+        "valueType": "number", "range": { "min": 0, "max": 200000, "minExclusive": true },
+        "rangeSource": "host: greater than 0 (450.02 refuses 0 and below too, EN canonical_machine.c:2821-2840); 200 000 per minute is far above any TinyG machine",
+        "convert": false, "scope": "persisted", "risk": "high", "typedConfirm": { "kind": "increaseFactor", "factor": 2 }, "afterWrite": null,
+        "invalidates": ["job.*.preflight"],
+        "whatGoesWrong": "Too high, the motors stall and lose position without any error; every later move is offset by the lost steps."
+      }
+    },
+    {
+      "pattern": "{a}fr", "for": { "a": ["a", "b", "c"] }, "rows": { "a": 323, "b": 339, "c": 358 }, "src": "EN config_app.c:{row}",
+      "label": "{A} maximum feed rate", "short": "Feed speed limit", "description": "Highest feed (G1, G2, G3) velocity on {A}.",
+      "unit": "deg/min", "group": "axis-{a}", "tab": "axes", "access": "write",
+      "write": {
+        "valueType": "number", "range": { "min": 0, "max": 200000, "minExclusive": true },
+        "rangeSource": "host: greater than 0 (450.02 refuses 0 and below too, EN canonical_machine.c:2821-2840); 200 000 per minute is far above any TinyG machine",
+        "convert": false, "scope": "persisted", "risk": "high", "typedConfirm": { "kind": "increaseFactor", "factor": 2 }, "afterWrite": null,
+        "invalidates": ["job.*.preflight"],
+        "whatGoesWrong": "Too high, feed moves can stall the motors and lose position; too low, jobs run slower than programmed."
+      }
+    },
+    {
+      "pattern": "{a}tn", "for": { "a": ["a", "b", "c"] }, "rows": { "a": 324, "b": 340, "c": 359 }, "src": "EN config_app.c:{row}",
+      "label": "{A} travel minimum", "short": "Start", "description": "Lowest {A} machine coordinate: the soft-limit and homing-search bound.",
+      "unit": "deg", "group": "axis-{a}", "tab": "axes", "access": "write",
+      "write": {
+        "valueType": "number", "range": { "min": -100000, "max": 100000 },
+        "rangeSource": "host: a finite position within ±100 m (or ±100 000°); across keys tn < tm, at least 0.01 apart, and a range the firmware soft-limit test sees as one (float32, not fp_EQ, both ends above DISABLE_SOFT_LIMIT; travel.ts)",
+        "convert": false, "scope": "persisted", "risk": "high", "typedConfirm": { "kind": "always" }, "afterWrite": "W20",
+        "invalidates": ["softlimits", "job.*.preflight"],
+        "whatGoesWrong": "A travel range larger than the machine lets soft limits and preflight pass moves that crash into the frame; homing searches that far before it gives up."
+      }
+    },
+    {
+      "pattern": "{a}tm", "for": { "a": ["a", "b", "c"] }, "rows": { "a": 325, "b": 341, "c": 360 }, "src": "EN config_app.c:{row}",
+      "label": "{A} travel maximum", "short": "End", "description": "Highest {A} machine coordinate: the soft-limit and homing-search bound.",
+      "unit": "deg", "group": "axis-{a}", "tab": "axes", "access": "write",
+      "write": {
+        "valueType": "number", "range": { "min": -100000, "max": 100000 },
+        "rangeSource": "host: a finite position within ±100 m (or ±100 000°); across keys tn < tm, at least 0.01 apart, and a range the firmware soft-limit test sees as one (float32, not fp_EQ, both ends above DISABLE_SOFT_LIMIT; travel.ts)",
+        "convert": false, "scope": "persisted", "risk": "high", "typedConfirm": { "kind": "always" }, "afterWrite": "W20",
+        "invalidates": ["softlimits", "job.*.preflight"],
+        "whatGoesWrong": "A travel range larger than the machine lets soft limits and preflight pass moves that crash into the frame; homing searches that far before it gives up."
+      }
+    },
+    {
+      "pattern": "{a}jm", "for": { "a": ["a", "b", "c"] }, "rows": { "a": 326, "b": 342, "c": 361 }, "src": "EN config_app.c:{row}",
+      "label": "{A} maximum jerk", "short": "Jerk", "description": "Jerk limit of {A} moves, in millions (5000 = 5 000 000 000 per minute³).",
+      "unit": "Mdeg/min3", "group": "axis-{a}", "tab": "axes", "access": "write",
+      "write": {
+        "valueType": "number", "range": { "min": 0, "max": 100000, "minExclusive": true },
+        "rangeSource": "EN canonical_machine.c:2897 (E158: 0 or less refused with 108); host: at most 100 000 (millions), so the firmware never applies its divide-by-a-million path for values above 1 000 000 (canonical_machine.c:2900-2902), which would change the meaning of the number",
+        "e158": true, "convert": false, "scope": "persisted", "risk": "high", "typedConfirm": { "kind": "increaseFactor", "factor": 2 }, "afterWrite": null,
+        "invalidates": ["job.*.preflight"],
+        "whatGoesWrong": "Too high, acceleration exceeds what the motors can deliver and they lose steps silently; a stop also takes longer to come to rest than the overrun bound assumes."
+      }
+    },
+    {
+      "pattern": "{a}jd", "for": { "a": ["a", "b", "c"] }, "rows": { "a": 328, "b": 343, "c": 362 }, "src": "EN config_app.c:{row}",
+      "label": "{A} junction deviation", "short": "Junction deviation", "description": "How far the path may round a corner at speed on {A} (larger is faster).",
+      "unit": "deg", "group": "axis-{a}", "tab": "axes", "access": "write",
+      "write": {
+        "valueType": "number", "range": { "min": 0, "max": 5, "minExclusive": true },
+        "rangeSource": "host: greater than 0 and at most 5 (typical values are hundredths of a millimetre); 450.02 refuses below 0.00001 (EN canonical_machine.c:2881-2892)",
+        "convert": false, "scope": "persisted", "risk": "medium", "typedConfirm": { "kind": "never" }, "afterWrite": null,
+        "invalidates": ["job.*.preflight"],
+        "whatGoesWrong": "Too large, corners are taken too fast and the motors can lose steps."
+      }
+    },
+    {
+      "pattern": "{a}ra", "for": { "a": ["a", "b", "c"] }, "rows": { "a": 329, "b": 344, "c": 363 }, "src": "EN config_app.c:{row}",
+      "label": "{A} radius", "short": "Radius", "description": "Radius used to convert linear units to degrees when {A} is in radius mode.",
+      "unit": "mm", "group": "axis-{a}", "tab": "axes", "access": "write",
+      "write": {
+        "valueType": "number", "range": { "min": 0, "max": 10000, "minExclusive": true },
+        "rangeSource": "host: greater than 0 and at most 10 m",
+        "convert": true, "scope": "persisted", "risk": "medium", "typedConfirm": { "kind": "never" }, "afterWrite": null,
+        "invalidates": ["scale.{a}", "job.*.preflight"],
+        "whatGoesWrong": "In radius mode a wrong radius scales every {A} move."
+      }
+    },
+    {
+      "pattern": "{a}jh", "for": { "a": ["a"] }, "rows": { "a": 327 }, "src": "EN config_app.c:{row}",
+      "label": "{A} homing jerk", "short": "Homing jerk", "description": "Jerk used when homing and when stopping at a switch on {A}, in millions.",
+      "unit": "Mdeg/min3", "group": "axis-{a}", "tab": "axes", "access": "write",
+      "write": {
+        "valueType": "number", "range": { "min": 0, "max": 100000, "minExclusive": true },
+        "rangeSource": "EN canonical_machine.c:2897 (E158: 0 or less refused with 108); host: at most 100 000 (millions), so the firmware never applies its divide-by-a-million path for values above 1 000 000 (canonical_machine.c:2900-2902), which would change the meaning of the number",
+        "e158": true, "convert": false, "scope": "persisted", "risk": "medium", "typedConfirm": { "kind": "increaseFactor", "factor": 2 }, "afterWrite": null,
+        "invalidates": ["homing.{a}"],
+        "whatGoesWrong": "Too low, the axis overruns its switch before it stops; too high, the motors lose steps while homing."
+      }
+    },
+    {
+      "pattern": "{a}sv", "for": { "a": ["a"] }, "rows": { "a": 332 }, "src": "EN config_app.c:{row}",
+      "label": "{A} homing search velocity", "short": "Search speed", "description": "Velocity of the {A} homing search towards the switch.",
+      "unit": "deg/min", "group": "axis-{a}", "tab": "axes", "access": "write",
+      "write": {
+        "valueType": "number", "range": { "min": 0, "max": 200000, "minExclusive": true },
+        "rangeSource": "host: greater than 0 (450.02 refuses 0 and below too, EN canonical_machine.c:2821-2840); 200 000 per minute is far above any TinyG machine (0 fails homing with 242, EN error.h:358)",
+        "convert": false, "scope": "persisted", "risk": "medium", "typedConfirm": { "kind": "never" }, "afterWrite": null,
+        "invalidates": ["homing.{a}"],
+        "whatGoesWrong": "Too fast, the axis hits the switch hard and overruns it before it can stop."
+      }
+    },
+    {
+      "pattern": "{a}lv", "for": { "a": ["a"] }, "rows": { "a": 333 }, "src": "EN config_app.c:{row}",
+      "label": "{A} homing latch velocity", "short": "Latch speed", "description": "Velocity of the slow {A} move off the switch that sets the home position.",
+      "unit": "deg/min", "group": "axis-{a}", "tab": "axes", "access": "write",
+      "write": {
+        "valueType": "number", "range": { "min": 0, "max": 200000, "minExclusive": true },
+        "rangeSource": "host: greater than 0 (450.02 refuses 0 and below too, EN canonical_machine.c:2821-2840); 200 000 per minute is far above any TinyG machine (0 fails homing with 243, EN error.h:359)",
+        "convert": false, "scope": "persisted", "risk": "medium", "typedConfirm": { "kind": "never" }, "afterWrite": null,
+        "invalidates": ["homing.{a}"],
+        "whatGoesWrong": "Too fast, the home position repeats poorly from one homing to the next."
+      }
+    },
+    {
+      "pattern": "{a}lb", "for": { "a": ["a"] }, "rows": { "a": 334 }, "src": "EN config_app.c:{row}",
+      "label": "{A} latch backoff", "short": "Latch backoff", "description": "How far {A} backs off the switch to release it while homing.",
+      "unit": "deg", "group": "axis-{a}", "tab": "axes", "access": "write",
+      "write": {
+        "valueType": "number", "range": { "min": 0, "max": 1000 },
+        "rangeSource": "host: 0 to 1000; a negative latch backoff fails homing with 245 (EN error.h:361)",
+        "convert": false, "scope": "persisted", "risk": "medium", "typedConfirm": { "kind": "never" }, "afterWrite": null,
+        "invalidates": ["homing.{a}"],
+        "whatGoesWrong": "Too short, the switch never releases and homing fails; too long, the axis moves further than expected after touching the switch."
+      }
+    },
+    {
+      "pattern": "{a}zb", "for": { "a": ["a"] }, "rows": { "a": 335 }, "src": "EN config_app.c:{row}",
+      "label": "{A} zero backoff", "short": "Zero backoff", "description": "How far {A} moves off the switch after homing before it sets zero.",
+      "unit": "deg", "group": "axis-{a}", "tab": "axes", "access": "write",
+      "write": {
+        "valueType": "number", "range": { "min": 0, "max": 1000 },
+        "rangeSource": "host: 0 to 1000; a negative latch backoff fails homing with 245 (EN error.h:361)",
+        "convert": false, "scope": "persisted", "risk": "medium", "typedConfirm": { "kind": "never" }, "afterWrite": null,
+        "invalidates": ["homing.{a}", "job.*.preflight"],
+        "whatGoesWrong": "Zero stays on the switch: a limit switch can then trip during the first move of a job."
+      }
+    }
+  ],
+  "enums": {
+    "switchMode": {
+      "labelSrc": "EN canonical_machine.c:3174 fmt_Xsn; switch.h:42-47",
+      "values": [
+        { "value": 0, "label": "off" }, { "value": 1, "label": "homing" }, { "value": 2, "label": "limit" },
+        { "value": 3, "label": "limit + homing" }, { "value": 4, "label": "probe" }
+      ]
+    }
+  },
+  "tokens": {
+    "st": {
+      "label": "Switch type", "short": "Switch contact",
+      "description": "Whether every homing and limit switch is normally open (0) or normally closed (1).",
+      "unit": "enum", "group": "inputs", "tab": "inputs", "access": "write", "src": "EN config_app.c:461",
+      "values": [{ "value": 0, "label": "normally open" }, { "value": 1, "label": "normally closed" }],
+      "labelSrc": "EN switch.c:387 fmt_st [0=NO,1=NC]",
+      "write": {
+        "valueType": "integer", "range": { "min": 0, "max": 1 },
+        "rangeSource": "EN switch.c:350-363 (set_01; E106); switch.h:50-51",
+        "convert": false, "scope": "persisted", "risk": "high", "typedConfirm": { "kind": "always" }, "afterWrite": null,
+        "invalidates": ["switch.*", "homing.*"],
+        "whatGoesWrong": "The wrong type makes every switch read as pressed or never pressed: limits trip at once, or never trip at all and the axis drives into its end."
+      }
+    },
+    "sl": {
+      "label": "Soft limits", "short": "Soft limits",
+      "description": "Refuse moves outside the travel range once the axes are homed.",
+      "unit": "enum", "group": "all-axes", "tab": "axes", "access": "write", "src": "EN config_app.c:460",
+      "values": [{ "value": 0, "label": "off" }, { "value": 1, "label": "on" }],
+      "write": {
+        "valueType": "integer", "range": { "min": 0, "max": 1 },
+        "rangeSource": "host: 0 or 1 (set_ui8 does not check)",
+        "convert": false, "scope": "persisted", "risk": "high", "typedConfirm": { "kind": "whenValue", "value": 0 }, "afterWrite": null,
+        "invalidates": ["softlimits"],
+        "whatGoesWrong": "With soft limits off, a G-code or jog error drives the machine past the end of travel."
+      }
+    },
+    "gun": {
+      "label": "Default units", "short": "Units at power-up",
+      "description": "Units mode at power-up and after a program end: 0 inches (G20), 1 millimetres (G21).",
+      "unit": "enum", "group": "system", "tab": "settings", "access": "write", "src": "EN config_app.c:520",
+      "values": [{ "value": 0, "label": "inches (G20)" }, { "value": 1, "label": "millimetres (G21)" }],
+      "labelSrc": "EN canonical_machine.c:3099 [0=G20,1=G21]",
+      "write": {
+        "valueType": "integer", "range": { "min": 0, "max": 1 },
+        "rangeSource": "EN canonical_machine.c:3099 [0=G20,1=G21] (set_01)",
+        "convert": false, "scope": "persisted", "risk": "medium", "typedConfirm": { "kind": "never" }, "afterWrite": null,
+        "invalidates": ["job.*.preflight"],
+        "whatGoesWrong": "A file without G20/G21 runs in the default units: a millimetre file read as inches moves 25.4 times too far."
+      }
+    },
+    "gdi": {
+      "label": "Default distance mode", "short": "Distance mode at power-up",
+      "description": "Distance mode at power-up and after a program end: 0 absolute (G90), 1 incremental (G91).",
+      "unit": "enum", "group": "system", "tab": "settings", "access": "write", "src": "EN config_app.c:523",
+      "values": [{ "value": 0, "label": "absolute (G90)" }, { "value": 1, "label": "incremental (G91)" }],
+      "labelSrc": "EN canonical_machine.c:3102 [0=G90,1=G91]",
+      "write": {
+        "valueType": "integer", "range": { "min": 0, "max": 1 },
+        "rangeSource": "EN canonical_machine.c:3102 [0=G90,1=G91] (set_01)",
+        "convert": false, "scope": "persisted", "risk": "medium", "typedConfirm": { "kind": "never" }, "afterWrite": null,
+        "invalidates": ["job.*.preflight"],
+        "whatGoesWrong": "A file that assumes absolute coordinates runs every move relative to the last one in G91."
+      }
+    },
+    "mt": {
+      "label": "Motor idle timeout", "short": "Motor idle time",
+      "description": "Seconds after motion stops before motors in power modes 2 and 3 are de-energized.",
+      "unit": "s", "group": "system", "tab": "motors", "access": "write", "src": "EN config_app.c:462",
+      "write": {
+        "valueType": "number", "range": { "min": 0.1, "max": 4294967 },
+        "rangeSource": "EN stepper.c:1602-1607 and stepper.h:281-282 (the firmware clamps to this range; the host refuses instead of letting it clamp)",
+        "convert": false, "scope": "persisted", "risk": "medium", "typedConfirm": { "kind": "never" }, "afterWrite": null,
+        "invalidates": [],
+        "whatGoesWrong": "A short timeout drops holding torque soon after each move: an unbraked Z axis can fall."
+      }
+    },
+    "spep": {
+      "label": "Spindle enable polarity", "short": "Spindle enable polarity",
+      "description": "Level of the spindle enable output for ON: 0 active low, 1 active high (the factory default).",
+      "unit": "enum", "group": "spindle-coolant", "tab": "io", "access": "write", "src": "EN config_app.c:649",
+      "values": [{ "value": 0, "label": "active low" }, { "value": 1, "label": "active high" }],
+      "write": {
+        "valueType": "integer", "range": { "min": 0, "max": 1 },
+        "rangeSource": "EN spindle.c:62-81 (more than 1 refused; refused while the spindle is on or the planner is busy); config_app.c:1117",
+        "convert": false, "scope": "persisted", "risk": "polarity", "typedConfirm": { "kind": "always" }, "afterWrite": null,
+        "invalidates": ["outputs.spindle"],
+        "whatGoesWrong": "With the wrong polarity, \"spindle off\" drives the output to the level an active-low relay or VFD reads as ON: the spindle starts when the app shows it stopped (SAFETY H11)."
+      }
+    },
+    "spdp": {
+      "label": "Spindle direction polarity", "short": "Spindle direction polarity",
+      "description": "Level of the spindle direction output for clockwise: 0 low, 1 high.",
+      "unit": "enum", "group": "spindle-coolant", "tab": "io", "access": "write", "src": "EN config_app.c:650",
+      "values": [{ "value": 0, "label": "CW low" }, { "value": 1, "label": "CW high" }],
+      "write": {
+        "valueType": "integer", "range": { "min": 0, "max": 1 },
+        "rangeSource": "EN spindle.c:62-81 (more than 1 refused; refused while the spindle is on or the planner is busy); config_app.c:1118",
+        "convert": false, "scope": "persisted", "risk": "polarity", "typedConfirm": { "kind": "always" }, "afterWrite": null,
+        "invalidates": ["outputs.spindle"],
+        "whatGoesWrong": "The spindle turns the opposite way to M3/M4: tools cut backwards, and threaded tool holders can loosen."
+      }
+    },
+    "prbp": {
+      "label": "Probe input polarity", "short": "Probe contact",
+      "description": "Whether the probe input is normally open (0) or normally closed (1), independent of the switch type.",
+      "unit": "enum", "group": "inputs", "tab": "inputs", "access": "write", "src": "EN config_app.c:656",
+      "values": [{ "value": 0, "label": "normally open" }, { "value": 1, "label": "normally closed" }],
+      "write": {
+        "valueType": "integer", "range": { "min": 0, "max": 1 },
+        "rangeSource": "EN switch.c:334-348 (more than 1 refused; refused while a cycle runs); config_app.c:1119",
+        "convert": false, "scope": "persisted", "risk": "polarity", "typedConfirm": { "kind": "always" }, "afterWrite": null,
+        "invalidates": ["probe.*"],
+        "whatGoesWrong": "With the wrong polarity the probe reads as triggered at once, or never: a probing move drives the tool into the work or the touch plate."
+      }
+    },
+    "os": {
+      "label": "Optional stop (M1)", "short": "Optional stop (M1)",
+      "description": "Whether M1 pauses the program. Session only: not saved, off after a reset.",
+      "unit": "enum", "group": "system", "tab": "settings", "access": "write", "src": "EN config_app.c:667",
+      "values": [{ "value": 0, "label": "off" }, { "value": 1, "label": "on" }],
+      "write": {
+        "valueType": "integer", "range": { "min": 0, "max": 1 },
+        "rangeSource": "EN config_app.c:668 (set_01); config_app.c:1120",
+        "convert": false, "scope": "session", "risk": "low", "typedConfirm": { "kind": "never" }, "afterWrite": null,
+        "invalidates": ["job.*.preflight"],
+        "whatGoesWrong": "With optional stop off, an M1 placed for a tool check or a clamp move does not pause the job."
+      }
+    }
+  }
+}

@@ -4,11 +4,14 @@
  * file (unclassified, g2core today) has none, and nothing of it is described
  * or writable.
  */
+import tinyg450 from '../../settings/tinyg-450.json' with { type: 'json' };
 import { expandSettingsFile } from './expand.ts';
 import type { SettingsFile } from './types.ts';
 
 /** Dialect id → raw file. */
-const FILES: Readonly<Record<string, unknown>> = Object.freeze({});
+const FILES: Readonly<Record<string, unknown>> = Object.freeze({
+  'tinyg-en': tinyg450,
+});
 
 const cache = new Map<string, SettingsFile>();
 
@@ -21,5 +24,12 @@ export function settingsDefsFor(dialectId: string, fb?: number): SettingsFile | 
     file = expandSettingsFile(FILES[dialectId], fb);
     cache.set(id, file);
   }
+  return file;
+}
+
+/** The definitions of a dialect that must have a file; throws when it has none. */
+export function requireSettingsDefs(dialectId: string, fb?: number): SettingsFile {
+  const file = settingsDefsFor(dialectId, fb);
+  if (file === null) throw new Error(`no settings file for dialect ${JSON.stringify(dialectId)}`);
   return file;
 }
