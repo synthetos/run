@@ -16,7 +16,7 @@ import { signal, type Signal } from '@preact/signals';
 import type { FirmwareRelease, FirmwareReleases } from '@synthetos/protocol';
 import type { UpdaterStep } from '../firmware/updater.ts';
 import type { FirmwareBackupRecord, InstalledRecord, SettingsBackupRecord, TrustRecord } from '../firmware/store.ts';
-import type { BoardSettings } from '@synthetos/schema';
+import type { BoardSettings, SettingValue } from '@synthetos/schema';
 import type { AdvisoryCheck } from '../live/advisoryGate.ts';
 import type { ConsoleAnswer } from '../live/consoleRead.ts';
 import type { EntryState } from '../live/liveEntry.ts';
@@ -75,7 +75,8 @@ export interface FirmwareHubView {
   /** The release list this page verified for its own environment. */
   readonly releases: { readonly ok: true; readonly list: FirmwareReleases } | { readonly ok: false; readonly reason: string };
   readonly step: UpdaterStep;
-  readonly settings: readonly Omit<SettingsBackupRecord, 'file'>[];
+  /** The settings backups on this computer, each with how many settings it holds. */
+  readonly settings: readonly (Omit<SettingsBackupRecord, 'file'> & { readonly settingsCount: number })[];
   readonly firmware: readonly Omit<FirmwareBackupRecord, 'hex' | 'eeprom'>[];
   readonly trust: readonly TrustRecord[];
   /** The image this browser last flashed onto the connected board, or null. */
@@ -85,7 +86,16 @@ export interface FirmwareHubView {
   /** The last message from a firmware action (a refusal, a result), or null. */
   readonly notice: { readonly kind: 'ok' | 'error'; readonly text: string } | null;
   /** A comparison of a stored settings backup with the board, when one was asked for. */
-  readonly compare: { readonly id: string; readonly changes: number; readonly same: number; readonly skipped: number; readonly notes?: readonly string[]; readonly keys: readonly string[] } | null;
+  readonly compare: {
+    readonly id: string;
+    readonly changes: number;
+    readonly same: number;
+    readonly skipped: number;
+    readonly notes?: readonly string[];
+    readonly keys: readonly string[];
+    /** Each setting that differs: its value in the backup and on the board now. */
+    readonly diffs?: readonly { readonly key: string; readonly backup: number; readonly board: SettingValue | undefined }[];
+  } | null;
   /** A release image being fetched from the site's own origin (OD-10), or null. */
   readonly download: FirmwareDownload | null;
 }

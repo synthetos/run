@@ -22,8 +22,7 @@ import { boardText, c38, w11, w28, w45, w46, w48, w49, w50 } from '@synthetos/sa
 import { type FirmwareRelease } from '@synthetos/protocol';
 import { signalText } from '../../shell/signal.ts';
 import { uiLevel } from '../jobWorkflow.ts';
-import { RestorePanel } from '../settings/SettingsUi.ts';
-import { backupBlocked } from '../../live/backup.ts';
+import { reviewOpen } from '../settings/reviewState.ts';
 import { Icon } from '../icons.ts';
 import { trustOffered } from '../trustOffer.ts';
 import { connected, type FirmwareActions, type FirmwareHubView, type LiveView, type WorkspaceModel } from '../model.ts';
@@ -114,9 +113,7 @@ function PostFlash({ view, hub }: { readonly view: LiveView; readonly hub: Firmw
 
 function RestoreButton({ view }: { readonly view: LiveView }): ComponentChild {
   const [msg, setMsg] = useState<string | null>(null);
-  return h(
-    'div',
-    null,
+  return h('div', null,
     h(
       'button',
       {
@@ -125,11 +122,12 @@ function RestoreButton({ view }: { readonly view: LiveView }): ComponentChild {
         'data-machine-control': 'settings-write',
         'data-action': 'restore-after-flash',
         disabled: view.apply.kind === 'backingUp' || view.apply.kind === 'writing',
-        onClick: () => void FIRMWARE_ACTIONS.current?.restore().then(setMsg),
+        // The staged values open in the review panel (Board settings spec §5.2), where Apply asks C5.
+        onClick: () => void FIRMWARE_ACTIONS.current?.restore().then((m) => { setMsg(m); reviewOpen.value = m === null; }),
       },
       view.apply.kind === 'writing' ? 'Restoring…' : 'Restore my settings',
     ),
-    h('p', { class: 'fine' }, 'Your backed-up values become pending changes. Apply them in Pending changes at the top: Run writes them one at a time and reads each back. Nothing else is written until they all match.'),
+    h('p', { class: 'fine' }, 'Your backed-up values become pending changes and open for review. Apply writes them one at a time and reads each back. Nothing else is written until they all match.'),
     msg === null ? null : h('p', { class: 'backup-progress danger', role: 'alert' }, msg),
   );
 }
@@ -334,22 +332,17 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
 }
 
 /**
- * The Board's Backups tab and the lower part of its Firmware tab (owner, 2026-11-09: one Firmware tab, one Backups
- * tab, in place of Firmware and Firmware & Backups). `part` picks what is drawn: `settings` the settings backups
- * (back up, import, compare, restore); `firmware` the firmware image backups, custom firmware and the trusted custom
- * builds (where C38 says a trust is revoked).
+ * The lower part of the Board's Firmware tab: the firmware image backups, custom firmware and the trusted custom
+ * builds (where C38 says a trust is revoked). The settings backups are the Backups tab (views/board/backups.ts,
+ * Board settings spec §5.8).
  */
-export function BackupsHub({ model, part }: { readonly model: WorkspaceModel | null; readonly part: 'settings' | 'firmware' }): ComponentChild {
+export function BackupsHub({ model }: { readonly model: WorkspaceModel | null }): ComponentChild {
   const view = model?.live.value ?? null;
   const actions = model?.actions.value ?? null;
   const fw = actions?.firmware;
   FIRMWARE_ACTIONS.current = fw ?? null;
   const hub = view?.firmware ?? null;
   const snapshot = view?.message?.snapshot ?? null;
-  const readBlocked = backupBlocked(snapshot);
-  // The Board's own settings read and the backup share the read path; one at a time, and the button says so.
-  const readingSettings = view?.readout.phase.kind === 'reading';
-  const status = view?.backup ?? { kind: 'idle' as const };
   const flashBlockedWhy = flashBlocked(view);
   const thisBoard = typeof snapshot?.identity?.id === 'string' ? snapshot.identity.id : null;
   const [target, setTarget] = useState<Target | null>(null);
@@ -358,27 +351,9 @@ export function BackupsHub({ model, part }: { readonly model: WorkspaceModel | n
   // One column, left-aligned, each section carrying its own action at natural width (owner, 2026-11-03: "never
   // stretch buttons across the screen"). The unsigned-firmware warning (W47) is shown where the decision is made,
   // in the flash confirmation beside C37, not as a permanent banner (OD-9).
-  const importPick = h(
-    'label',
-    { class: `button small file-pick${fw === undefined ? ' disabled' : ''}` },
-    'Import a backup file…',
-    h('input', {
-      type: 'file',
-      accept: 'application/json,.json',
-      class: 'sr-only',
-      disabled: fw === undefined,
-      'data-action': 'backup-import',
-      onChange: (e: Event) => {
-        const input = e.currentTarget as HTMLInputElement;
-        const file = input.files?.[0];
-        if (file !== undefined && fw !== undefined) void file.text().then((t) => say(fw.importSettings(t)));
-        input.value = '';
-      },
-    }),
-  );
   return h(
     'div',
-    { tabindex: 0, class: 'hub', 'data-region': part === 'settings' ? 'backups-hub' : 'firmware-hub' },
+    { tabindex: 0, class: 'hub', 'data-region': 'firmware-hub' },
     view !== null && target !== null
       ? h(ConfirmFlash, {
           view,
@@ -394,51 +369,7 @@ export function BackupsHub({ model, part }: { readonly model: WorkspaceModel | n
       : null,
     msg === null ? null : h('p', { class: 'backup-progress', role: 'status', 'data-hub-message': 'true' }, msg),
     hub?.notice === null || hub?.notice === undefined ? null : h('p', { class: `backup-progress ${hub.notice.kind === 'ok' ? 'ok' : 'danger'}`, role: 'status' }, hub.notice.text),
-    part !== 'settings' ? null : h(
-      'section',
-      { class: 'hub-section', 'aria-labelledby': 'hub-settings' },
-      h(
-        'header',
-        { class: 'hub-head' },
-        h('h2', { id: 'hub-settings' }, 'Settings backups'),
-        h(
-          'button',
-          { type: 'button', class: 'primary small', 'data-action': 'backup', 'data-machine-control': 'read', disabled: readBlocked !== null || readingSettings || status.kind === 'reading' || model === null, 'aria-describedby': 'backup-why', onClick: () => model?.actions.value?.backup() },
-          Icon('download', 16),
-          status.kind === 'reading' ? 'Reading…' : 'Back up settings',
-        ),
-      ),
-      h('p', { class: 'fine', id: 'backup-why', 'data-backup': readBlocked !== null ? 'blocked' : readingSettings ? 'waiting' : 'ready' }, readBlocked ?? (readingSettings ? "Reading the board's settings first; the backup can start when that finishes." : 'Kept on this computer. Run also backs up before every settings apply and every firmware update.')),
-      status.kind === 'reading' ? h('p', { class: 'backup-progress', role: 'status', 'data-backup': 'reading' }, `Reading ${status.token === '' ? 'the last answer' : `"${status.token}"`}: ${status.done} of ${status.of}`) : null,
-      status.kind === 'saved' ? h('p', { class: 'backup-progress ok', role: 'status', 'data-backup': 'saved' }, `Saved ${status.name}: ${status.answered} groups${status.unanswered === 0 ? '' : `, ${status.unanswered} unanswered (listed in the file)`}.`) : null,
-      status.kind === 'failed' ? h('p', { class: 'backup-progress danger', role: 'alert', 'data-backup': 'failed' }, `The backup was not saved: ${status.message}`) : null,
-      hub === null || hub.settings.length === 0
-        ? h('div', { class: 'hub-empty' }, h('p', { class: 'fine', 'data-settings-backups': '0' }, 'No settings backups on this computer yet.'), importPick)
-        : h(
-            'ul',
-            { class: 'hub-list', 'data-settings-backups': String(hub.settings.length) },
-            hub.settings.map((b) =>
-              h(
-                'li',
-                { key: b.id, 'data-backup-trigger': b.trigger },
-                h('div', { class: 'hub-row-main' }, h('strong', null, dateText(b.takenAt)), h('span', { class: 'tag' }, TRIGGER_WORDS[b.trigger]), h('small', null, `board ${b.boardId === null ? 'unknown' : boardText(b.boardId)} · firmware ${fbText(b.fb)}${b.boardId !== null && thisBoard !== null && b.boardId !== thisBoard ? ' · another board' : ''}`)),
-                hub.compare?.id === b.id ? hub.compare.notes?.map(note => h('p', { key: note, class: 'fine' }, note)) : null,
-                hub.compare?.id === b.id ? h('p', { class: 'fine', 'data-compare': 'result' }, hub.compare.changes === 0 ? `Matches the board (${hub.compare.same} settings).` : `${hub.compare.changes} differ from the board: ${hub.compare.keys.slice(0, 12).join(', ')}${hub.compare.keys.length > 12 ? '…' : ''}.`) : null,
-                h(
-                  'div',
-                  { class: 'row-actions' },
-                  h('button', { type: 'button', class: 'small', 'data-action': 'backup-compare', disabled: fw === undefined, onClick: () => fw !== undefined && say(fw.compareSettings(b.id)) }, 'Compare'),
-                  h('button', { type: 'button', class: 'small', 'data-machine-control': 'settings-write', 'data-action': 'backup-restore', disabled: fw === undefined || view?.message?.settingsWrites !== true, onClick: () => fw !== undefined && say(fw.stageSettings(b.id)) }, 'Restore…'),
-                  h('button', { type: 'button', class: 'small', 'data-action': 'backup-export', disabled: fw === undefined, onClick: () => void fw?.exportSettings(b.id) }, 'Export'),
-                  h('button', { type: 'button', class: 'small', 'data-action': 'backup-delete', disabled: fw === undefined, onClick: () => void fw?.deleteSettings(b.id) }, 'Delete'),
-                ),
-              ),
-            ),
-          ),
-      hub !== null && hub.settings.length > 0 ? h('div', { class: 'hub-foot' }, importPick) : null,
-      h(RestorePanel, { view }),
-    ),
-    part !== 'firmware' ? null : h(
+    h(
       'section',
       { class: 'hub-section', 'aria-labelledby': 'hub-images' },
       h('header', { class: 'hub-head' }, h('h2', { id: 'hub-images' }, 'Firmware image backups'), h('span', { class: 'fine' }, 'Read from the board before each update')),
@@ -467,7 +398,7 @@ export function BackupsHub({ model, part }: { readonly model: WorkspaceModel | n
             ),
           ),
     ),
-    part !== 'firmware' ? null : h(
+    h(
       'section',
       { class: 'hub-section', 'aria-labelledby': 'hub-custom' },
       h(
@@ -496,7 +427,7 @@ export function BackupsHub({ model, part }: { readonly model: WorkspaceModel | n
       ),
       h('p', { class: 'fine' }, 'Unsigned builds are flashed after a backup and stay read-only until you trust them on this board. The full warning is shown before you confirm.'),
     ),
-    part !== 'firmware' ? null : h(
+    h(
       'section',
       { class: 'hub-section', 'aria-labelledby': 'hub-trust' },
       h('header', { class: 'hub-head' }, h('h2', { id: 'hub-trust' }, 'Trusted custom builds'), h('span', { class: 'fine' }, 'On this computer only')),
@@ -518,7 +449,6 @@ export function BackupsHub({ model, part }: { readonly model: WorkspaceModel | n
   );
 }
 
-const TRIGGER_WORDS: Readonly<Record<string, string>> = { manual: 'On demand', 'before-apply': 'Before a settings apply', 'before-update': 'Before an update', import: 'Imported' };
 
 async function sha256Of(text: string): Promise<string> {
   const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));

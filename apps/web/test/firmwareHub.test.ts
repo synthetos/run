@@ -15,6 +15,9 @@ import { mountFirmware, type FirmwareHub } from '../src/live/firmwareHub.ts';
 import { memoryDeviceSafety } from '../src/live/deviceSafety.ts';
 import type { SnapshotMessage } from '../src/machine-worker/rpc.ts';
 import type { FirmwareDownload } from '../src/workspace/model.ts';
+import type { BackupFile } from '../src/live/backup.ts';
+import { clearDraft, draftStore } from '../src/workspace/boardFacts.ts';
+import { boardView } from './boardViews.ts';
 
 const REPO = resolve(import.meta.dirname, '../../..');
 const IMAGE = readFileSync(join(REPO, 'firmware/tinyg-440.21.hex'));
@@ -196,5 +199,79 @@ describe('firmware hub: downloading a listed release (OD-10)', () => {
     // Flashing a checked image whose text was altered since: refused by the hub's own re-check, never sent to the worker.
     expect(await h.actions.updateRelease({ ...local.image, hex: text.replace(':10', ':11') })).toMatch(/SHA-256/);
     expect(flashes).toEqual([]);
+  });
+});
+
+describe('firmware hub: settings backups (Board settings spec §5.8)', () => {
+  const BOARD = { xvm: 16000, '1mi': 8, st: 0 };
+  const file = (over: Record<string, unknown> = {}): string =>
+    JSON.stringify({
+      format: 'synthetos-run-settings-backup', version: 1, takenAt: '2026-11-18T10:00:00.000Z', reason: 'manual',
+      board: { id: 'SIM-EN-0001', dialect: 'tinyg-en', fb: 450.06, fv: 0.97, hp: 1, hv: 8, fbs: null },
+      units: { unit: 1, label: 'mm', g21Sent: false, note: '' }, method: '', groups: {}, tokens: { xvm: 12000, '1mi': 4, hv: 7, st: 0 }, unanswered: [], ...over,
+    });
+
+  async function mounted(): Promise<FirmwareHub> {
+    vi.stubGlobal('fetch', served().fetch);
+    const h = await mountFirmware({
+      store: memoryDeviceSafety(),
+      flash: () => Promise.resolve(null),
+      read: () => Promise.resolve(null),
+      runBackup: () => Promise.reject(new Error('not read in this test')),
+      boardSettings: () => BOARD,
+      stageRestore: () => undefined,
+      reread: () => undefined,
+      onChange: () => undefined,
+    });
+    h.onSnapshot(boardView({ settings: BOARD }).message as SnapshotMessage, true, 1);
+    return h;
+  }
+  const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
+
+  beforeEach(() => {
+    vi.stubGlobal('location', { origin: 'http://localhost:8793' });
+    vi.stubGlobal('indexedDB', undefined);
+    clearDraft();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('an added file is listed as "import" with its settings count; a backup before an update is listed as such', async () => {
+    const h = await mounted();
+    expect(await h.actions.importSettings(file())).toBeNull();
+    await h.record(JSON.parse(file({ takenAt: '2026-11-18T11:00:00.000Z' })) as BackupFile, 'before-update');
+    await settle();
+    expect(h.view().settings.map((s) => [s.trigger, s.settingsCount]).sort()).toEqual([['before-update', 4], ['import', 4]]);
+  });
+
+  it('compare lists each differing setting with its backup and board values', async () => {
+    const h = await mounted();
+    await h.actions.importSettings(file());
+    await settle();
+    const id = h.view().settings[0]?.id as string;
+    expect(await h.actions.compareSettings(id)).toBeNull();
+    expect([...(h.view().compare?.diffs ?? [])].sort((a, b) => a.key.localeCompare(b.key))).toEqual([{ key: '1mi', backup: 4, board: 8 }, { key: 'xvm', backup: 12000, board: 16000 }]);
+  });
+
+  it('restore stages through restoreChanges (identity keys skipped); a backup read in inches is refused', async () => {
+    const h = await mounted();
+    await h.actions.importSettings(file());
+    await h.actions.importSettings(file({ takenAt: '2026-11-18T12:00:00.000Z', units: { unit: 0, label: 'in', g21Sent: false, note: '' } }));
+    await settle();
+    const byTime = (t: string): string => h.view().settings.find((s) => s.takenAt === t)?.id as string;
+    expect(await h.actions.stageSettings(byTime('2026-11-18T12:00:00.000Z'))).toBe('This backup was not read in millimetres, so its lengths cannot be restored safely.');
+    expect(draftStore.value.value).toEqual({});
+    expect(await h.actions.stageSettings(byTime('2026-11-18T10:00:00.000Z'))).toBeNull();
+    expect(draftStore.value.value).toEqual({ xvm: 12000, '1mi': 4 });
+  });
+
+  it('restore refuses a backup from another dialect; adding a file that is not a backup says so', async () => {
+    const h = await mounted();
+    expect(await h.actions.importSettings('not json')).toBe('This is not a Run settings backup.');
+    await h.actions.importSettings(file({ board: { id: 'X', dialect: 'tinyg-440', fb: 440.21, fv: 0.97, hp: 1, hv: 8, fbs: null } }));
+    await settle();
+    expect(await h.actions.stageSettings(h.view().settings[0]?.id as string)).toBe('This backup is from tinyg-440, not tinyg-en.');
+    expect(draftStore.value.value).toEqual({});
   });
 });

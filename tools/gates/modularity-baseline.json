@@ -45,7 +45,7 @@
       "complexity $/ClassDeclaration:SettingsBackup#1/FunctionExpression:run#1": 34
     },
     "apps/web/src/live/firmwareHub.ts": {
-      "max-lines-per-function $/FunctionDeclaration:mountFirmware#1": 194,
+      "max-lines-per-function $/FunctionDeclaration:mountFirmware#1": 192,
       "max-methods $/FunctionDeclaration:mountFirmware#1/ObjectExpression:actions#1": 24
     },
     "apps/web/src/live/liveMarker.ts": {
@@ -299,10 +299,6 @@
     "apps/web/src/workspace/samples.ts": {
       "max-params $/FunctionDeclaration:mountingPlate#1/ArrowFunctionExpression:edge#1": 5
     },
-    "apps/web/src/workspace/settings/SettingsUi.ts": {
-      "complexity $/FunctionDeclaration:RestorePanel#1": 16,
-      "complexity $/FunctionDeclaration:stageRestore#1": 21
-    },
     "apps/web/src/workspace/settings/pending.ts": {
       "complexity $/FunctionDeclaration:settingsWriteBlocked#1": 19
     },
@@ -327,11 +323,11 @@
       "complexity $/FunctionDeclaration:AnalyzeView#1": 29
     },
     "apps/web/src/workspace/views/FirmwareViews.ts": {
-      "complexity $/FunctionDeclaration:BackupsHub#1": 55,
+      "complexity $/FunctionDeclaration:BackupsHub#1": 29,
       "complexity $/FunctionDeclaration:FirmwareTab#1": 94,
       "complexity $/FunctionDeclaration:flashBlocked#1": 19,
-      "max-lines $file": 475,
-      "max-lines-per-function $/FunctionDeclaration:BackupsHub#1": 174,
+      "max-lines $file": 406,
+      "max-lines-per-function $/FunctionDeclaration:BackupsHub#1": 109,
       "max-lines-per-function $/FunctionDeclaration:FirmwareTab#1": 134
     },
     "apps/web/src/workspace/views/JobStatusCard.ts": {

@@ -12,13 +12,13 @@ import { changeRisk, type PlannedChange } from '@synthetos/schema';
 import { SettingsApplier, type ApplyDeps, type ApplyState } from '../src/live/settingsApply.ts';
 import type { BackupFile } from '../src/live/backup.ts';
 import { createWorkspaceModel, INITIAL_LIVE_VIEW, type LiveView } from '../src/workspace/model.ts';
-import { clearDraft, draftStore, setDraft } from '../src/workspace/boardFacts.ts';
+import { clearDraft, setDraft } from '../src/workspace/boardFacts.ts';
 import { pendingPlan, settingsWriteBlocked, writableKey } from '../src/workspace/settings/pending.ts';
 import { editBlocked } from '../src/workspace/settings/editGate.ts';
 import { ReviewPanel } from '../src/workspace/settings/ReviewPanel.ts';
 import { reviewOpen } from '../src/workspace/settings/reviewState.ts';
 import { AllSettings } from '../src/workspace/settings/AllSettings.ts';
-import { ApplyConfirm, stageRestore } from '../src/workspace/settings/SettingsUi.ts';
+import { ApplyConfirm } from '../src/workspace/settings/SettingsUi.ts';
 
 type Snapshot = NonNullable<LiveView['message']>['snapshot'];
 type SettingWrite = NonNullable<Snapshot['settingWrite']>;
@@ -297,16 +297,6 @@ describe('the settings controls gate (enabled only with the phase switch on and 
     expect(html).not.toMatch(/<details/);
   });
 
-  it('restore stages a backup by token name and refuses a backup from another dialect or in inches', () => {
-    clearDraft();
-    const v = view(snap());
-    const ok = stageRestore(JSON.stringify({ ...BACKUP, tokens: { ...BOARD, xvm: 12000, hv: 7, fb: 449 } }), v);
-    expect(ok).toMatchObject({ ok: true });
-    expect(draftStore.value.value).toEqual({ xvm: 12000 });
-    if (ok.ok) expect(ok.result.skipped.map((s) => s.key)).toEqual(expect.arrayContaining(['fb', 'hv', 'jv']));
-    expect(stageRestore(JSON.stringify({ ...BACKUP, board: { ...BACKUP.board, dialect: 'tinyg-440' } }), v)).toMatchObject({ ok: false });
-    expect(stageRestore(JSON.stringify({ ...BACKUP, units: { ...BACKUP.units, unit: 0 } }), v)).toMatchObject({ ok: false });
-    expect(stageRestore('not json', v)).toMatchObject({ ok: false });
-    clearDraft();
-  });
+  // Restoring a backup file now goes through "Add a backup file…" and Restore on its row (Board settings spec §5.8):
+  // firmwareHub.test.ts holds the staging, identity-skip, other-dialect and inches checks for that one path.
 });

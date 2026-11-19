@@ -265,7 +265,8 @@ describe('Phase 1 control allowlist', () => {
     for (const k of MACHINE_DISABLED) if (k !== 'override') expect(seen.has(k), `no ${k} control rendered`).toBe(true);
     expect(seen.has('stop')).toBe(true);
     expect(seen.has('read')).toBe(true);
-    expect(seen.has('settings-write')).toBe(true);
+    // Board settings (spec 2026-11-18 §5.2, §5.8): Apply, Revert and Restore exist only with a connected, writable board.
+    expect(seen.has('settings-write')).toBe(false);
     expect(seen.has('flash')).toBe(true);
   });
 

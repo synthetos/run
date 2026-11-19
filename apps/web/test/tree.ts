@@ -18,6 +18,7 @@ function flatten(children: ComponentChildren): ComponentChild[] {
 /** Expands components and drops null/boolean children. */
 export function expand(node: ComponentChild): (El | string)[] {
   if (node === null || node === undefined || typeof node === 'boolean') return [];
+  if (Array.isArray(node)) return (node as ComponentChild[]).flatMap(expand);
   if (typeof node === 'string' || typeof node === 'number' || typeof node === 'bigint') return [String(node)];
   const vnode = node as { type: unknown; props: Record<string, unknown> };
   if (typeof vnode.type === 'function') {
@@ -39,6 +40,7 @@ export function expand(node: ComponentChild): (El | string)[] {
  */
 export function rootUntil(node: ComponentChild, stop: readonly unknown[]): El {
   const walk = (n: ComponentChild): (El | string)[] => {
+    if (Array.isArray(n)) return (n as ComponentChild[]).flatMap(walk);
     const vnode = n as { type: unknown; props: Record<string, unknown> } | null;
     if (vnode !== null && typeof vnode === 'object' && stop.includes(vnode.type)) return [{ tag: (vnode.type as { name: string }).name, props: vnode.props, children: [] }];
     if (vnode !== null && typeof vnode === 'object' && typeof vnode.type === 'function') return walk((vnode.type as (p: unknown) => ComponentChild)(vnode.props));

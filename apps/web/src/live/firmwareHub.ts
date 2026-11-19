@@ -11,7 +11,7 @@ import { restoreChanges, settingsReadGroups, type PlannedChange, type SettingVal
 import { loadFirmwareCatalog } from './firmwareCatalog.ts';
 import { fetchFirmwareImage } from '../cloud/live.ts';
 import { FirmwareUpdater } from '../firmware/updater.ts';
-import { installedKey, memoryRepository, openRepository, parseBackupImport, settingsRecord, trustRecords, type BackupRepository, type InstalledRecord } from '../firmware/store.ts';
+import { installedKey, memoryRepository, openRepository, parseBackupImport, settingsRecord, trustRecords, type BackupRepository, type InstalledRecord, type SettingsBackupRecord } from '../firmware/store.ts';
 import { approvalEnvironment } from '../machine-worker/approval.ts';
 import type { FlashBackupsPost, FlashCommand, SnapshotMessage } from '../machine-worker/rpc.ts';
 import type { FirmwareActions, FirmwareDownload, FirmwareHubView } from '../workspace/model.ts';
@@ -40,8 +40,26 @@ export interface FirmwareHub {
   readonly updater: FirmwareUpdater;
   onSnapshot(m: SnapshotMessage, readoutDone: boolean, readoutSeq: number): void;
   onBackups(post: FlashBackupsPost): void;
-  /** A backup the page took itself (on demand, before an apply): stored with its trigger. */
-  record(file: BackupFile, trigger: 'manual' | 'before-apply'): Promise<void>;
+  /** A backup the page took itself (on demand, before an apply, before a firmware update): stored with its trigger. */
+  record(file: BackupFile, trigger: 'manual' | 'before-apply' | 'before-update'): Promise<void>;
+}
+
+/** Why a stored settings backup cannot be staged as pending changes, or null (the one restore path, spec §5.8). */
+export function restoreRefusal(r: SettingsBackupRecord | undefined, dialect: string | null): string | null {
+  if (r === undefined) return 'That backup is not on this computer.';
+  if (dialect === null) return 'Connect the board first.';
+  if (r.file.board.dialect !== dialect) return `This backup is from ${r.file.board.dialect}, not ${dialect}.`;
+  // Lengths in a backup read under G20 are inches; writes are millimetres only (SAFETY §4.6 step 5, H60).
+  if (r.file.units?.unit !== 1) return 'This backup was not read in millimetres, so its lengths cannot be restored safely.';
+  return null;
+}
+
+/** A backup compared with the board: counts, the differing keys, and each one's value in the backup and on the board. */
+function compareView(c: { readonly id: string; readonly record: SettingsBackupRecord; readonly dialect: string; readonly board: Readonly<Record<string, SettingValue>>; readonly fb: number | undefined }): FirmwareHubView['compare'] {
+  const result = restoreChanges(c.dialect, c.record.file.tokens, c.board, c.fb);
+  const notes = [...new Set(result.skipped.filter((skip) => skip.reason.startsWith('Not on 450.05:')).map((skip) => skip.reason))];
+  const diffs = result.changes.map((ch) => ({ key: ch.key, backup: ch.value, board: c.board[ch.key] }));
+  return { id: c.id, changes: result.changes.length, same: result.same, skipped: result.skipped.length, keys: result.changes.map((ch) => ch.key), diffs, notes };
 }
 
 export async function mountFirmware(deps: FirmwareHubDeps): Promise<FirmwareHub> {
@@ -93,7 +111,7 @@ export async function mountFirmware(deps: FirmwareHubDeps): Promise<FirmwareHub>
     if (loadedRevision === updater.revision && installedFor === boardId) return;
     loadedRevision = updater.revision;
     installedFor = boardId;
-    settings = (await repo.listSettings()).map(({ file: _f, ...rest }) => rest);
+    settings = (await repo.listSettings()).map(({ file, ...rest }) => ({ ...rest, settingsCount: Object.keys(file.tokens).length }));
     firmware = (await repo.listFirmware()).map(({ hex: _h, eeprom: _e, ...rest }) => rest);
     trust = await trustRecords(deps.store);
     installed = boardId === null ? null : (((await deps.store.get(installedKey(boardId))) as InstalledRecord | undefined) ?? null);
@@ -189,20 +207,18 @@ export async function mountFirmware(deps: FirmwareHubDeps): Promise<FirmwareHub>
       const dialect = message?.snapshot.classification?.dialectId ?? null;
       if (r === undefined) return 'That backup is not on this computer.';
       if (dialect === null) return 'Connect the board to compare.';
-      const result = restoreChanges(dialect, r.file.tokens, deps.boardSettings(), message?.snapshot.identity?.fb);
-      compare = { id, changes: result.changes.length, same: result.same, skipped: result.skipped.length, keys: result.changes.map((c) => c.key), notes: [...new Set(result.skipped.filter(skip => skip.reason.startsWith('Not on 450.05:')).map(skip => skip.reason))] };
+      compare = compareView({ id, record: r, dialect, board: deps.boardSettings(), fb: message?.snapshot.identity?.fb });
       deps.onChange();
       return null;
     },
     stageSettings: async (id) => {
       const r = (await repo.listSettings()).find((x) => x.id === id);
       const dialect = message?.snapshot.classification?.dialectId ?? null;
-      if (r === undefined) return 'That backup is not on this computer.';
-      if (dialect === null) return 'Connect the board first.';
-      if (r.file.board.dialect !== dialect) return `This backup is from ${r.file.board.dialect}, not ${dialect}.`;
+      const refused = restoreRefusal(r, dialect);
+      if (refused !== null || r === undefined || dialect === null) return refused;
       const result = restoreChanges(dialect, r.file.tokens, deps.boardSettings(), message?.snapshot.identity?.fb);
       for (const c of result.changes) setDraft(c.key, c.value);
-      say('ok', `${result.changes.length} settings are now pending changes; review them in Pending changes, then Apply.`);
+      say('ok', `${result.changes.length} settings are now pending changes. Review and apply them from the bar at the bottom.`);
       return null;
     },
     downloadFirmware: async (id) => {
@@ -225,7 +241,7 @@ export async function mountFirmware(deps: FirmwareHubDeps): Promise<FirmwareHub>
     },
   };
 
-  async function record(file: BackupFile, trigger: 'manual' | 'before-apply'): Promise<void> {
+  async function record(file: BackupFile, trigger: 'manual' | 'before-apply' | 'before-update'): Promise<void> {
     await repo.putSettings(settingsRecord(file, trigger));
     changed();
   }

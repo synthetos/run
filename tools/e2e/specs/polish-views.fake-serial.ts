@@ -119,7 +119,8 @@ for (const theme of ['light', 'dark'] as const) {
       await page.locator('[data-action="backup"]').click();
       await expect(page.locator('[data-settings-backups]')).toHaveAttribute('data-settings-backups', String(i), { timeout: 20_000 });
     }
-    expect(await background(page.locator('.hub-list > li').nth(1))).toBe(stripe);
+    // Board settings spec §5.8: the settings backups are one zebra table.
+    expect(await background(page.locator('.backup-table > tbody > tr').nth(1))).toBe(stripe);
     await shot(page, 'board-backups', theme);
 
     await rail(page, 'library');

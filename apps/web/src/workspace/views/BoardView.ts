@@ -35,6 +35,7 @@ import { InputsTab } from './board/inputs.ts';
 import { MotorsTab } from './board/motors.ts';
 import { OutputsTab } from './board/outputs.ts';
 import { OverviewTab } from './board/overview.ts';
+import { BackupsSection } from './board/backups.ts';
 import { SettingsTab } from './board/settings.ts';
 import { BackupsHub, FirmwareTab } from './FirmwareViews.ts';
 
@@ -76,8 +77,8 @@ export function BoardView({ model }: { readonly model: WorkspaceModel | null }):
     pane('io', h(OutputsTab, { view })),
     pane('comms', h(CommsTab, { view })),
     pane('settings', h(SettingsTab, { model })),
-    pane('firmware', h('div', { class: 'firmware-tab' }, h(FirmwareTab, { model }), h(BackupsHub, { model, part: 'firmware' }))),
-    pane('backups', h(BackupsHub, { model, part: 'settings' })),
+    pane('firmware', h('div', { class: 'firmware-tab' }, h(FirmwareTab, { model }), h(BackupsHub, { model }))),
+    pane('backups', h(BackupsSection, { model })),
     h('div', { class: 'pending-dock' }, h(ReviewPanel, { model }), h(PendingBar, { model })),
   );
 }
