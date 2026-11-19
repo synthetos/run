@@ -17,7 +17,7 @@ import { pendingPlan, settingsWriteBlocked, writableKey } from '../src/workspace
 import { editBlocked } from '../src/workspace/settings/editGate.ts';
 import { ReviewPanel } from '../src/workspace/settings/ReviewPanel.ts';
 import { reviewOpen } from '../src/workspace/settings/reviewState.ts';
-import { AllSettings } from '../src/workspace/settings/AllSettings.ts';
+import { AllSettings, settingsGroup } from '../src/workspace/settings/AllSettings.ts';
 import { ApplyConfirm } from '../src/workspace/settings/SettingsUi.ts';
 
 type Snapshot = NonNullable<LiveView['message']>['snapshot'];
@@ -290,10 +290,12 @@ describe('the settings controls gate (enabled only with the phase switch on and 
     expect(html).toMatch(/Write 2 settings to this board \(SIM-EN-0001\)/);
   });
 
-  it('All settings is one grouped, searchable table with plain names, units and descriptions', () => {
+  it('All settings is a searchable table, one group at a time, with plain names, units and descriptions', () => {
+    settingsGroup.value = 'axis-x';
     const html = renderToString(h(AllSettings, { view: view(snap()) }));
+    settingsGroup.value = null;
     expect(html).toMatch(/aria-label="Search settings"/);
-    expect(html).toMatch(/class="group-row"/);
+    expect(html).toMatch(/class="settings-group-head" data-group="axis-x"/);
     expect(html).toMatch(/data-key="xvm"/);
     expect(html).toMatch(/mm\/min/);
     expect(html).not.toMatch(/<details/);

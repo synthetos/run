@@ -1,108 +1,101 @@
 /**
  * All settings (Board settings spec §5.7, OD-44, mockup 2026-11-18-board-config-all-settings): every setting the
  * board reported, at both levels, grouped by the settings file, with the same control as the tabs. Simple shows the
- * plain name and the value in words; Advanced adds the raw token beside them. A small "i" opens the description on
- * its own line. Search by name, value words or token; one group at a time; only pending changes.
+ * plain name and the value in words; Advanced adds the raw token beside them. Owner walk 2026-11-19 (no scrolling):
+ * the group chips act as tabs and show one group at a time; a search or "Only pending" looks across every group; the
+ * rows page to fit the window; a small "i" opens the description in one line under the list.
  */
 import { h, type ComponentChild } from 'preact';
-import { useState } from 'preact/hooks';
-import type { SettingDefinition, SettingsFile } from '@synthetos/schema';
+import { signal } from '@preact/signals';
+import { useRef, useState } from 'preact/hooks';
+import type { SettingsFile } from '@synthetos/schema';
 import { draftStore } from '../boardFacts.ts';
 import { uiLevel } from '../jobWorkflow.ts';
 import type { LiveView } from '../model.ts';
-import { allSettingsRows, readOnlyGroup, type SettingsGroupRows } from './allSettingsModel.ts';
+import { allSettingsRows, pageOf, settingsItems, type SettingsGroupRows } from './allSettingsModel.ts';
+import { SettingsTable } from './allSettingsTable.ts';
 import { defsFor } from './defs.ts';
-import { SettingControl } from './SettingControl.ts';
+import { usePageSize } from './pageSize.ts';
 import { StatusFields } from './statusFields.ts';
 
-interface RowProps {
-  readonly k: string;
-  readonly defs: SettingsFile | null;
-  readonly view: LiveView | null;
-  readonly advanced: boolean;
-  readonly lockTags: boolean;
-  readonly open: boolean;
-  readonly onInfo: () => void;
+/** The group shown (null: the first one), kept across visits to other tabs. */
+export const settingsGroup = signal<string | null>(null);
+const settingsPage = signal(0);
+const LINE_PX = 34;
+const FOOT = 'Live readouts (input states, homed axes, positions) are on Inputs, Axes and the Job view.';
+
+function pick(id: string): void {
+  settingsGroup.value = id;
+  settingsPage.value = 0;
 }
 
-const LOCKED = new Set(['read', 'forbidden', 'reserved', 'readout']);
-
-/** The reason a setting is not written, as a tag, unless its group header already says why. */
-function lockTag(d: SettingDefinition | null, show: boolean): ComponentChild {
-  return show && d !== null && LOCKED.has(d.access) && d.reason !== undefined ? h('span', { class: 'tag', 'data-lock': '' }, d.reason) : null;
-}
-
-/** The plain name; at Advanced the raw token beside it (OD-44: the token with the text, never alone). */
-function NameCell({ d, k, advanced, open, onInfo }: { readonly d: SettingDefinition | null; readonly k: string; readonly advanced: boolean; readonly open: boolean; readonly onInfo: () => void }): ComponentChild {
-  if (d === null) return h('th', { scope: 'row' }, k);
-  return h('th', { scope: 'row' }, d.label, advanced ? h('code', { class: 'raw-key' }, k) : null, h('button', { type: 'button', class: 'icon-button quiet info-toggle', 'aria-label': `What ${d.label} does`, 'aria-expanded': open ? 'true' : 'false', onClick: onInfo }, 'i'));
-}
-
-/** One row: the name, then the value once (the same control as the tabs, in the board's units), then why it is locked. */
-function Row(p: RowProps): ComponentChild {
-  const d = p.defs?.tokens.get(p.k) ?? null;
-  return [
-    h(
-      'tr',
-      { key: p.k, 'data-key': p.k, class: draftStore.value.value[p.k] === undefined ? undefined : 'drafted' },
-      h(NameCell, { d, k: p.k, advanced: p.advanced, open: p.open, onInfo: p.onInfo }),
-      h('td', { 'data-value': '' }, h(SettingControl, { k: p.k, view: p.view }), lockTag(d, p.lockTags)),
-    ),
-    p.open && d !== null ? h('tr', { key: `${p.k}-desc`, class: 'desc-row' }, h('td', { colSpan: 2, class: 'settings-desc' }, d.description)) : null,
-  ];
-}
-
-function Group({ g, defs, view, advanced, open, setOpen }: { readonly g: SettingsGroupRows; readonly defs: SettingsFile | null; readonly view: LiveView | null; readonly advanced: boolean; readonly open: string | null; readonly setOpen: (k: string | null) => void }): ComponentChild {
-  const lockTags = !readOnlyGroup(defs, g.group.id);
-  return h(
-    'tbody',
-    { key: g.group.id, 'data-group': g.group.id },
-    h('tr', { class: 'group-row' }, h('th', { colSpan: 2, scope: 'rowgroup' }, h('span', null, g.group.title), h('small', null, g.group.explanation))),
-    g.group.id === 'status-report' ? h('tr', { class: 'fields-row' }, h('td', { colSpan: 2 }, h(StatusFields, { view }))) : null,
-    g.rows.map((k) => h(Row, { key: k, k, defs, view, advanced, lockTags, open: open === k, onInfo: () => setOpen(open === k ? null : k) })),
-  );
-}
-
-function Chips({ defs, current, advanced, onPick }: { readonly defs: SettingsFile | null; readonly current: string | null; readonly advanced: boolean; readonly onPick: (id: string | null) => void }): ComponentChild {
-  if (defs === null) return null;
-  const listed = defs.groups.filter((g) => advanced || g.level !== 'advanced');
+function Chips({ groups, current }: { readonly groups: readonly SettingsGroupRows[]; readonly current: string | null }): ComponentChild {
   return h(
     'div',
     { class: 'chips settings-chips', role: 'group', 'aria-label': 'Groups' },
-    [{ id: null, title: 'All' }, ...listed].map((g) => h('button', { key: g.id ?? 'all', type: 'button', class: `chip${current === g.id ? ' on' : ''}`, 'aria-pressed': current === g.id ? 'true' : 'false', onClick: () => onPick(g.id) }, g.title)),
+    groups.map((g) => h('button', { key: g.group.id, type: 'button', class: `chip${current === g.group.id ? ' on' : ''}`, 'data-group-chip': g.group.id, 'aria-pressed': current === g.group.id ? 'true' : 'false', onClick: () => pick(g.group.id) }, g.group.title)),
+  );
+}
+
+/** The shown group's title and what it holds; the Status report group also lists the fields in each report. */
+function GroupHead({ g, view }: { readonly g: SettingsGroupRows | undefined; readonly view: LiveView | null }): ComponentChild {
+  if (g === undefined) return null;
+  return h('div', { class: 'settings-group-head', 'data-group': g.group.id }, h('h3', null, g.group.title), h('small', null, g.group.explanation), g.group.id === 'status-report' ? h(StatusFields, { view }) : null);
+}
+
+function Pager({ page, pages }: { readonly page: number; readonly pages: number }): ComponentChild {
+  const go = (p: number): void => { settingsPage.value = p; };
+  return h(
+    'div',
+    // Always there, so showing it never changes the space the rows get; hidden by class (no inline style: CSP).
+    { class: `settings-pager${pages === 1 ? ' single' : ''}`, 'data-pages': String(pages) },
+    h('button', { type: 'button', class: 'small', 'data-action': 'settings-page-back', disabled: page === 0, onClick: () => go(page - 1) }, 'Back'),
+    h('span', { class: 'fine' }, `Page ${page + 1} of ${pages}`),
+    h('button', { type: 'button', class: 'small', 'data-action': 'settings-page-next', disabled: page >= pages - 1, onClick: () => go(page + 1) }, 'Next'),
+  );
+}
+
+/** One line under the list: the open setting's description, else where the live readouts are. */
+function Description({ defs, open }: { readonly defs: SettingsFile | null; readonly open: string | null }): ComponentChild {
+  const d = open === null ? undefined : defs?.tokens.get(open);
+  return h('p', { class: 'fine settings-desc', 'data-settings-desc': open ?? '' }, d === undefined ? FOOT : `${d.label}: ${d.description}`);
+}
+
+function Tools({ text, setText, pendingOnly, setPendingOnly, total, id }: { readonly text: string; readonly setText: (t: string) => void; readonly pendingOnly: boolean; readonly setPendingOnly: (v: boolean) => void; readonly total: number; readonly id: string }): ComponentChild {
+  return h(
+    'div',
+    { class: 'settings-tools' },
+    h('h2', { id }, 'All settings'),
+    h('input', { type: 'search', class: 'settings-search', placeholder: 'Search every group by name, value or token', 'aria-label': 'Search settings', value: text, onInput: (e: Event) => { settingsPage.value = 0; setText((e.currentTarget as HTMLInputElement).value); } }),
+    h('label', { class: 'settings-filter' }, h('input', { type: 'checkbox', 'aria-label': 'Only pending changes', checked: pendingOnly, onChange: (e: Event) => { settingsPage.value = 0; setPendingOnly((e.currentTarget as HTMLInputElement).checked); } }), ' Only pending'),
+    h('span', { class: 'fine' }, total === 0 ? '' : `${total} settings`),
   );
 }
 
 export function AllSettings({ view, id = 'all-settings-title' }: { readonly view: LiveView | null; readonly id?: string }): ComponentChild {
   const [text, setText] = useState('');
-  const [group, setGroup] = useState<string | null>(null);
   const [pendingOnly, setPendingOnly] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
+  const box = useRef<HTMLDivElement | null>(null);
+  const size = usePageSize(box, LINE_PX);
   const settings = view?.readout.settings ?? {};
   const defs = defsFor(view);
   const advanced = uiLevel.value.value === 'advanced';
-  const groups = allSettingsRows(defs, settings, draftStore.value.value, { text, group, pendingOnly, level: advanced ? 'advanced' : 'simple' });
-  const total = Object.keys(settings).length;
+  const level = advanced ? 'advanced' : 'simple';
+  const drafts = draftStore.value.value;
+  const groups = allSettingsRows(defs, settings, drafts, { text: '', group: null, pendingOnly: false, level });
+  const across = text.trim() !== '' || pendingOnly;
+  const current = groups.some((g) => g.group.id === settingsGroup.value) ? settingsGroup.value : (groups[0]?.group.id ?? null);
+  const shown = across ? allSettingsRows(defs, settings, drafts, { text, group: null, pendingOnly, level }) : groups.filter((g) => g.group.id === current);
+  const page = pageOf(settingsItems(shown, across), settingsPage.value, size);
   return h(
     'section',
     { class: 'settings-table', 'data-region': 'all-settings', 'aria-labelledby': id },
-    h(
-      'div',
-      { class: 'settings-tools' },
-      h('h2', { id }, 'All settings'),
-      h('input', { type: 'search', class: 'settings-search', placeholder: 'Search by name, value or token', 'aria-label': 'Search settings', value: text, onInput: (e: Event) => setText((e.currentTarget as HTMLInputElement).value) }),
-      h('label', { class: 'settings-filter' }, h('input', { type: 'checkbox', 'aria-label': 'Only pending changes', checked: pendingOnly, onChange: (e: Event) => setPendingOnly((e.currentTarget as HTMLInputElement).checked) }), ' Only pending'),
-      h('span', { class: 'fine' }, total === 0 ? '' : `${total} settings`),
-    ),
-    h(Chips, { defs, current: group, advanced, onPick: setGroup }),
-    total === 0
-      ? null
-      : h(
-          'table',
-          { class: 'cfg-table all-settings' },
-          h('thead', null, h('tr', null, ...['Setting', 'Value'].map((t) => h('th', { scope: 'col', key: t }, t)))),
-          groups.map((g) => h(Group, { key: g.group.id, g, defs, view, advanced, open, setOpen })),
-        ),
-    h('p', { class: 'fine settings-foot' }, 'Live readouts (input states, homed axes, positions) are on Inputs, Axes and the Job view.'),
+    h(Tools, { text, setText, pendingOnly, setPendingOnly, total: Object.keys(settings).length, id }),
+    h(Chips, { groups, current: across ? null : current }),
+    across ? null : h(GroupHead, { g: shown[0], view }),
+    h('div', { class: 'settings-page', ref: box }, h(SettingsTable, { items: page.items, defs, view, advanced, open, setOpen })),
+    h(Pager, { page: page.page, pages: page.pages }),
+    h(Description, { defs, open }),
   );
 }

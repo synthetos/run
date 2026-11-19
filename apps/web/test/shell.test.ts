@@ -170,8 +170,8 @@ describe('Phase 1 control allowlist', () => {
     /^action:job-open-file$/,
     // NEEDS_REVIEW's ways out, in its banner (OD-13 §5): keep the board's settings (C23, writes nothing) or open the review.
     /^action:review-(keep|open|cancel)$/,
-    // The interface level (OD-13): presentation only.
-    /^action:ui-level-(simple|advanced)$/,
+    // The interface level (OD-13) and the All settings pages (owner walk 2026-11-19): presentation only.
+    /^action:ui-level-(simple|advanced)$/, /^action:settings-page-(back|next)$/,
     // Probe Z (SAFETY §4.5c): opening the card moves nothing; each probe command is the session's, after the touch test and C39.
     /^action:probe-open$/,
     /^action:machine-(review-settings|backups)$/,

@@ -32,17 +32,18 @@ function valueHelp(key: string, view: LiveView | null): string | null {
   return meta.values?.find((x) => x.value === v)?.help ?? null;
 }
 
+/** One contact setting in the card's header line; the value's help sentence from the data is its tooltip. */
 function ContactRow({ label, k, view }: { readonly label: string; readonly k: string; readonly view: LiveView | null }): ComponentChild {
   const help = valueHelp(k, view);
-  return h('div', { class: 'contact-row' }, h('span', { class: 'contact-label' }, label), h(SettingControl, { k, view }), help === null ? null : h('span', { class: 'fine' }, help));
+  return h('span', { class: 'contact-row' }, h('span', { class: 'contact-label', title: help ?? undefined }, label), h(SettingControl, { k, view }));
 }
 
-function ContactSection({ view, defs }: { readonly view: LiveView | null; readonly defs: SettingsFile }): ComponentChild {
+/** Switch contact, set once for every switch input, on the card's header line so the table fits (owner walk 2026-11-19). */
+function ContactLine({ view, defs }: { readonly view: LiveView | null; readonly defs: SettingsFile }): ComponentChild {
   const probe = defs.probeContact;
   return h(
-    'section',
-    { class: 'cfg-section board-card', 'data-region': 'switch-contact' },
-    h('div', { class: 'sec-head' }, h('h3', { class: 'tan-label' }, 'Switch contact'), h('span', { class: 'fine' }, 'One setting for every switch input.')),
+    'span',
+    { class: 'contact-line', 'data-region': 'switch-contact' },
     h(ContactRow, { label: 'Limit and homing switches', k: 'st', view }),
     // A probe contact the firmware fixes has no row: there is nothing to set (owner walk, 2026-11-19).
     probe?.token === undefined ? null : h(ContactRow, { label: 'Probe input', k: probe.token, view }),
@@ -61,12 +62,12 @@ function InputRowView({ r, view, live }: { readonly r: InputRow; readonly view: 
   );
 }
 
-function InputTable({ view, rows, live }: { readonly view: LiveView | null; readonly rows: readonly InputRow[]; readonly live: boolean }): ComponentChild {
+function InputTable({ view, defs, rows, live }: { readonly view: LiveView | null; readonly defs: SettingsFile; readonly rows: readonly InputRow[]; readonly live: boolean }): ComponentChild {
   const head = ['Input', ...(live ? ['Now'] : []), 'What it does', ''];
   return h(
     'section',
     { class: 'cfg-section board-card', 'data-region': 'switch-inputs' },
-    h('div', { class: 'sec-head' }, h('h3', { class: 'tan-label' }, 'Switch inputs')),
+    h('div', { class: 'sec-head' }, h('h3', { class: 'tan-label' }, 'Switch inputs'), h('span', { class: 'grow' }), h(ContactLine, { view, defs })),
     h('table', { class: 'cfg-table inputs-table' }, h('thead', null, h('tr', null, ...head.map((t) => h('th', { scope: 'col', key: t }, t)))), h('tbody', null, rows.map((r) => h(InputRowView, { key: r.id, r, view, live })))),
     h(Dismissable, { id: 'board/inputs-pullups', label: 'the inputs note', inNotes: false }, h('p', { class: 'fine' }, 'Inputs have 2.7 kΩ pull-ups to 3.3 V.')),
   );
@@ -117,6 +118,6 @@ export function InputsTab({ view, states }: { readonly view: LiveView | null; re
   const tabs: readonly SubTab[] = [{ id: 'switches', label: 'Switches' }, { id: 'homing', label: 'Homing', ...(checks === 0 ? {} : { badge: String(checks) }) }];
   const part = (id: string): ComponentChild => (id === 'homing'
     ? h(HomingSection, { defs, settings, planned, pending: rows.some((r) => r.pending) })
-    : [h(ContactSection, { key: 'contact', view, defs }), h(InputTable, { key: 'table', view, rows, live: states !== undefined })]);
+    : h(InputTable, { view, defs, rows, live: states !== undefined }));
   return h('div', { tabindex: 0, class: 'scroll-region cfg-scroll inputs-tab' }, h(SubTabs, { name: 'Inputs', prefix: 'board-inputs', tabs, choice: subTabChoice.inputs, render: part }));
 }

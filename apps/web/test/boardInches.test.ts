@@ -8,7 +8,7 @@ import { h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
 import { settingsDefsFor } from '@synthetos/schema';
 import { clearDraft } from '../src/workspace/boardFacts.ts';
-import { AllSettings } from '../src/workspace/settings/AllSettings.ts';
+import { AllSettings, settingsGroup } from '../src/workspace/settings/AllSettings.ts';
 import { valueWordsOf } from '../src/workspace/settings/meta.ts';
 import { axisCards, travelLine } from '../src/workspace/views/board/axesModel.ts';
 import { AxesTab } from '../src/workspace/views/board/axes.ts';
@@ -48,7 +48,9 @@ describe('a 449 board in G20 shows lengths in inches', () => {
   });
 
   it('All settings: the value on the board is in inches', () => {
+    settingsGroup.value = 'axis-x';
     const html = renderToString(h(AllSettings, { view: inches449 }));
+    settingsGroup.value = null;
     expect(html).toMatch(/data-key="xtm"[\s\S]*?5\.906 in/);
     expect(html).not.toMatch(/data-key="xtm"[^]*?5\.906 mm/);
   });

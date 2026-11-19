@@ -54,6 +54,21 @@ export function allSettingsRows(defs: SettingsFile | null, settings: Settings, d
     .filter((g) => g.rows.length > 0);
 }
 
+/** One line of the list: a group's title line (when the list spans groups) or a setting row. */
+export type SettingsItem = { readonly kind: 'group'; readonly group: GroupDefinition } | { readonly kind: 'row'; readonly key: string; readonly group: string };
+
+/** The lines to show: one group's rows alone, or, across groups (a search), each group's title line then its rows. */
+export function settingsItems(groups: readonly SettingsGroupRows[], across: boolean): readonly SettingsItem[] {
+  return groups.flatMap((g) => [...(across ? [{ kind: 'group' as const, group: g.group }] : []), ...g.rows.map((key) => ({ kind: 'row' as const, key, group: g.group.id }))]);
+}
+
+/** Page `page` of `items` at `size` lines a page, the page kept in range (owner walk 2026-11-19: no scrolling). */
+export function pageOf<T>(items: readonly T[], page: number, size: number): { readonly items: readonly T[]; readonly page: number; readonly pages: number } {
+  const pages = Number.isFinite(size) && size > 0 ? Math.max(1, Math.ceil(items.length / size)) : 1;
+  const at = Math.min(Math.max(0, page), pages - 1);
+  return { items: pages === 1 ? items : items.slice(at * size, (at + 1) * size), page: at, pages };
+}
+
 /** A group whose every definition is never written by Run: its header says why, so its rows carry no lock tag. */
 export function readOnlyGroup(defs: SettingsFile | null, id: string): boolean {
   if (defs === null || id === NO_DEFINITION.id) return true;

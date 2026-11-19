@@ -8,7 +8,7 @@ import { h } from 'preact';
 import { clearDraft, setDraft } from '../src/workspace/boardFacts.ts';
 import { renderToString } from 'preact-render-to-string';
 import type { LiveView } from '../src/workspace/model.ts';
-import { AllSettings } from '../src/workspace/settings/AllSettings.ts';
+import { AllSettings, settingsGroup } from '../src/workspace/settings/AllSettings.ts';
 import { MotorFacts } from '../src/workspace/views/board/motorCard.ts';
 import { MotorsTab } from '../src/workspace/views/board/motors.ts';
 import { subTabChoice } from '../src/workspace/views/board/subTabs.ts';
@@ -69,7 +69,9 @@ describe('MotorsTab', () => {
       expect(text(row(m4, '4tr'))).not.toContain('mm');
       expect(text(row(card(view, 1), '1tr'))).toContain('mm');
       expect(text(root(h(MotorFacts, { m: 4, view })))).toContain('360°');
+      settingsGroup.value = 'motor-4';
       const all4 = /<tr[^>]*data-key="4tr"[\s\S]*?<\/tr>/.exec(renderToString(h(AllSettings, { view })))?.[0] ?? '';
+      settingsGroup.value = null;
       expect(all4).toContain('°');
       expect(all4).not.toContain('mm');
     }
