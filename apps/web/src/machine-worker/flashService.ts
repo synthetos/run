@@ -59,6 +59,7 @@ import { type FirmwareReleases } from '@synthetos/protocol';
 import { categoryOf, restoreChanges, type SettingValue } from '@synthetos/schema';
 import type { BootloaderMark, BootloaderMarks } from './bootloaderMark.ts';
 import { entryDiagnosis } from './flashDiagnosis.ts';
+import { boardFacts, endsWritten, startsWritten } from './flashViewFacts.ts';
 
 /** How long the page has to store the backups before the run gives up (nothing written). */
 export const BACKUP_SAVE_MS = 60_000;
@@ -319,7 +320,7 @@ export class FlashService {
       boardId: board.id,
       board: Object.freeze({ ...board }),
       countdown: null,
-      wrote: false,
+      wrote: startsWritten(b.recovery, this.#view),
       message: null,
       recoveryOffered: false,
       versionCheck: null,
@@ -669,7 +670,7 @@ export class FlashService {
         await link.close();
         link = null;
         const message = outcome.code === 'no-entry' ? `${outcome.message}. ${this.#diagnosis()}` : outcome.message;
-        this.#finish(id, { phase: 'failed', message: message + ' ' + BOOTLOADER_ADVICE, recoveryOffered: true, wrote: outcome.wrote });
+        this.#finish(id, { phase: 'failed', message: message + ' ' + BOOTLOADER_ADVICE, recoveryOffered: true, wrote: endsWritten(outcome.wrote, this.#view) });
         return;
       }
       auth.finish();
@@ -839,16 +840,6 @@ export class FlashService {
     }
     return { ok: true };
   }
-}
-
-function boardFacts(s: SessionSnapshot): { id: string | null; hv: number | null; fb: number | null; fv: number | null } {
-  const id = s.identity;
-  return {
-    id: typeof id?.id === 'string' && id.id.length > 0 ? id.id : null,
-    hv: typeof id?.hv === 'number' ? id.hv : null,
-    fb: typeof id?.fb === 'number' ? id.fb : null,
-    fv: typeof id?.fv === 'number' ? id.fv : null,
-  };
 }
 
 function sleep(clock: SessionClock, ms: number): Promise<void> {

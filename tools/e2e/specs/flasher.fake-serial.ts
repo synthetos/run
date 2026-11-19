@@ -200,10 +200,14 @@ test('recovery: USB pulled mid-flash leaves no application; unplug and replug du
   await confirmFlash(page);
   await expect.poll(() => pageWrites(worker), { timeout: 90_000 }).toBeGreaterThan(30);
   await boardDo(worker, 'pull');
-  await expect(page.locator('[data-region="flash-recovery"]')).toBeVisible({ timeout: 30_000 });
+  const card = page.locator('[data-region="flash-recovery"]');
+  await expect(card).toBeVisible({ timeout: 30_000 });
+  // Pages were written, so the application may be gone: the card says so, and keeps saying so during recovery.
+  await expect(card).toContainText('No firmware running');
   await page.locator('[data-action="flash-recover"]').click();
   await expect(page.locator('[data-safety="W49"]')).toBeVisible({ timeout: 20_000 });
   await expect(page.locator('[data-safety="W49"]')).toContainText('Unplug the USB cable and plug it back in now.');
+  await expect(card).toContainText('No firmware running');
   await shot(page, 'recovery-countdown');
   await boardDo(worker, 'replug');
   await waitDone(page);

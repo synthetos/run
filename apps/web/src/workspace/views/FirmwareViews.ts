@@ -60,10 +60,13 @@ export function flashBlocked(view: LiveView | null): string | null {
 
 function RecoveryCard({ flash, actions }: { readonly flash: FlashView; readonly actions: WorkspaceModel['actions']['value'] }): ComponentChild {
   const counting = flash.phase === 'recovery' && flash.countdown !== null;
+  // Only a run that wrote to the flash can have left the board without firmware.
+  const tag = flash.wrote ? h('span', { class: 'tag danger' }, 'No firmware running') : h('span', { class: 'tag warn', 'data-recovery-wrote': 'false' }, 'Nothing written');
   return h(
     'section',
     { class: 'insp flash-recovery', 'data-region': 'flash-recovery' },
-    h('header', null, h('h2', null, 'Recovery'), h('span', { class: 'tag danger' }, 'No firmware running')),
+    h('header', null, h('h2', null, 'Recovery'), tag),
+    flash.wrote ? null : h('p', null, 'Nothing was written to the board. Its old firmware is still there.'),
     counting
       ? h('p', { class: 'recovery-count', role: 'alert', 'data-safety': 'W49' }, w49({ seconds: flash.countdown ?? 0 }))
       : h('p', null, 'The board may still be in its bootloader. Try the update again. Do not unplug it during the update.'),

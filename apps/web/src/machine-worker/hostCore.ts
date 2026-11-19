@@ -34,6 +34,7 @@ import type { HostRole } from './hostRole.ts';
  * It holds no account or network state (DECISIONS D1).
  */
 import { browserBootloaderMarks, memoryBootloaderMarks, type BootloaderMarks } from './bootloaderMark.ts';
+import { boundedMarks } from './boundedMarks.ts';
 import { droView, lagThresholds, liveControlPlatform, type PortSelector, type Transport, type PlatformInfo, type SessionClock, type SessionSnapshot, type TransportSource } from '@synthetos/machine';
 import { PHASE_1_RELEASE, type Release } from '@synthetos/safety';
 import { belowMinimum, type FirmwareReleases } from '@synthetos/protocol';
@@ -136,7 +137,8 @@ export class MachineWorkerCore {
       release,
     });
     this.#flash = new FlashService({
-      marks,
+      // Bounded: the flash service is busy (and holds the machine lock) until each call returns.
+      marks: boundedMarks(marks, clock),
       session: this.#session,
       source,
       clock,

@@ -36,6 +36,9 @@ import { PrecheckReply } from './precheckReply.ts';
 import type { EventLog } from './eventLog.ts';
 import { TRANSPORT_BUFFER_SIZE, decideOpen } from './openPolicy.ts';
 import type { Transport, TransportOpenOptions } from './transport.ts';
+import { BOOTLOADER_OPEN_MS, BOOTLOADER_WRITE_MS, LinkDeadline, closePort, withDeadline } from './linkDeadline.ts';
+
+export { BOOTLOADER_CLOSE_MS, BOOTLOADER_OPEN_MS, BOOTLOADER_WRITE_MS } from './linkDeadline.ts';
 
 /** The options the bootloader-role open uses: xboot's 115200 8N1, no flow control, the one buffer size. */
 export function bootloaderOpenOptions(part: Part): TransportOpenOptions {
@@ -125,9 +128,11 @@ export class BootloaderLink implements ByteLink {
     if (!decision.ok) throw new BootloaderLinkError(`open refused (${decision.reason}): ${decision.detail}`);
     this.#state = 'open';
     try {
-      await this.#inner.open(options);
+      await withDeadline(this.#inner.open(options), BOOTLOADER_OPEN_MS, this.#clock, 'opening the port');
     } catch (error) {
       this.#state = 'closed';
+      // The open may still complete later: ask the port to close, so it is not left open and held.
+      if (error instanceof LinkDeadline) void closePort(this.#inner, this.#clock);
       throw error;
     }
     void this.#read();
@@ -147,7 +152,7 @@ export class BootloaderLink implements ByteLink {
       if (this.closed || this.#writeFailed || this.#banner !== null || this.#handed) throw new LinkClosed('the bootloader link closed before the frame was sent');
       this.#record('tx', bytes);
       try {
-        await this.#inner.writeLine(bytes);
+        await withDeadline(this.#inner.writeLine(bytes), BOOTLOADER_WRITE_MS, this.#clock, 'a bootloader write');
       } catch (error) {
         this.#writeFailed = true;
         throw new LinkClosed(`the write failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -186,7 +191,7 @@ export class BootloaderLink implements ByteLink {
     if (!this.#ordinary || !this.#prechecked || this.#signature || this.closed || this.#writeFailed || this.#handed) throw new BootloaderLinkError('ordinary fallback is forbidden');
     this.#reply = new PrecheckReply();
     this.#record('tx', Uint8Array.of(10));
-    try { await this.#inner.writeLine(Uint8Array.of(10)); }
+    try { await withDeadline(this.#inner.writeLine(Uint8Array.of(10)), BOOTLOADER_WRITE_MS, this.#clock, 'the pre-check line end'); }
     catch (error) { this.#writeFailed = true; throw error; }
     try { await this.#replySignal.read(1, 200); } catch { /* Silence belongs to the ordinary probe. */ }
     this.#applicationBytes(this.#reply.finish());
@@ -317,8 +322,9 @@ export class BootloaderLink implements ByteLink {
     this.#state = 'closed';
     this.#end('the bootloader link was closed');
     if (!wasOpen) return;
+    // Settles within one write deadline: every queued frame is bounded, and none is sent after a failure.
     await this.#tail;
-    await this.#inner.close().catch(() => undefined);
+    await closePort(this.#inner, this.#clock);
   }
 
   #end(why: string): void {
