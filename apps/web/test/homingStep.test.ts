@@ -67,7 +67,9 @@ describe('step 4 Homing (render)', () => {
     const radios = all(el, (e) => e.tag === 'input' && e.props['name'] === 'wizard-coolant');
     expect(radios.map((r) => r.props['value'])).toEqual(['none', 'flood', 'mist', 'air']);
     expect(radios.filter((r) => r.props['checked'] === true).map((r) => r.props['value'])).toEqual(['mist']);
-    expect(radios.every((r) => r.props['class'] === 'wizard-choice-radio')).toBe(true);
+    // The step's own radio card (PickCard, owner 148): radio at the left of its words.
+    expect(radios.every((r) => r.props['class'] === 'wizard-pick-radio')).toBe(true);
+    expect(all(el, (e) => e.tag === 'label' && e.props['class'] === 'wizard-pick')).toHaveLength(6);
     (radios[1]?.props['onChange'] as () => void)();
     expect(chosen).toEqual(['flood']);
     // Step 2 was skipped: no machine to save it on.

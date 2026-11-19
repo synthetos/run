@@ -124,7 +124,8 @@ Owner: “this text trails off, could be as simple as UPDATE REQUIRED to somethi
 
 | Owner, staging | After, 1280 | After, 1700 |
 |---|---|---|
-| ![149](screenshots/wizard-fixes/owner/149.png) | ![Strip at 1280](screenshots/wizard-fixes/read-only-dark-1280.png) | ![Strip at 1700](screenshots/wizard-fixes/read-only-light-1700.png) |
+| ![149](screenshots/wizard-fixes/owner/149.png) | ![Strip at 1280, dark](screenshots/wizard-fixes/read-only-dark-1280.png) | ![Strip at 1700, dark](screenshots/wizard-fixes/read-only-dark-1700.png) |
+| | ![Strip at 1280, light](screenshots/wizard-fixes/read-only-light-1280.png) | ![Strip at 1700, light](screenshots/wizard-fixes/read-only-light-1700.png) |
 
 **What was wrong.** Beside a "Read only" pill the strip printed a whole sentence, "It runs stock TinyG firmware
 (449.01, no build id), which Run only reads. Run reads it and moves nothing.", cut off with an ellipsis.
@@ -145,9 +146,9 @@ Refusal titles on disabled controls are short too: "Read only: firmware 449.01 n
 
 Owner: “again another text runon that is not needed?”
 
-| Owner, staging | After |
-|---|---|
-| ![150](screenshots/wizard-fixes/owner/150.png) | ![Position card](screenshots/wizard-fixes/read-only-dark-1280.png) |
+| Owner, staging | After, dark | After, light |
+|---|---|---|
+| ![150](screenshots/wizard-fixes/owner/150.png) | ![Position card, dark](screenshots/wizard-fixes/read-only-dark-1280.png) | ![Position card, light](screenshots/wizard-fixes/read-only-light-1280.png) |
 
 **What was wrong.** The card read "Run can’t control this board yet. It runs stock TinyG firmware (449.01, no build
 id), which Run only reads." before its buttons.
@@ -165,7 +166,8 @@ if yes flood or mist kind of thing?”
 
 | Owner, staging | After: Job page | After: Board → J6.6 | After: wizard step 4 |
 |---|---|---|---|
-| ![151](screenshots/wizard-fixes/owner/151.png) ![152](screenshots/wizard-fixes/owner/152.png) | ![Mist toggle](screenshots/wizard-fixes/coolant-mist-dark.png) | ![Wired to](screenshots/wizard-fixes/board-coolant-wired-light.png) | ![Step 4](screenshots/setup-wizard/step-4-dark-1280.png) |
+| ![151](screenshots/wizard-fixes/owner/151.png) ![152](screenshots/wizard-fixes/owner/152.png) | ![Mist toggle, dark](screenshots/wizard-fixes/coolant-mist-dark.png) | ![Wired to, dark](screenshots/wizard-fixes/board-coolant-wired-dark.png) | ![Step 4, dark](screenshots/setup-wizard/step-4-dark-1280.png) |
+| | ![Mist toggle, light](screenshots/wizard-fixes/coolant-mist-light.png) | ![Wired to, light](screenshots/wizard-fixes/board-coolant-wired-light.png) | ![Step 4, light](screenshots/setup-wizard/step-4-light-1280.png) |
 
 **What was wrong.** The Job page showed two buttons, Mist and Flood, under a "Coolant" label. TinyG v8 drives one
 coolant output for both M7 and M8 and cannot know what is wired to it, so the two buttons claimed a difference the
@@ -181,6 +183,10 @@ When the machine says nothing is wired, the row is not shown. Until the machine 
 drops away when off or not used. The toggle and its "?" sit on one line, sized to the word. G-code files' own M7,
 M8 and M9 go to the board unchanged, and Pause and Stop job are unchanged.
 
-| No choice yet | No machine chosen |
+The wizard's question uses the step's own radio cards (PickCard), four compact ones in two columns.
+
+| No choice yet, dark | No choice yet, light |
 |---|---|
-| ![Coolant, unset](screenshots/wizard-fixes/coolant-unset-light.png) | Board → J6.6 says "Choose a machine on the Job page first." and offers no choice. |
+| ![Coolant, unset, dark](screenshots/wizard-fixes/coolant-unset-dark.png) | ![Coolant, unset, light](screenshots/wizard-fixes/coolant-unset-light.png) |
+
+With no machine chosen, Board → J6.6 says "Choose a machine on the Job page first." and offers no choice.

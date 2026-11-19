@@ -9,7 +9,8 @@ export interface PickCardProps {
   readonly name: string;
   readonly value: string;
   readonly title: string;
-  readonly text: string;
+  /** The description under the title; a compact card (step 4's coolant choices) has none. */
+  readonly text?: string;
   readonly checked: boolean;
   readonly onChange: () => void;
   readonly children?: ComponentChildren;
@@ -21,7 +22,7 @@ export function PickCard(p: PickCardProps): ComponentChild {
     { class: 'wizard-pick' },
     h('input', { type: 'radio', class: 'wizard-pick-radio', name: p.name, value: p.value, checked: p.checked, onChange: p.onChange }),
     h('strong', { class: 'wizard-pick-title' }, p.title),
-    h('span', { class: 'wizard-pick-text' }, p.text),
+    p.text === undefined ? null : h('span', { class: 'wizard-pick-text' }, p.text),
     p.children,
   );
 }

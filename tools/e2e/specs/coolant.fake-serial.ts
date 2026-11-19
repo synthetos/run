@@ -73,23 +73,26 @@ for (const theme of ['light', 'dark'] as const) {
   });
 }
 
-test('152: no choice yet: "Coolant" (M8) and "Set what is wired" opens Board → J6.6, where the choice renames the toggle', async ({ page }) => {
-  await seedMachine(page, null);
-  await connect(page);
-  await expect(page.getByRole('button', { name: 'Coolant', exact: true })).toBeVisible();
-  await expectOneLine(page);
-  await shot(page, SHOT_DIR, 'coolant-unset-light');
-  await page.locator('[data-action="coolant-set-wiring"]').click();
-  const card = page.locator('[data-pin-card="J6.6"]');
-  await expect(card).toBeVisible();
-  await expect(card).toContainText('Wired to');
-  await expect(card).toContainText('Saved with the machine Bench router. TinyG does not know what is wired to its output.');
-  await card.getByLabel('Flood coolant').check();
-  await shot(page, SHOT_DIR, 'board-coolant-wired-light');
-  await page.locator('[data-region="rail"] [data-view="job"]').click();
-  await expect(page.getByRole('button', { name: 'Flood', exact: true })).toBeVisible();
-  await expect(page.locator('[data-action="coolant-set-wiring"]')).toHaveCount(0);
-});
+for (const theme of ['light', 'dark'] as const) {
+  test(`152: no choice yet: "Coolant" (M8) and "Set what is wired" opens Board → J6.6, where the choice renames the toggle (${theme})`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme: theme });
+    await seedMachine(page, null);
+    await connect(page);
+    await expect(page.getByRole('button', { name: 'Coolant', exact: true })).toBeVisible();
+    await expectOneLine(page);
+    await shot(page, SHOT_DIR, `coolant-unset-${theme}`);
+    await page.locator('[data-action="coolant-set-wiring"]').click();
+    const card = page.locator('[data-pin-card="J6.6"]');
+    await expect(card).toBeVisible();
+    await expect(card).toContainText('Wired to');
+    await expect(card).toContainText('Saved with the machine Bench router. TinyG does not know what is wired to its output.');
+    await card.getByLabel('Flood coolant').check();
+    await shot(page, SHOT_DIR, `board-coolant-wired-${theme}`);
+    await page.locator('[data-region="rail"] [data-view="job"]').click();
+    await expect(page.getByRole('button', { name: 'Flood', exact: true })).toBeVisible();
+    await expect(page.locator('[data-action="coolant-set-wiring"]')).toHaveCount(0);
+  });
+}
 
 test('152: no machine chosen: the Board pin says to choose one first and offers no choice', async ({ page }) => {
   await connect(page);
