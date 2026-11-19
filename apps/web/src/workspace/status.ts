@@ -153,6 +153,11 @@ function readOnlyStripPill(s: NonNullable<LiveView['message']>['snapshot'], text
   return { text: readOnlyPill(s), tone: updateFixes(s) ? 'warn' : 'live', help: `${text}. ${readOnlyWhy(s)}` };
 }
 
+/** A board below the minimum: "Update required" with W50 behind it; the strip shows W50 only when it fits whole. */
+function oldFirmwareWords(words: string): Pick<StripStatus, 'pill' | 'text'> {
+  return { pill: { text: 'Update required', tone: 'warn', help: words }, text: words };
+}
+
 /** The verified release list, when the firmware hub has loaded it (it names the update target). */
 function readOnlyReleases(view: LiveView): import('@synthetos/protocol').FirmwareReleases | null {
   const releases = view.firmware?.releases ?? null;
@@ -167,7 +172,7 @@ function units(view: LiveView): string {
 /** The Coolant readout, named by what the machine says is wired (owner 2026-11-18, 152; coolant.ts). */
 function coolantReadoutOf(live: Live | undefined, kind: MachineCoolant | null | undefined): Readout {
   const value = coolantReadout(live, kind ?? null);
-  return { label: 'Coolant', value, title: COOLANT_TITLE, ...(kind === 'none' || value.endsWith(' off') ? { quiet: true } : {}) };
+  return { label: 'Coolant', value, title: COOLANT_TITLE, ...(value === 'Not used' || value.endsWith(' off') ? { quiet: true } : {}) };
 }
 
 function readouts(view: LiveView, coolant: MachineCoolant | null | undefined): readonly Readout[] {
@@ -249,7 +254,8 @@ export function stripStatus(view: LiveView, machineName: string | null, coolant?
     return { ...base, title: 'Updated · checks pending', tone: 'warn', pill: { text: 'Locked', tone: 'warn' }, text };
   }
   const old = view.message?.oldFirmware ?? null;
-  if (old !== null) return { ...base, title: 'Firmware update needed', tone: 'warn', pill: { text: 'Update needed', tone: 'warn' }, text: w50({ fb: old.fb.toFixed(2), minimum: old.minimumFb.toFixed(2) }) };
+  // The same two words as the Position card (review 2026-11-18); W50 itself unchanged, whole or hidden, and in the pill's help.
+  if (old !== null) return { ...base, title: 'Firmware update needed', tone: 'warn', ...oldFirmwareWords(w50({ fb: old.fb.toFixed(2), minimum: old.minimumFb.toFixed(2) })) };
   // A custom build the user trusted on this board (SAFETY H87): the banner stays whatever else the strip says (W48).
   const trusted = s.classification?.approvalSource === 'trusted';
   if (trusted && o.includes('NEEDS_REVIEW')) return { ...base, title: 'Connected · settings to review', tone: 'live', pill: { text: w48(), tone: 'warn' }, text: 'The board’s settings differ from this computer’s reference.' };

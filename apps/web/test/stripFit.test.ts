@@ -42,3 +42,11 @@ describe('the Coolant readout (owner 2026-11-08)', () => {
     expect(on).toContain('class="readout ro-coolant"');
   });
 });
+
+describe('the name line (review 2026-11-18, minor 8: like the owner 149, never cut mid-word)', () => {
+  it('is one part per " · " piece, each whole or out of sight, with the full line as its title', () => {
+    const html = renderToString(h(MachineStrip, { status: { ...STATUS, name: 'No machine profile · TinyG v8 · firmware 450.90 · SIM-EN-0001' }, stop: null, previousSession: false }));
+    expect(html).toContain('data-strip="name" title="No machine profile · TinyG v8 · firmware 450.90 · SIM-EN-0001"');
+    expect(html).toContain('<span class="name-part">No machine profile</span><span class="name-part">· TinyG v8</span><span class="name-part">· firmware 450.90</span><span class="name-part">· SIM-EN-0001</span>');
+  });
+});

@@ -53,9 +53,16 @@ export function fbText(fb: number): string {
 
 const hundredths = (fb: number): number => Math.round(fb * 100);
 
-function numberOf(v: unknown): number | null {
+/** A number the board may report as text ("8", "450.02"), or null. */
+export function numberOf(v: unknown): number | null {
   const n = typeof v === 'string' ? Number(v) : v;
   return typeof n === 'number' && Number.isFinite(n) ? n : null;
+}
+
+/** The board is at rest: a resting base, nothing moving, and no job under way (the offer's own quiet-moment test). */
+export function boardAtRest(s: Snapshot): boolean {
+  const jobOn = s.job !== null && !JOB_OVER.has(s.job.phase) && s.job.phase !== 'ready';
+  return AT_REST.has(s.base) && s.motion === null && !jobOn;
 }
 
 /** A listed release at a quiet moment: newest for an update-needed board, newer for an approved board. */

@@ -77,6 +77,16 @@ function band(status: StripStatus, view: StopBarView | null, previousSession: bo
 }
 
 /**
+ * The machine and board under the state title, one part per " · " piece. Like the read-only text (owner 149), a part
+ * that does not fit wraps out of sight whole instead of being cut mid-word (workspace.css `.name-parts`); the full
+ * line is the title.
+ */
+function nameLine(name: string): ComponentChild {
+  const parts = name.split(' · ');
+  return h('small', { class: 'name-parts', 'data-strip': 'name', title: name, 'aria-label': name }, parts.map((part, i) => h('span', { class: 'name-part', key: i }, i === 0 ? part : `· ${part}`)));
+}
+
+/**
  * A connected board's pill and text. A pill with help (a read-only board, owner 2026-11-18, picture 149): its words
  * open the details, and the text beside it shows only when it fits whole (workspace.css `.state-meta[data-fit]`).
  */
@@ -176,7 +186,7 @@ export function MachineStrip({ status, stop, previousSession, onPause, onStopJob
       'div',
       { class: 'state-title' },
       h('span', { class: 'state-dot', 'aria-hidden': 'true' }),
-      h('div', null, h('strong', { 'data-strip': 'state' }, title), h('small', { 'data-strip': 'name' }, status.name)),
+      h('div', null, h('strong', { 'data-strip': 'state' }, title), nameLine(status.name)),
     ),
     connectionArea(connection, connect),
     band(status, stop, previousSession, onResume),

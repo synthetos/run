@@ -13,6 +13,28 @@ const SHOT_DIR = new URL('../../../docs/design/screenshots/wizard-fixes/', impor
 const WALK_DIR = new URL('../../../docs/design/screenshots/setup-wizard/', import.meta.url).pathname;
 const shot = (page: Page, name: string): Promise<void> => shotIn(page, SHOT_DIR, name);
 
+/** Where the W1 safety bar ends (the wizard and its layers start there). */
+function w1Bottom(page: Page): Promise<number> {
+  return page.locator('[data-region="safety-bar"]').evaluate((bar) => Math.round(bar.getBoundingClientRect().bottom));
+}
+
+/**
+ * W1 is on screen and nothing covers it (OD-9; review finding 4): the element at its centre is the bar, or, because
+ * the app under the wizard is inert and Chrome skips inert elements when hit testing, the bar's own container;
+ * never the wizard's scrim, frame, catalog page or a dialog.
+ */
+async function expectW1Visible(page: Page): Promise<void> {
+  const g = await page.locator('[data-region="safety-bar"]').evaluate((bar) => {
+    const r = bar.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    const wizard = document.querySelector('.wizard-root');
+    return { height: r.height, top: r.top, onTop: hit !== null && (bar.contains(hit) || hit.contains(bar)) && !(wizard?.contains(hit) ?? false) };
+  });
+  expect(g.height).toBeGreaterThan(0);
+  expect(g.top).toBe(0);
+  expect(g.onTop).toBe(true);
+}
+
 /** Nothing in the step body runs off sideways, and no step text is centred (owner 145, 148). */
 async function expectTidy(page: Page): Promise<void> {
   const g = await page.locator('.wizard-body').evaluate((body) => ({
@@ -149,10 +171,16 @@ for (const theme of ['light', 'dark'] as const) {
       await page.locator('[data-action="wizard-catalog"]').click();
       const catalog = page.locator('.wizard-catalog');
       await expect(catalog.locator('tbody tr').first()).toBeVisible({ timeout: 15_000 });
-      expect(await catalog.boundingBox()).toEqual({ x: 0, y: 0, width, height });
+      // The whole page below the W1 safety bar, which stays visible and on top (review finding 4, OD-9).
+      const barBottom = await w1Bottom(page);
+      expect(barBottom).toBeGreaterThan(0);
+      expect(await catalog.boundingBox()).toEqual({ x: 0, y: barBottom, width, height: height - barBottom });
+      await expectW1Visible(page);
       expect(await catalog.locator('tbody tr').count()).toBeGreaterThan(10);
       await expect(catalog.getByLabel('Search catalog')).toHaveValue('');
       await expect(page.locator('[data-action="wizard-catalog-back"]')).toBeFocused();
+      // The frame under the page is inert (review minor 11).
+      await expect(page.locator('.wizard-dialog')).toHaveAttribute('inert', '');
       await shot(page, `step-5-catalog-${theme}-${width}`);
       await catalog.getByLabel('Search catalog').fill('1/4 2 flute');
       expect(await catalog.locator('tbody tr').count()).toBeGreaterThan(0);
@@ -164,6 +192,13 @@ for (const theme of ['light', 'dark'] as const) {
       await expect(catalog).toHaveCount(0);
       await expect(wizard(page).locator('[data-wizard="tool"]')).toContainText('6.35 mm');
       await expect(page.locator('[data-wizard-step="5"]')).toBeVisible();
+      // Focus is back on the button that opened the page, in a live frame (review minor 11).
+      await expect(page.locator('.wizard-dialog')).not.toHaveAttribute('inert', '');
+      await expect(page.locator('[data-action="wizard-catalog"]')).toBeFocused();
+      // "Back to setup" does the same.
+      await page.locator('[data-action="wizard-catalog"]').click();
+      await page.locator('[data-action="wizard-catalog-back"]').click();
+      await expect(page.locator('[data-action="wizard-catalog"]')).toBeFocused();
     });
 
     test(`every step is tidy with the board connected (${theme}, ${width})`, async ({ page }) => {
@@ -174,6 +209,8 @@ for (const theme of ['light', 'dark'] as const) {
       const walk = (name: string): Promise<void> => (theme === 'light' && width === 1280 ? Promise.resolve() : shotIn(page, WALK_DIR, name));
       const { worker } = await open(page);
       await expectTidy(page);
+      // W1 is visible and on top over the wizard at every width, the full-screen frame at 960 included (finding 4).
+      await expectW1Visible(page);
       await walk(`step-1-${tag}`);
       await next(page).click();
       // 2 Machine: before and after the board connects.

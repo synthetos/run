@@ -4,8 +4,23 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { FirmwareRelease, FirmwareReleases } from '@synthetos/protocol';
+import { w50 } from '@synthetos/safety';
 import { readOnlyCard, readOnlyPhrase, readOnlyPill, readOnlyStrip, updateFixes } from '../src/workspace/readOnlyState.ts';
 import type { LiveView } from '../src/workspace/model.ts';
+import { stripStatus } from '../src/workspace/status.ts';
+import { snap, view } from './runMotionHarness.ts';
+
+describe('review finding 2: the old-firmware strip (the owner\'s real 449.01 once the list loads)', () => {
+  it('says "Update required" like the Position card, keeps W50 unchanged, and opens it from the pill', () => {
+    const v = view(snap({ identity: { id: 'B-1', hv: 8, fb: 449.01 } }), false);
+    const old = { ...v, message: { ...v.message, oldFirmware: { fb: 449.01, minimumFb: 450.02 } } } as unknown as LiveView;
+    const s = stripStatus(old, null);
+    const words = w50({ fb: '449.01', minimum: '450.02' });
+    expect(s.title).toBe('Firmware update needed');
+    expect(s.pill).toEqual({ text: 'Update required', tone: 'warn', help: words });
+    expect(s.text).toBe(words);
+  });
+});
 
 type Snapshot = NonNullable<LiveView['message']>['snapshot'];
 
@@ -29,6 +44,8 @@ describe('an update fixes it (stock 449, an unapproved TinyG build)', () => {
     expect(readOnlyPill(STOCK)).toBe('Update required');
     expect(readOnlyStrip(STOCK, LIST)).toBe('Firmware 449.01 → 450.06');
     expect(readOnlyStrip(STOCK, null)).toBe('Firmware 449.01 · update required');
+    // Review minor 6: a build and hardware reported as text still name the target.
+    expect(readOnlyStrip({ ...STOCK, identity: { fb: '449.01', hv: '8', id: 'B-1' } } as unknown as Snapshot, LIST)).toBe('Firmware 449.01 → 450.06');
   });
   it('owner 150: card title "Update required" and one short line naming the target', () => {
     expect(readOnlyCard(STOCK, LIST)).toEqual({ title: 'Update required', line: '449.01 is read only in Run. Install 450.06.' });
@@ -44,8 +61,8 @@ describe('every other read-only reason', () => {
   const cases: [string, Snapshot, string, string][] = [
     ['flow control, ex unknown to Run', ro({ dialectId: 'tinyg-en', mode: 'readOnly', reason: 'flowControl' }, { live: { stat: 3, ex: 3 } }), 'Flow control', 'flow control ex = 3 is not supported'],
     ['flow control, ex not read', ro({ dialectId: 'tinyg-en', mode: 'readOnly', reason: 'flowControl' }), 'Flow control', 'flow control (ex) not read'],
-    ['g2core', ro({ dialectId: 'g2core-edge', mode: 'readOnly', reason: 'g2core-read-only' }), 'Read only', 'g2core boards are read only'],
-    ['unknown g2core build', ro({ dialectId: null, mode: 'readOnly', reason: 'g2core-unknown-build' }, { identity: { fb: 101.5 } }), 'Unknown build', 'g2core build 101.50 is not known'],
+    ['g2core', ro({ dialectId: 'g2core-edge', mode: 'readOnly', reason: 'g2core-read-only' }), 'Read only', 'Run does not control g2core yet'],
+    ['unknown g2core build', ro({ dialectId: null, mode: 'readOnly', reason: 'g2core-unknown-build' }, { identity: { fb: 101.5 } }), 'Unknown build', 'unknown g2core build 101.50'],
     ['probe failed', ro({ dialectId: null, mode: 'readOnly', reason: 'probeFailed' }, { identity: {} }), 'Not identified', 'board identity not read'],
     ['conflict', ro({ dialectId: null, mode: 'readOnly', reason: 'conflict' }), 'Not identified', 'firmware not identified'],
   ];

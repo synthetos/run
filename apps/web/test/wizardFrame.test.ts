@@ -41,6 +41,11 @@ describe('WizardFrame', () => {
     const kids = dialog.children.filter((c) => typeof c !== 'string') as { props: Record<string, unknown> }[];
     expect(kids.map((k) => k.props['class'])).toEqual(['wizard-dialog', 'overlay-mark']);
   });
+  it('review minor 11: the frame is inert while the catalog page covers it, and only then', () => {
+    const frame = (inertFrame: boolean) => one(root(h('div', null, h(WizardFrame, { step: 5, marks, title: 'Tools', lead: '', primary: { label: 'Next: project', onClick: () => undefined }, onSkip: null, onClose: () => undefined, overlay: h('div', { class: 'overlay-mark' }), inertFrame }))), (e) => e.props['class'] === 'wizard-dialog');
+    expect(frame(true).props['inert']).toBe(true);
+    expect(frame(false).props['inert']).toBeUndefined();
+  });
 });
 
 describe('WizardRail', () => {

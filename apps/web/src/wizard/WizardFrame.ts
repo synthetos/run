@@ -5,6 +5,7 @@
  * scrolls inside `.wizard-body`. Pure: the mount (SetupWizard.ts) decides what goes in.
  */
 import { h, type ComponentChild, type ComponentChildren } from 'preact';
+import { trackSafetyBar } from './safetyBarOffset.ts';
 import { WizardRail } from './WizardRail.ts';
 import type { RailMark, StepId } from './wizardState.ts';
 
@@ -19,6 +20,8 @@ export interface FrameProps {
   readonly onClose: () => void;
   /** A whole-page layer over the frame (the catalog page, the tool editor), inside the wizard's dialog. */
   readonly overlay?: ComponentChild;
+  /** The overlay covers the whole frame (the catalog page): the frame is inert under it. */
+  readonly inertFrame?: boolean;
   readonly children?: ComponentChildren;
 }
 
@@ -28,7 +31,8 @@ export const SKIP_LABEL = 'Skip for now';
 export function WizardFrame(p: FrameProps): ComponentChild {
   return h(
     'div',
-    null,
+    // Everything inside starts below the W1 safety bar (safetyBarOffset.ts sets `--wizard-top`).
+    { class: 'wizard-root', ref: trackSafetyBar },
     h('div', { class: 'gate-scrim', 'aria-hidden': 'true' }),
     h(
       'div',
@@ -37,7 +41,7 @@ export function WizardFrame(p: FrameProps): ComponentChild {
         'div',
         // Not the shared `.dialog`: its `p` and field rules would reach the step content, and a hosted dialog's own
         // `.dialog` rules would be matched by the frame.
-        { class: 'wizard-dialog' },
+        { class: 'wizard-dialog', ...(p.inertFrame === true ? { inert: true } : {}) },
         h(WizardRail, { marks: p.marks, current: p.step }),
         h(
           'section',

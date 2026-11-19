@@ -32,7 +32,8 @@ function openWiring(): void {
 }
 
 export function CoolantToggle(p: CoolantToggleProps): ComponentChild {
-  if (p.kind === 'none') return null;
+  // "Not used" hides the row only while the output is off; on (a file's M8, the terminal) it shows the off toggle.
+  if (p.kind === 'none' && !p.pressed) return null;
   const label = coolantLabel(p.kind);
   const enabled = p.pressed ? p.canOff : p.canOn;
   const click = (): void => p.run(p.pressed ? { op: 'coolantOff' } : coolantOnCommand(p.kind));

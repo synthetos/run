@@ -30,7 +30,8 @@ person who connects from the wizard never sees that.
 | 7 You are set | The project that is open, one line on what to do next, and the "More to set up" rows, each collapsed with a link to the place in Run where it is done. | ![Step 7](screenshots/setup-wizard/step-7-light-1280.png) | ![Step 7 dark](screenshots/setup-wizard/step-7-dark-1280.png) |
 | The Job page | After "Go to the Job page": the name plate open, stock 180 × 120 × 6.35 mm, the machine and bed from step 2. | ![Job page](screenshots/setup-wizard/job-demo-light-1280.png) | |
 
-Below 1024 px the frame is full-screen and the rail collapses to seven dots and the current step's name:
+Below 1024 px the frame fills the page under the W1 safety bar, which stays visible at every width (OD-9), and the
+rail collapses to seven dots and the current step's name:
 
 | | Light | Dark |
 |---|---|---|

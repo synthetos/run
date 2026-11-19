@@ -27,7 +27,7 @@ import { Homing, HOMING_LEAD, HOMING_TITLE } from './steps/Homing.ts';
 import { createDemo, createNamed, openExisting, type CreateResult } from './createDemo.ts';
 import { CREATE_LABEL, FirstProject, PROJECT_LEAD, PROJECT_TITLE, projectBusy, projectChoice, projectError, projectName, type ProjectChoice } from './steps/FirstProject.ts';
 import { newToolSince } from './toolChoice.ts';
-import { catalogFrom, creatingTool, Tools, TOOLS_LEAD, TOOLS_TITLE, toolsBefore } from './steps/Tools.ts';
+import { catalogFrom, closeCatalog, creatingTool, Tools, TOOLS_LEAD, TOOLS_TITLE, toolsBefore } from './steps/Tools.ts';
 import { CatalogPage } from './CatalogPage.ts';
 import { ToolModal } from '../workspace/views/tools/ToolModal.ts';
 import { liveBoardId, Machine, MACHINE_LEAD, MACHINE_TITLE, machineDraft } from './steps/Machine.ts';
@@ -49,6 +49,8 @@ interface StepView {
   readonly skippable?: boolean;
   /** A whole-page layer over the frame (step 5's catalog page or tool editor). */
   readonly overlay?: ComponentChild;
+  /** The overlay covers the frame (the catalog page): the frame is inert under it. */
+  readonly inertFrame?: boolean;
 }
 
 /** Step 7's primary: the wizard is over; it never opens again on its own (Preferences brings it back). */
@@ -116,12 +118,12 @@ function syncToolChoice(onStep5: boolean, tools: readonly ToolEntry[]): void {
   const added = addedTool();
   if (added !== null && setupView.peek().record?.toolId !== added.tool.id) saveSetup({ toolId: added.tool.id });
   const from = catalogFrom.peek();
-  if (from !== null && newToolSince(from, tools) !== null) catalogFrom.value = null;
+  if (from !== null && newToolSince(from, tools) !== null) closeCatalog();
 }
 
 /** Step 5's layer over the frame: the catalog page, or the tool editor (both above the frame, never cut to it). */
 function toolsOverlay(): ComponentChild {
-  if (catalogFrom.value !== null) return h(CatalogPage, { onBack: () => { catalogFrom.value = null; } });
+  if (catalogFrom.value !== null) return h(CatalogPage, { onBack: closeCatalog });
   return creatingTool.value ? h(ToolModal, { entry: null, onClose: () => { creatingTool.value = false; } }) : null;
 }
 
@@ -132,7 +134,7 @@ function toolsStepView(): StepView {
   const added = addedTool();
   const tool = tools.find((e) => e.tool.id === (added?.tool.id ?? record?.toolId)) ?? null;
   const body = h(Tools, { tool, onCatalog: () => { catalogFrom.value = toolStore.value.peek(); }, onCreate: () => { creatingTool.value = true; } });
-  return { title: TOOLS_TITLE, lead: TOOLS_LEAD, body, overlay: toolsOverlay() };
+  return { title: TOOLS_TITLE, lead: TOOLS_LEAD, body, overlay: toolsOverlay(), inertFrame: catalogFrom.value !== null };
 }
 
 /** The demo (with its own built-in stock), or the project a refused earlier press already made (never a second one). */
@@ -223,6 +225,7 @@ export function SetupWizard(p: WizardContext): ComponentChild {
       onSkip: skippable ? () => { resetStepState(true); skipStep(step); } : null,
       onClose: () => { resetStepState(false); closeSetup(); },
       overlay: view.overlay,
+      inertFrame: view.inertFrame === true,
     },
     view.body,
   );

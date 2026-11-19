@@ -15,6 +15,13 @@ export const TOOLS_TEXT = 'The catalog knows the Synthetos and common end mills.
 
 /** The tool list when the catalog page opened, or null while it is closed; a tool added since closes it. */
 export const catalogFrom = signal<readonly ToolEntry[] | null>(null);
+
+/** Closes the catalog page and puts focus back on "Add from catalog" once the frame is live again (review minor 11). */
+export function closeCatalog(): void {
+  catalogFrom.value = null;
+  if (typeof requestAnimationFrame !== 'function') return;
+  requestAnimationFrame(() => document.querySelector<HTMLElement>('[data-action="wizard-catalog"]')?.focus());
+}
 export const creatingTool = signal(false);
 /** The tool list when the step opened; the tool added since is the chosen one (toolChoice.ts newToolSince). */
 export const toolsBefore = signal<readonly ToolEntry[] | null>(null);

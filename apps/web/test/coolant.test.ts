@@ -30,7 +30,11 @@ describe('coolant words and commands', () => {
     expect(coolantReadout(live({ cof: 0, com: 0 }), 'air')).toBe('Air off');
     expect(coolantReadout(live({ cof: 1 }), null)).toBe('Coolant on');
     expect(coolantReadout(live({ cof: 0, com: 0 }), null)).toBe('Coolant off');
-    expect(coolantReadout(live({ cof: 1 }), 'none')).toBe('Not used');
+    // Review finding 3: "Not used" never hides an output the board reports on (a file's M8, the terminal).
+    expect(coolantReadout(live({ cof: 1 }), 'none')).toBe('Coolant on');
+    expect(coolantReadout(live({ cof: 0, com: 1 }), 'none')).toBe('Coolant on');
+    expect(coolantReadout(live({ cof: 0, com: 0 }), 'none')).toBe('Not used');
+    expect(coolantReadout(undefined, 'none')).toBe('Not used');
     expect(coolantReadout(live({}), 'flood')).toBe('Unknown');
     expect(coolantReadout(live({ srList: ['stat'] }), 'flood')).toBe('Not reported');
     expect(coolantReadout(undefined, 'flood')).toBe('Unknown');
@@ -40,7 +44,9 @@ describe('coolant words and commands', () => {
       stripStatus(view(snap({ live: { stat: 3, pos: {}, mpo: {}, ...extra } }), false), null, kind).readouts.find((r) => r.label === 'Coolant');
     expect([wired('flood', { cof: 1, com: 0 })?.value, wired('mist', { cof: 0, com: 1 })?.value, wired('air', { cof: 0, com: 0 })?.value, wired(null, { cof: 1 })?.value]).toEqual(['Flood on', 'Mist on', 'Air off', 'Coolant on']);
     expect([wired('air', { cof: 0, com: 0 })?.quiet, wired('flood', { cof: 1 })?.quiet]).toEqual([true, undefined]);
-    expect(wired('none', { cof: 1 })).toMatchObject({ value: 'Not used', quiet: true });
+    expect(wired('none', { cof: 0, com: 0 })).toMatchObject({ value: 'Not used', quiet: true });
+    const live = wired('none', { cof: 1 });
+    expect([live?.value, live?.quiet]).toEqual(['Coolant on', undefined]);
   });
   it('the help says what the button sends and that Run cannot tell what is wired', () => {
     expect(coolantHelp('flood')).toBe('Flood sends M8 to switch the coolant output on and M9 to switch it off. Run cannot tell what is wired to it: this machine says flood coolant.');

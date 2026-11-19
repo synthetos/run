@@ -8,13 +8,14 @@
 import type { FirmwareReleases } from '@synthetos/protocol';
 import type { SnapshotMessage } from '../machine-worker/rpc.ts';
 import { UPDATE_FIXES } from '../firmware/updateNeeded.ts';
-import { fbText, newestRelease } from '../firmware/updateOffer.ts';
+import { fbText, newestRelease, numberOf } from '../firmware/updateOffer.ts';
 
 type Snapshot = SnapshotMessage['snapshot'];
 
 const UPDATE = 'Update required';
 
-const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+/** A build or hardware number, also when the board reports it as text (review 2026-11-18). */
+const num = numberOf;
 const fbOf = (s: Snapshot): string => {
   const fb = num(s.identity?.fb);
   return fb === null ? 'unknown' : fbText(fb);
@@ -54,8 +55,9 @@ export function readOnlyPhrase(s: Snapshot): string {
   const ex = s.live.ex;
   switch (s.classification?.reason) {
     case 'flowControl': return ex === undefined ? 'flow control (ex) not read' : `flow control ex = ${ex} is not supported`;
-    case 'g2core-read-only': return 'g2core boards are read only';
-    case 'g2core-unknown-build': return `g2core build ${fbOf(s)} is not known`;
+    // Not "g2core boards are read only": refusals read "Read only: …", which would say it twice (review 2026-11-18).
+    case 'g2core-read-only': return 'Run does not control g2core yet';
+    case 'g2core-unknown-build': return `unknown g2core build ${fbOf(s)}`;
     case 'probeFailed': return 'board identity not read';
     case 'conflict': return 'firmware not identified';
     default: return `firmware ${fbOf(s)} is not approved`;

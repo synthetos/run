@@ -46,6 +46,25 @@ describe('firmwareState: the board against the release list, the offer only for 
     expect(firmwareState(board(450.02, { base: 'JOB_RUNNING', job: { phase: 'running' } }))).toMatchObject({ kind: 'available', offer: null, held: 'busy' });
     expect(firmwareState(board(450.02, { classification: { mode: 'readOnly', dialectId: 'tinyg-en', reason: 'en-approved', detail: '', upgradeOffer: false } }))).toMatchObject({ kind: 'available', offer: null, held: 'read-only' });
   });
+  it('review finding 1: an idle needed board whose offer is withheld keeps Skip and gets a line true for the reason', () => {
+    const idle = { base: 'CONNECTED_UNKNOWN', overlays: ['READ_ONLY'] };
+    const flow = firmwareState(board(449.01, { ...idle, classification: { mode: 'readOnly', dialectId: 'tinyg-449-stock', reason: 'flowControl', detail: '', upgradeOffer: false } }));
+    expect(flow).toMatchObject({ kind: 'needed', offer: null, held: 'flow-control' });
+    const unidentified = firmwareState(board(440.2, { ...idle, classification: { mode: 'readOnly', dialectId: null, reason: 'conflict', detail: '', upgradeOffer: false } }));
+    expect(unidentified).toMatchObject({ kind: 'needed', offer: null, held: 'unidentified' });
+    const noQr = firmwareState(board(449.01, { ...STOCK_449, live: { stat: 1, vel: 0, hold: 0 } }));
+    expect(noQr).toMatchObject({ kind: 'needed', offer: null, held: 'other' });
+    for (const s of [flow, unidentified, noQr]) expect(firmwareGate(s)).toEqual({ skippable: true, nextEnabled: false });
+    expect(HELD_TEXT['flow-control']).toBe('Set ex to 1 (XON/XOFF) with another program, then connect again.');
+    expect(HELD_TEXT.unidentified).toBe('Run could not identify this firmware. Update from Board → Firmware.');
+    expect(HELD_TEXT.other).toBe('Update from Board → Firmware.');
+    // "Not idle" only when the board really is not at rest.
+    expect(firmwareState(board(450.07, { ...READ_ONLY_EN, base: 'JOB_RUNNING', job: { phase: 'running' } }))).toMatchObject({ held: 'busy' });
+    for (const s of [flow, unidentified, noQr]) expect(HELD_TEXT[(s as { held: keyof typeof HELD_TEXT }).held]).not.toMatch(/idle/);
+  });
+  it('review minor 6: a hardware version reported as text is read as a number, never "checking" forever', () => {
+    expect(firmwareState(board(450.02, { identity: { id: 'B-1', hv: '8', fb: '450.02' } })).kind).toBe('available');
+  });
   it('hardware the list does not name: unlisted, not current', () => {
     expect(firmwareState(board(450.02, { identity: { id: 'B-1', hv: 7, fb: 450.02 } }))).toEqual({ kind: 'unlisted', hv: 7 });
   });
@@ -53,7 +72,8 @@ describe('firmwareState: the board against the release list, the offer only for 
     const needed = firmwareState(board(450.07, READ_ONLY_EN));
     expect(firmwareGate(needed)).toEqual({ skippable: false, nextEnabled: false });
     expect(firmwareGate(firmwareState(board(449.01, STOCK_449, { flasher: false })))).toEqual({ skippable: true, nextEnabled: false });
-    expect(firmwareGate(firmwareState(board(450.07, { ...READ_ONLY_EN, base: 'JOB_RUNNING', job: { phase: 'running' } })))).toEqual({ skippable: false, nextEnabled: false });
+    // Review finding 1: a withheld offer never traps the person; Skip stays, Next stays held for `needed`.
+    expect(firmwareGate(firmwareState(board(450.07, { ...READ_ONLY_EN, base: 'JOB_RUNNING', job: { phase: 'running' } })))).toEqual({ skippable: true, nextEnabled: false });
     expect(firmwareGate({ kind: 'updating' })).toEqual({ skippable: false, nextEnabled: false });
     for (const s of [firmwareState(board(450.02)), firmwareState(board(450.02, {}, { flasher: false })), { kind: 'current', fb: 450.06 }, { kind: 'disconnected' }, { kind: 'checking' }, { kind: 'list-failed' }, { kind: 'unlisted', hv: 7 }] as FirmwareState[]) {
       expect(firmwareGate(s)).toEqual({ skippable: true, nextEnabled: true });

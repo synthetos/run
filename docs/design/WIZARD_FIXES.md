@@ -190,3 +190,27 @@ The wizard's question uses the step's own radio cards (PickCard), four compact o
 | ![Coolant, unset, dark](screenshots/wizard-fixes/coolant-unset-dark.png) | ![Coolant, unset, light](screenshots/wizard-fixes/coolant-unset-light.png) |
 
 With no machine chosen, Board → J6.6 says "Choose a machine on the Job page first." and offers no choice.
+
+## After the fresh review
+
+A fresh review of the branch found these, now fixed. Every picture on this page was taken again after them.
+
+- **Firmware step, an update Run cannot start from the wizard.** A board below what Run controls whose update could
+  not run from the wizard (flow control, firmware not identified, a missing report field) hid "Skip for now" and said
+  "The machine is not idle" even when it was. Skip now stays whenever the update cannot run there, Next stays held,
+  and the line says the real reason. Skipping grants no control: the session still refuses motion on that board.
+- **The owner's 449.01 once the release list loads.** The strip took its older "Firmware update needed" branch with
+  the pill "Update needed" and a cut-off sentence. The pill now says "Update required" there too, and the W50 text
+  (unchanged safety wording) shows whole or not at all and opens from the pill.
+
+| 449.01, dark | 449.01, light |
+|---|---|
+| ![449.01 strip, dark](screenshots/wizard-fixes/read-only-449-dark-1280.png) | ![449.01 strip, light](screenshots/wizard-fixes/read-only-449-light-1280.png) |
+
+- **Coolant "Not used" with the output on.** If a file's M8 or the terminal turned the output on, the row and its
+  off button were hidden. Now the strip says "Coolant on" and the Job page shows a pressed "Coolant" toggle that
+  sends M9, whatever the machine says is wired.
+- **W1 always on screen.** The catalog page, and the whole wizard below 1024 px, covered the safety bar. Both now
+  start below it, and the scrim no longer dims it; a browser test checks nothing covers W1 at 1280 and 960.
+- **Smaller ones.** The g2core refusal no longer says "read only" twice; the strip's name line drops whole parts
+  instead of cutting one; the frame is inert while the catalog page is open and focus returns to "Add from catalog".

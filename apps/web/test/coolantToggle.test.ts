@@ -44,6 +44,14 @@ describe('the coolant toggle', () => {
   it('none: no coolant row at all', () => {
     expect(render('none').el.children).toHaveLength(0);
   });
+  it('review finding 3: none, but the board reports the output on: a pressed "Coolant" toggle that sends M9 (never gated)', () => {
+    const r = render('none', { pressed: true, canOn: false });
+    expect(text(r.toggle as El)).toBe('Coolant');
+    expect(r.toggle?.props['aria-pressed']).toBe('true');
+    (r.toggle?.props['onClick'] as () => void)();
+    expect(r.sent).toEqual([{ op: 'coolantOff' }]);
+    expect(all(r.el, (e) => e.props['data-action'] === 'coolant-set-wiring')).toHaveLength(0);
+  });
   it('no choice yet: "Coolant" with M8, and "Set what is wired" opens Board → the coolant pin', () => {
     const r = render(null);
     expect(text(r.toggle as El)).toBe('Coolant');

@@ -7,16 +7,22 @@
  * session is closed while it runs, so the step keeps the flow on screen and holds Next until the board is back.
  * Pure.
  */
-import { firmwareStanding, updateOffer, type OfferFacts, type OfferInput, type UpdateOffer } from '../firmware/updateOffer.ts';
+import { boardAtRest, firmwareStanding, updateOffer, type OfferFacts, type OfferInput, type UpdateOffer } from '../firmware/updateOffer.ts';
 import { connected, type LiveView } from '../workspace/model.ts';
 
-/** Why a newer release cannot be installed from the wizard right now. */
-export type HeldReason = 'no-updater' | 'busy' | 'read-only';
+/**
+ * Why a newer release cannot be installed from the wizard right now, each with a line that is true for it (review
+ * 2026-11-18: "not idle" only when the board is not at rest; anything else the offer waits on reads neutrally).
+ */
+export type HeldReason = 'no-updater' | 'flow-control' | 'unidentified' | 'busy' | 'read-only' | 'other';
 
 export const HELD_TEXT: Readonly<Record<HeldReason, string>> = Object.freeze({
   'no-updater': 'Firmware updates are not available on this site.',
+  'flow-control': 'Set ex to 1 (XON/XOFF) with another program, then connect again.',
+  unidentified: 'Run could not identify this firmware. Update from Board → Firmware.',
   busy: 'The machine is not idle. Update from Board → Firmware once it is.',
   'read-only': 'This connection is read-only. Update from Board → Firmware once the machine is idle.',
+  other: 'Update from Board → Firmware.',
 });
 
 /** A newer (or required) release: the facts, the offer when it can run now, otherwise why not. */
@@ -54,9 +60,15 @@ function flashRunning(view: LiveView | null): boolean {
   return flash !== null && flash !== undefined && flash.phase !== 'done' && flash.phase !== 'failed';
 }
 
+/** The actual reason the offer is withheld, most specific first. */
 function heldReason(view: LiveView, kind: OfferFacts['kind']): HeldReason {
-  if (view.message?.flasher !== true) return 'no-updater';
-  return kind === 'available' && view.message.snapshot.classification?.mode !== 'full' ? 'read-only' : 'busy';
+  const message = view.message;
+  if (message?.flasher !== true) return 'no-updater';
+  const c = message.snapshot.classification;
+  if (c?.reason === 'flowControl') return 'flow-control';
+  if (c === null || c.dialectId === null) return 'unidentified';
+  if (!boardAtRest(message.snapshot)) return 'busy';
+  return kind === 'available' && c.mode !== 'full' ? 'read-only' : 'other';
 }
 
 /** A connected board: the list decides where it stands; the offer decides whether the update can run now. */
@@ -83,6 +95,8 @@ export function firmwareState(view: LiveView | null, updating = false): Firmware
 export function firmwareGate(s: FirmwareState): { readonly skippable: boolean; readonly nextEnabled: boolean } {
   if (s.kind === 'updating') return { skippable: false, nextEnabled: false };
   if (s.kind !== 'needed') return { skippable: true, nextEnabled: true };
-  // A site with no updater can never clear `needed`: Skip stays so the person is not trapped on the step.
-  return { skippable: s.held === 'no-updater', nextEnabled: false };
+  // The offer is up: the update runs here, and the step waits for it. Withheld for any reason: Skip stays, so the
+  // person is never trapped on the step (review 2026-11-18). Skipping grants no control: the session and the
+  // worker's old-firmware lock still refuse motion on a board below what Run controls.
+  return { skippable: s.held !== null, nextEnabled: false };
 }

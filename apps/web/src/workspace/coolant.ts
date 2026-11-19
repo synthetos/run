@@ -41,7 +41,8 @@ export function coolantIsOn(live: Live | undefined): boolean {
 
 /** The strip and panel readout: "Flood on", "Coolant off", "Not used", or the board's unreported text. */
 export function coolantReadout(live: Live | undefined, kind: MachineCoolant | null): string {
-  if (kind === 'none') return 'Not used';
+  // "Not used" never hides an output the board reports on (a file's M8, the terminal): it reads "Coolant on".
+  if (kind === 'none') return coolantIsOn(live) ? 'Coolant on' : 'Not used';
   if (!known(live?.cof) && !known(live?.com)) return unreported(live);
   return `${coolantLabel(kind)} ${coolantIsOn(live) ? 'on' : 'off'}`;
 }

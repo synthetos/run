@@ -64,11 +64,11 @@ function spindleReadouts({ model }: { readonly model: WorkspaceModel | null | un
   return { view, r, spindle, spindleLine, snapshot, coolant, kind };
 }
 
-/** The card's coolant line: "Flood on", "Coolant off", "Coolant: not reported"; none when nothing is wired. */
+/** The card's coolant line: "Flood on", "Coolant off", "Coolant: not reported"; none when nothing is wired and it is off. */
 function coolantLine(r: ReturnType<typeof displayReadouts> | null, kind: MachineCoolant | null): string | null {
-  if (kind === 'none') return null;
-  if (r === null) return 'Coolant: not connected';
+  if (r === null) return kind === 'none' ? null : 'Coolant: not connected';
   const text = coolantReadout(r, kind);
+  if (text === 'Not used') return null;
   return text === NOT_REPORTED || text === 'Unknown' ? `Coolant: ${text === 'Unknown' ? 'unknown' : text}` : text;
 }
 

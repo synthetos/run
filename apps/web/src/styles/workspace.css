@@ -917,6 +917,9 @@ body { background-image: none; }
 .statebar[data-tone="warn"] .state-dot { background: var(--warn); }
 .state-title { flex: none; min-width: 200px; max-width: 300px; }
 .state-title small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The name line (review 2026-11-18, like owner 149): each " · " part whole or wrapped out of sight, never cut. */
+.state-title small.name-parts { display: flex; flex-wrap: wrap; column-gap: 0.35em; row-gap: 24px; height: 16px; line-height: 16px; text-overflow: clip; }
+.state-title .name-part { flex: none; }
 /* Disconnect, in every view while a port is open or opening. A refusal is a notice under the strip. */
 .strip-connection { flex: none; display: flex; align-items: center; }
 .strip-connection .strip-disconnect { min-height: 32px; padding: 0 12px; font-size: 12.5px; }

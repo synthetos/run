@@ -144,12 +144,13 @@ test('dark: the first and the last step', async ({ page }) => {
   await shot(page, 'step-7-dark-1280');
 });
 
-test('below 1024 px the frame is full-screen with the dots strip', async ({ page }) => {
+test('below 1024 px the frame fills the page below the W1 safety bar, with the dots strip', async ({ page }) => {
   await page.setViewportSize({ width: 960, height: 700 });
   await open(page, [setupRecord({ step: 2, done: [1] })], 2);
   const box = await page.locator('.wizard-dialog').boundingBox();
-  expect(box?.width).toBe(960);
-  expect(box?.height).toBe(700);
+  const bar = await page.locator('[data-region="safety-bar"]').evaluate((el) => Math.round(el.getBoundingClientRect().bottom));
+  expect(bar).toBeGreaterThan(0);
+  expect(box).toEqual({ x: 0, y: bar, width: 960, height: 700 - bar });
   await expect(page.locator('.wizard-dot-name')).toHaveText('Machine');
   await shot(page, 'step-2-light-960');
 });
