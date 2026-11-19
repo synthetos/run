@@ -42,6 +42,30 @@ beforeEach(() => {
   deleting.value = null;
 });
 
+const isActionsCell = (e: El): boolean => e.tag === 'td' && e.props['class'] === 'actions-cell';
+const smallNotQuiet = (b: El): boolean => String(b.props['class']).split(' ').includes('small') && !String(b.props['class']).includes('quiet');
+
+describe('BackupsSection layout (lead review, Backups)', () => {
+  it('one header line: the heading, then both actions together; one empty-state sentence', () => {
+    const el = render(withHub(HUB([])));
+    const head = one(el, (e) => e.tag === 'header');
+    expect(head.children.filter((c): c is El => typeof c !== 'string').map((c) => c.tag)).toEqual(['h2', 'div']);
+    const actions = one(head, (e) => e.props['class'] === 'hub-actions');
+    expect(all(actions, byAttr('data-action', 'backup'))).toHaveLength(1);
+    expect(all(actions, byAttr('data-action', 'backup-import'))).toHaveLength(1);
+    expect(text(el).match(/Add a backup file…/g)).toHaveLength(1);
+    expect(text(one(el, byAttr('data-settings-backups', '0')))).toBe('No backups of this board yet.');
+  });
+
+  it('row actions sit in one group inside a normal cell, every button in the same style', () => {
+    const cell = one(one(render(withHub(HUB([ROW(), ROW({ id: 'b2' })]))), byAttr('data-backup-row', 'b1')), isActionsCell);
+    expect(all(cell, (e) => e.props['class'] === 'row-actions')).toHaveLength(1);
+    const buttons = all(cell, (e) => e.tag === 'button');
+    expect(buttons.map((b) => text(b))).toEqual(['Compare', 'Restore…', 'Download', 'Delete']);
+    expect(buttons.every(smallNotQuiet)).toBe(true);
+  });
+});
+
 describe('BackupsSection', () => {
   it('empty: says what a backup is, with Back up settings beside the heading', () => {
     const el = render(withHub(HUB([])));

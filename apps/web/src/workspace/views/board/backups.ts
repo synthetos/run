@@ -92,13 +92,18 @@ function BackupRow({ b, view, fw, thisBoard, canRestore }: { readonly b: Row; re
       h('td', null, fbText(b.fb)),
       h('td', null, other ? h('span', { class: 'tag warn' }, 'another board') : b.boardId === null ? 'unknown' : 'this board', other && b.boardId !== null ? h('small', { class: 'block fine' }, boardText(b.boardId)) : null),
       h('td', { class: 'num' }, String(b.settingsCount)),
+      // The buttons sit in a group inside the cell, so the cell stays a table cell (centred, unbroken row border).
       h(
         'td',
-        { class: 'row-actions' },
-        h('button', { type: 'button', class: 'small', 'data-action': 'backup-compare', disabled: fw === undefined, onClick: () => fw !== undefined && say(fw.compareSettings(b.id)) }, 'Compare'),
-        canRestore && fw !== undefined ? h('button', { type: 'button', class: 'small', 'data-machine-control': 'settings-write', 'data-action': 'backup-restore', onClick: () => restore(fw, b.id, view) }, 'Restore…') : null,
-        h('button', { type: 'button', class: 'small', 'data-action': 'backup-export', disabled: fw === undefined, onClick: () => void fw?.exportSettings(b.id) }, 'Download'),
-        h('button', { type: 'button', class: 'small quiet', 'data-action': 'backup-delete', disabled: fw === undefined, onClick: () => { deleting.value = b.id; } }, 'Delete'),
+        { class: 'actions-cell' },
+        h(
+          'div',
+          { class: 'row-actions' },
+          h('button', { type: 'button', class: 'small', 'data-action': 'backup-compare', disabled: fw === undefined, onClick: () => fw !== undefined && say(fw.compareSettings(b.id)) }, 'Compare'),
+          canRestore && fw !== undefined ? h('button', { type: 'button', class: 'small', 'data-machine-control': 'settings-write', 'data-action': 'backup-restore', onClick: () => restore(fw, b.id, view) }, 'Restore…') : null,
+          h('button', { type: 'button', class: 'small', 'data-action': 'backup-export', disabled: fw === undefined, onClick: () => void fw?.exportSettings(b.id) }, 'Download'),
+          h('button', { type: 'button', class: 'small subdued', 'data-action': 'backup-delete', disabled: fw === undefined, onClick: () => { deleting.value = b.id; } }, 'Delete'),
+        ),
       ),
     ),
     compare?.id === b.id ? h('tr', { key: `${b.id}-compare`, class: 'compare-row' }, h('td', { colSpan: 6, 'data-compare': b.id }, h(CompareRows, { c: compare, view }))) : null,
@@ -122,7 +127,8 @@ function Status({ view }: { readonly view: LiveView | null }): ComponentChild {
 function List({ view, fw }: { readonly view: LiveView | null; readonly fw: FirmwareActions | undefined }): ComponentChild {
   const rows = view?.firmware?.settings ?? [];
   if (rows.length === 0) {
-    return h('div', { class: 'hub-empty', 'data-settings-backups': '0' }, h('p', null, 'No backups of this board yet. A backup saves every setting on the board in one file. Make one before you change anything, so you can put it back.'), h('p', { class: 'fine' }, 'Have a backup file from before? ', h('label', { for: IMPORT_ID, class: 'link-label' }, 'Add a backup file…')));
+    // The heading line already says what a backup is and holds both actions: one sentence here, no second link.
+    return h('p', { class: 'hub-empty', 'data-settings-backups': '0' }, 'No backups of this board yet.');
   }
   const id = view?.message?.snapshot.identity?.id;
   const thisBoard = typeof id === 'string' ? id : null;
@@ -143,9 +149,13 @@ function Head({ model, view, fw }: { readonly model: WorkspaceModel | null; read
       'header',
       { key: 'head', class: 'hub-head' },
       h('h2', { id: 'hub-settings' }, 'Settings backups'),
-      h('button', { type: 'button', class: 'primary small', 'data-action': 'backup', 'data-machine-control': 'read', disabled: blocked !== null || reading || model === null, title: blocked ?? undefined, onClick: () => model?.actions.value?.backup() }, Icon('download', 16), view?.backup.kind === 'reading' ? 'Reading…' : 'Back up settings'),
-      h('span', { class: 'grow' }),
-      h(AddFile, { fw }),
+      // Both actions together, at the right edge of the same box as the list.
+      h(
+        'div',
+        { class: 'hub-actions' },
+        h('button', { type: 'button', class: 'primary small', 'data-action': 'backup', 'data-machine-control': 'read', disabled: blocked !== null || reading || model === null, title: blocked ?? undefined, onClick: () => model?.actions.value?.backup() }, Icon('download', 16), view?.backup.kind === 'reading' ? 'Reading…' : 'Back up settings'),
+        h(AddFile, { fw }),
+      ),
     ),
     h('p', { key: 'lead', class: 'fine', 'data-backup': blocked !== null ? 'blocked' : reading ? 'waiting' : 'ready' }, blocked ?? 'Every setting on this board, saved on this computer. Run also backs up before every apply and every firmware update.'),
   ];

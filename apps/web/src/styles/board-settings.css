@@ -26,6 +26,8 @@
 .setting-control .was { font-size: 12px; color: var(--muted); white-space: nowrap; }
 .setting-control .setting-unknown { font-size: 12px; color: var(--warn); margin-left: 8px; }
 .setting-control .setting-value { font-variant-numeric: tabular-nums; }
+/* A reason tag beside a value keeps its distance ("0 mm/min²  Run doesn't change this setting."). */
+.setting-control + .tag { margin-left: 10px; }
 
 /* ---------- Cards and rows shared by the Board tabs ---------- */
 .board-card { background: var(--sheet); border: 1px solid var(--rule); border-radius: 8px; padding: 12px 16px; margin-bottom: 14px; }
@@ -65,6 +67,22 @@
 .chip:hover { border-color: var(--blue); background: var(--blue-wash); }
 .consequences { display: grid; gap: 6px; margin-top: 10px; }
 .consequences .note { margin: 0; }
+
+/* ---------- Backups (views/board/backups.ts): heading and both actions on one line, the list the same width ---------- */
+[data-region="backups-hub"] .hub-head { flex-wrap: nowrap; }
+.hub-head .hub-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+.hub-head .hub-actions :is(button, .file-pick) { min-height: 32px; height: 32px; margin: 0; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; }
+/* Add a backup file… is the secondary action: the same outlined style as the row buttons, not a second solid one. */
+.hub-head .hub-actions .file-pick { background: var(--sheet); color: var(--ink); border: 1px solid var(--field); border-radius: var(--r-sm); font: 500 13px var(--sans); letter-spacing: 0; }
+.hub-head .hub-actions .file-pick:hover { background: var(--blue-wash); border-color: var(--blue); color: var(--ink); }
+[data-region="backups-hub"] .hub-empty { display: block; margin: 4px 0 10px; }
+.backup-table { width: 100%; }
+.backup-table tbody > tr > td { vertical-align: middle; }
+.backup-table .actions-cell { width: 1%; white-space: nowrap; padding-top: 6px; padding-bottom: 6px; }
+.backup-table .row-actions { margin: 0; flex-wrap: nowrap; justify-content: flex-end; }
+.backup-table .row-actions button { min-height: 28px; height: 28px; }
+.backup-table .row-actions .subdued { color: var(--muted); }
+.backup-table .row-actions .subdued:hover { color: var(--danger); border-color: var(--danger); }
 
 /* ---------- Read-only notice and the discarded line (BoardNotices.ts) ---------- */
 .board-notices { margin: 0 20px 12px; display: grid; gap: 8px; }
