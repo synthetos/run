@@ -27,10 +27,10 @@ describe('TinyG release selection', () => {
   });
 });
 it('sends the read-only key when the Worker has one, and nothing otherwise', async () => {
-  const fetcher = vi.fn(async () => new Response('[]'));
+  const fetcher = vi.fn(async (_url: string, _init: RequestInit) => new Response('[]'));
   await githubReleaseLoader(fetcher)('github_pat_example');
   expect(fetcher.mock.calls[0]?.[1]).toMatchObject({ headers: expect.objectContaining({ authorization: 'Bearer github_pat_example' }) });
-  const keyless = vi.fn(async () => new Response('[]'));
+  const keyless = vi.fn(async (_url: string, _init: RequestInit) => new Response('[]'));
   await githubReleaseLoader(keyless)();
   await githubReleaseLoader(keyless)('');
   for (const call of keyless.mock.calls) expect(call[1]).toMatchObject({ headers: expect.not.objectContaining({ authorization: expect.anything() }) });
