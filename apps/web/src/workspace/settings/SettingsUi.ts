@@ -3,9 +3,8 @@ import { ConfirmSettings } from '../../firmware/ConfirmSettings.ts';
 /**
  * The settings-write UI (SAFETY §4.6, H57-H63, amendment 2026-11-02):
  *
- * - `SettingEditor`: one setting's new value (a number field or a list of
- *   its named values), kept as a pending change in this browser. Editing
- *   never writes anything.
+ * - One setting's control is `SettingControl` (SettingControl.ts) and the
+ *   edit gate is `editBlocked` (editGate.ts).
  * - `PendingTray`: the pending changes as a diff (board value, new value,
  *   plain words, risk), with Apply and, after a failure, Revert. Apply and
  *   Revert are the only controls that write, and they are enabled only when
@@ -22,78 +21,17 @@ import { ConfirmSettings } from '../../firmware/ConfirmSettings.ts';
  * `applySettings` and `revertSettings` actions.
  */
 import { h, type ComponentChild } from 'preact';
-import { useLayoutEffect, useState } from 'preact/hooks';
+import { useState } from 'preact/hooks';
 import { boardText, w20 } from '@synthetos/safety';
 import { restoreChanges, type PlannedChange, type RestoreChanges, type SettingValue } from '@synthetos/schema';
 import { draftStore, plainValue, setDraft, clearDraft, settingMeta } from '../boardFacts.ts';
 import type { LiveView, WorkspaceModel } from '../model.ts';
 import type { ApplyState, ApplyStep } from '../../live/settingsApply.ts';
-import { pendingPlan, SETTINGS_WRITES_UNAVAILABLE, settingsWriteBlocked, writableKey } from './pending.ts';
+import { editBlocked } from './editGate.ts';
+import { pendingPlan, settingsWriteBlocked } from './pending.ts';
+import { SettingControl } from './SettingControl.ts';
 
 type Settings = Readonly<Record<string, SettingValue>>;
-
-/** Editing is possible once the board is read and the phase switch is on; writing needs the full gate. */
-export function editBlocked(view: LiveView | null): string | null {
-  const m = view?.message ?? null;
-  if (m === null || m.snapshot.base === 'NOT_CONNECTED') return 'Connect a board to change its settings.';
-  if (m.settingsWrites !== true) return SETTINGS_WRITES_UNAVAILABLE;
-  if (Object.keys(view?.readout.settings ?? {}).length === 0) return 'Wait for the settings read to finish.';
-  return null;
-}
-
-/** One setting's pending value. */
-export function SettingEditor({ k, view, compact = false }: { readonly k: string; readonly view: LiveView | null; readonly compact?: boolean }): ComponentChild {
-  const dialect = view?.readout.dialectId ?? null;
-  const settings: Settings = view?.readout.settings ?? {};
-  const meta = settingMeta(k, dialect);
-  const draft = draftStore.value.value[k];
-  const [input, setInput] = useState(draft === undefined ? '' : String(draft));
-  // A live snapshot must not erase a number while the user is still typing it.
-  useLayoutEffect(() => { setInput(draft === undefined ? '' : String(draft)); }, [draft]);
-  if (!writableKey(k, dialect)) return compact ? null : h('span', { class: 'muted fine', title: 'Run does not write this setting: it is not reviewed for writing, it is read-only, or it is never written.' }, 'Read only');
-  const blocked = editBlocked(view);
-  const board = settings[k];
-  const pick = (raw: string): void => {
-    if (raw.trim() === '') {
-      setDraft(k, null);
-      return;
-    }
-    const n = Number(raw);
-    setDraft(k, !Number.isFinite(n) || (typeof board === 'number' && Math.abs(board - n) < 1e-9) ? null : n);
-  };
-  const label = `${meta.label}, draft`;
-  const changed = draft !== undefined;
-  if (meta.values !== null) {
-    return h(
-      'span',
-      { class: `select-wrap setting-edit${changed ? ' changed' : ''}` },
-      h(
-        'select',
-        { 'aria-label': label, 'data-setting-edit': k, disabled: blocked !== null, title: blocked ?? meta.description, value: draft === undefined ? '' : String(draft), onChange: (e: Event) => pick((e.currentTarget as HTMLSelectElement).value) },
-        h('option', { value: '' }, typeof board === 'number' ? `Keep: ${plainValue(k, board, dialect) ?? board}` : 'Keep'),
-        meta.values.map((o) => h('option', { value: String(o.value), key: o.value }, o.label)),
-      ),
-    );
-  }
-  return h(
-    'span',
-    { class: `unit-input setting-edit${changed ? ' changed' : ''}` },
-    h('input', {
-      type: 'number',
-      step: 'any',
-      inputMode: 'decimal',
-      'aria-label': label,
-      'data-setting-edit': k,
-      disabled: blocked !== null,
-      title: blocked ?? meta.description,
-      placeholder: typeof board === 'number' ? String(board) : '',
-      value: input,
-      onInput: (e: Event) => setInput((e.currentTarget as HTMLInputElement).value),
-      onChange: (e: Event) => pick((e.currentTarget as HTMLInputElement).value),
-    }),
-    meta.unit === '' ? null : h('i', null, meta.unit),
-  );
-}
 
 // ---------------------------------------------------------------- the tray
 
@@ -282,7 +220,7 @@ export function SettingsTable({ view, id = 'all-settings-title' }: { readonly vi
                   { key: k, 'data-key': k, class: drafts[k] !== undefined ? 'drafted' : undefined },
                   h('th', { scope: 'row' }, m.label === k ? h('span', null, k) : [h('span', { key: 'l' }, m.label), h('code', { key: 'k', class: 'raw-key' }, k)]),
                   h('td', { 'data-value': '' }, v === undefined ? h('span', { class: 'muted' }, 'Not read') : (plainValue(k, v, dialect) ?? '').replace(` ${m.unit}`, '')),
-                  h('td', null, h(SettingEditor, { k, view })),
+                  h('td', null, h(SettingControl, { k, view })),
                   h('td', { class: 'muted' }, m.unit),
                   h('td', { class: 'settings-desc' }, m.description),
                 );

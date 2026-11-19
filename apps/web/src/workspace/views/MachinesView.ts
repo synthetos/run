@@ -27,8 +27,8 @@ import { machineStore, selectedMachine, selectedMachineStore, updateMachine, typ
 import { CATALOGUE, machineDrawing, type MachineTemplate } from '../machineDrawings.ts';
 import { connected, type LiveView, type WorkspaceModel } from '../model.ts';
 import { guidedAxes, GuidedSettings } from '../settings/GuidedSettings.ts';
-import { writableKey } from '../settings/pending.ts';
-import { editBlocked, SettingsTable } from '../settings/SettingsUi.ts';
+import { editBlocked, writableKey } from '../settings/editGate.ts';
+import { SettingsTable } from '../settings/SettingsUi.ts';
 import { boardLabel, num } from '../status.ts';
 import { TabBar, TabPane } from '../ui.ts';
 import { MachineCoolantField } from './MachineCoolantField.ts';

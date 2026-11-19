@@ -16,6 +16,7 @@ import { connected, type LiveView } from '../model.ts';
 import { draftStore } from '../boardFacts.ts';
 
 export const SETTINGS_WRITES_UNAVAILABLE = 'Changing settings is not turned on for this origin.';
+export const INCHES_BLOCKED = 'Set the board to millimetres (G21) to change lengths.';
 
 /** True when `key` can be edited on this dialect: a reviewed overlay entry and not a forbidden write. */
 export function writableKey(key: string, dialect: string | null): boolean {
@@ -47,14 +48,23 @@ export function settingsWriteBlocked(view: LiveView | null): string | null {
   if (s.classification === null || s.base === 'IDENTIFYING' || s.base === 'READING') return 'Wait until the board is identified and read.';
   if (s.base === 'BLOCKED') return 'This board is not the machine you selected.';
   if (s.overlays.includes('READ_ONLY') || s.classification.mode !== 'full') return 'This board is read-only here: its firmware build is not approved for changes.';
+  // Writes happen in millimetres only (SAFETY §4.6 step 5, H60); the session refuses them under G20 too.
+  if (s.live.unit === 0) return INCHES_BLOCKED;
+  const busy = notIdle(s);
+  if (busy !== null) return busy;
+  if (view.readout.phase.kind === 'reading') return 'Wait for the settings read to finish.';
+  if (Object.keys(view.readout.settings).length === 0) return 'Wait for the settings read to finish.';
+  return null;
+}
+
+/** Why the machine is not idle, or null when it is idle with nothing moving or held. */
+function notIdle(s: NonNullable<LiveView['message']>['snapshot']): string | null {
   if (s.base !== 'CONNECTED_UNKNOWN' && s.base !== 'IDLE_UNHOMED' && s.base !== 'IDLE_HOMED') return 'Settings are changed only while the machine is idle.';
-  if (m.snapshot.motion !== null && m.snapshot.motion !== undefined) return 'A move is in progress. Settings are changed only while the machine is idle.';
+  if (s.motion !== null && s.motion !== undefined) return 'A move is in progress. Settings are changed only while the machine is idle.';
   const cls = s.live.machineClass;
   if (cls !== undefined && cls !== 'idle' && cls !== 'end') return `The machine is ${cls}. Settings are changed only while it is idle.`;
   if (s.live.vel !== undefined && s.live.vel !== 0) return 'The machine is moving. Settings are changed only while it is idle.';
   if (s.live.hold !== undefined && s.live.hold !== 0) return 'The machine is holding. Settings are changed only while it is idle.';
-  if (view.readout.phase.kind === 'reading') return 'Wait for the settings read to finish.';
-  if (Object.keys(view.readout.settings).length === 0) return 'Wait for the settings read to finish.';
   return null;
 }
 

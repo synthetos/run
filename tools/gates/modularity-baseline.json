@@ -303,11 +303,10 @@
       "complexity $/FunctionDeclaration:ApplyProgress#1": 21,
       "complexity $/FunctionDeclaration:PendingTray#1": 32,
       "complexity $/FunctionDeclaration:RestorePanel#1": 16,
-      "complexity $/FunctionDeclaration:SettingEditor#1": 19,
       "complexity $/FunctionDeclaration:stageRestore#1": 21
     },
     "apps/web/src/workspace/settings/pending.ts": {
-      "complexity $/FunctionDeclaration:settingsWriteBlocked#1": 29
+      "complexity $/FunctionDeclaration:settingsWriteBlocked#1": 19
     },
     "apps/web/src/workspace/status.ts": {
       "complexity $/FunctionDeclaration:boardLabel#1": 16,

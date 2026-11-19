@@ -9,7 +9,8 @@ import {
 } from '../../boardFacts.ts';
 import { type LiveView } from '../../model.ts';
 import { Dismissable } from '../../notes/Dismissable.ts';
-import { SettingEditor, editBlocked } from '../../settings/SettingsUi.ts';
+import { editBlocked } from '../../settings/editGate.ts';
+import { SettingControl } from '../../settings/SettingControl.ts';
 import { Keyed } from '../../ui.ts';
 import { EditToggle, cell } from './shared.ts';
 
@@ -50,7 +51,7 @@ export function InputsTab({ view }: { readonly view: LiveView | null }): Compone
         ),
       ),
       h(Dismissable, { id: 'board/inputs-pullups', label: 'the inputs note', inNotes: false }, h('p', { class: 'fine' }, 'One switch type applies to all inputs. Inputs have 2.7 kΩ pull-ups to 3.3 V.')),
-      edit === null ? null : h('dl', { class: 'facts inline-facts' }, h('div', null, h('dt', null, settingMeta('st', dialect).label, h('small', { class: 'raw-key' }, 'st')), h('dd', null, st ?? 'Not read', h('div', { class: 'cell-edit' }, h(SettingEditor, { k: 'st', view: edit, compact: true }))))),
+      edit === null ? null : h('dl', { class: 'facts inline-facts' }, h('div', null, h('dt', null, settingMeta('st', dialect).label, h('small', { class: 'raw-key' }, 'st')), h('dd', null, st ?? 'Not read', h('div', { class: 'cell-edit' }, h(SettingControl, { k: 'st', view: edit }))))),
     ),
   );
 }

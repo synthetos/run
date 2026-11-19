@@ -5,8 +5,9 @@ import { dialectOf, draftStore, plainValue, settingsOf } from '../boardFacts.ts'
 import { machineAxes } from '../motion.ts';
 import { selectedMachine, type MachineProfile } from '../library.ts';
 import type { LiveView } from '../model.ts';
-import { editBlocked, SettingEditor } from './SettingsUi.ts';
+import { editBlocked } from './editGate.ts';
 import { writableKey } from './pending.ts';
+import { SettingControl } from './SettingControl.ts';
 
 export const GUIDED_AXIS_FIELDS = [
   ['tn', 'Travel start'], ['tm', 'Travel end'],
@@ -30,7 +31,7 @@ export function GuidedSettings({ view, prefix = 'guided' }: { readonly view: Liv
       ? h('input', { disabled: true, 'aria-label': `${label}, draft`, placeholder: '—', title: blocked ?? 'Read the board settings first.' })
       : !writableKey(key, dialect)
         ? h('output', { class: 'guided-readonly', title: 'This firmware’s settings are read only.' }, plainValue(key, settings[key], dialect) ?? 'Not read')
-        : h(SettingEditor, { k: key, view }));
+        : h(SettingControl, { k: key, view }));
   return h('div', { class: 'guided-settings', 'data-region': 'guided-settings' },
     h('div', { class: 'guided-settings-head' },
       field('gun', 'Default units'),

@@ -14,7 +14,8 @@ import type { BackupFile } from '../src/live/backup.ts';
 import { createWorkspaceModel, INITIAL_LIVE_VIEW, type LiveView } from '../src/workspace/model.ts';
 import { clearDraft, draftStore, setDraft } from '../src/workspace/boardFacts.ts';
 import { pendingPlan, settingsWriteBlocked, writableKey } from '../src/workspace/settings/pending.ts';
-import { ApplyConfirm, editBlocked, PendingTray, SettingsTable, stageRestore } from '../src/workspace/settings/SettingsUi.ts';
+import { editBlocked } from '../src/workspace/settings/editGate.ts';
+import { ApplyConfirm, PendingTray, SettingsTable, stageRestore } from '../src/workspace/settings/SettingsUi.ts';
 
 type Snapshot = NonNullable<LiveView['message']>['snapshot'];
 type SettingWrite = NonNullable<Snapshot['settingWrite']>;

@@ -7,7 +7,8 @@ import {
   settingMeta
 } from '../../boardFacts.ts';
 import { connected, type LiveView } from '../../model.ts';
-import { editBlocked, SettingEditor } from '../../settings/SettingsUi.ts';
+import { editBlocked } from '../../settings/editGate.ts';
+import { SettingControl } from '../../settings/SettingControl.ts';
 import { Keyed } from '../../ui.ts';
 
 
@@ -29,7 +30,7 @@ export function cell(key: string, settings: Settings, dialect: string | null, ed
     { key, class: v === null ? 'muted' : undefined, title: settingMeta(key, dialect).description },
     h(Keyed, { value: v ?? 'Unknown', raw: key }),
     d === 'changed' || d === 'unread' ? h('span', { class: 'draft-badge', title: `Pending: ${String(draftStore.value.value[key])}` }, 'pending') : null,
-    edit === null ? null : h('div', { class: 'cell-edit' }, h(SettingEditor, { k: key, view: edit, compact: true })),
+    edit === null ? null : h('div', { class: 'cell-edit' }, h(SettingControl, { k: key, view: edit })),
   );
 }
 

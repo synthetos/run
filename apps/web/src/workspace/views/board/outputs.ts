@@ -9,7 +9,7 @@ import {
 } from '../../boardFacts.ts';
 import { connected, type LiveView } from '../../model.ts';
 import { Dismissable } from '../../notes/Dismissable.ts';
-import { editBlocked } from '../../settings/SettingsUi.ts';
+import { editBlocked } from '../../settings/editGate.ts';
 import { coolantText, displayReadouts, spindleText } from '../../status.ts';
 import { EditToggle, cell } from './shared.ts';
 
