@@ -64,6 +64,12 @@ describe('firmwareState: the board against the release list, the offer only for 
   });
   it('review minor 6: a hardware version reported as text is read as a number, never "checking" forever', () => {
     expect(firmwareState(board(450.02, { identity: { id: 'B-1', hv: '8', fb: '450.02' } })).kind).toBe('available');
+    // Text that is not a number (the session's Identity allows hv as text): unlisted, said once, not "checking".
+    expect(firmwareState(board(450.02, { identity: { id: 'B-1', hv: 'v8', fb: 450.02 } }))).toEqual({ kind: 'unlisted', hv: 'v8' });
+  });
+  it('review minor 6: an available release on a flow-control board says the ex fix, not "once the machine is idle"', () => {
+    const s = firmwareState(board(450.02, { classification: { mode: 'readOnly', dialectId: 'tinyg-en', reason: 'flowControl', detail: '', upgradeOffer: false } }));
+    expect(s).toMatchObject({ kind: 'available', offer: null, held: 'flow-control' });
   });
   it('hardware the list does not name: unlisted, not current', () => {
     expect(firmwareState(board(450.02, { identity: { id: 'B-1', hv: 7, fb: 450.02 } }))).toEqual({ kind: 'unlisted', hv: 7 });

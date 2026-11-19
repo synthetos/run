@@ -33,7 +33,7 @@ export type FirmwareState =
   | { readonly kind: 'updating' }
   | { readonly kind: 'checking' }
   | { readonly kind: 'list-failed' }
-  | { readonly kind: 'unlisted'; readonly hv: number }
+  | { readonly kind: 'unlisted'; readonly hv: number | string }
   | Behind<'needed'>
   | Behind<'available'>
   | { readonly kind: 'current'; readonly fb: number };

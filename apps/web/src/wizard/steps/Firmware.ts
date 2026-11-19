@@ -76,7 +76,7 @@ function statusLine(s: Exclude<FirmwareState, Behind | { kind: 'disconnected' | 
   switch (s.kind) {
     case 'checking': return line(CHECKING_TEXT, 'checking');
     case 'list-failed': return line(LIST_FAILED_TEXT, 'list-failed');
-    case 'unlisted': return line(`No firmware is listed for this hardware (v${s.hv}).`, 'unlisted');
+    case 'unlisted': return line(`No firmware is listed for this hardware (${typeof s.hv === 'number' ? `v${s.hv}` : s.hv}).`, 'unlisted');
     default: return line(`Firmware ${fbText(s.fb)} is current.`, 'current');
   }
 }

@@ -97,15 +97,18 @@ export function newestRelease(releases: FirmwareReleases, hv: number, fb: number
 }
 
 /** Where the board stands against the list, whatever it is doing: null until its hardware and build are read. */
-export type FirmwareStanding = OfferFacts | { readonly kind: 'current'; readonly fb: number } | { readonly kind: 'unlisted'; readonly hv: number };
+export type FirmwareStanding = OfferFacts | { readonly kind: 'current'; readonly fb: number } | { readonly kind: 'unlisted'; readonly hv: number | string };
 
 /**
  * The same rules as `updateOffer` (firmwareNeeded, newestRelease) without its "only at a quiet moment" checks: a
  * board on a build the offer withholds right now is still behind, never current (owner, 2026-11-18, picture 146).
+ * A hardware version that is text but not a number names no listed hardware: unlisted, never "checking" (review).
  */
 export function firmwareStanding(s: Snapshot, releases: FirmwareReleases): FirmwareStanding | null {
-  const hv = numberOf(s.identity?.hv);
+  const raw = s.identity?.hv;
+  const hv = numberOf(raw);
   const fb = numberOf(s.identity?.fb);
+  if (hv === null && typeof raw === 'string' && raw.trim() !== '') return { kind: 'unlisted', hv: raw };
   if (hv === null || fb === null) return null;
   if (releasesForHardware(releases, hv) === null) return { kind: 'unlisted', hv };
   const needed = firmwareNeeded(s, releases, hv, fb);
