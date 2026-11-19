@@ -59,6 +59,20 @@ export function settingMeta(key: string, dialect: string | null = null, fb?: num
   return d === null ? rawMeta(key) : metaOf(d);
 }
 
+/** The definition as it reads with these settings: its rotary unit when its motor drives A, B or C (data `rotary`). */
+export function withRotary(d: SettingDefinition | null, settings: Readonly<Record<string, SettingValue>>): SettingDefinition | null {
+  const r = d?.rotary;
+  if (d === null || r === undefined) return d;
+  const v = settings[r.when];
+  return typeof v === 'number' && r.in.includes(v) ? { ...d, unit: r.unit } : d;
+}
+
+/** The meta as the setting reads with these settings (a motor on a rotary axis reads degrees). */
+export function metaWith(meta: SettingMeta, settings: Readonly<Record<string, SettingValue>>): SettingMeta {
+  const d = withRotary(meta.def, settings);
+  return d === null || d === meta.def ? meta : metaOf(d);
+}
+
 /**
  * The words for one value of a definition: its value label, "Unknown value (n)" outside the list, or the number with
  * its unit. With `inches` (the board reports G20), a length (`convert`) reads in inches: the board's number is inches.
@@ -79,7 +93,8 @@ export function boardValueWords(key: string, view: LiveView | null): string | nu
   const v = view?.readout.settings[key];
   if (v === undefined) return null;
   if (typeof v !== 'number') return valueText(v);
-  return valueWordsOf(definition(key, view?.readout.dialectId ?? null, boardBuild(view)), v, boardInches(view));
+  const d = withRotary(definition(key, view?.readout.dialectId ?? null, boardBuild(view)), view?.readout.settings ?? {});
+  return valueWordsOf(d, v, boardInches(view));
 }
 
 /** A setting's value in plain words ("Homing and limit", "1.8° per step"), or null when not read. */

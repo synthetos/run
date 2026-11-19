@@ -171,6 +171,13 @@ describe('expandSettingsFile: builds, families and the schema', () => {
     expect(() => expandSettingsFile(f)).toThrow(/1mi: convert disagrees with its write object/);
   });
 
+  it('a family can name the unit it reads in when its motor drives a rotary axis, by another token of the file', () => {
+    const f = mini();
+    ((f['families'] as Raw[])[0] as Raw)['rotary'] = { when: '{m}mi', in: [3, 4, 5], unit: 'deg/rev' };
+    expect(expandSettingsFile(f).tokens.get('2mi')?.rotary).toEqual({ when: '2mi', in: [3, 4, 5], unit: 'deg/rev' });
+    expect(() => expandSettingsFile(withToken('xsn', { rotary: { when: 'zz', in: [3], unit: 'deg' } }))).toThrow(/xsn: rotary token "zz" is not defined/);
+  });
+
   it('a file without families or enums loads its tokens', () => {
     const f = withToken('xsn', { values: [{ value: 0, label: 'Off' }] }, ['enum']);
     delete f['families'];

@@ -16,7 +16,16 @@ import type { FactPattern, Range, Risk, TypedConfirm, Unit } from '../overlays/t
 export type SettingAccess = 'write' | 'read' | 'forbidden' | 'readout' | 'reserved';
 
 /** Units a definition may carry: the overlay's units plus the describe-only ones. */
-export type DefinitionUnit = Unit | 'none' | 'text' | 'Hz' | 'mm/min2' | 'ratio' | 'rpm' | 'ms';
+export type DefinitionUnit = Unit | 'none' | 'text' | 'Hz' | 'mm/min2' | 'ratio' | 'rpm' | 'ms' | 'deg/rev';
+
+/** The unit a setting reads in when another token says its motor drives a rotary axis (`{m}tr` on A, B or C). */
+export interface RotaryUnit {
+  /** The token that decides (`"4ma"`). */
+  readonly when: string;
+  /** Its values that mean a rotary axis. */
+  readonly in: readonly number[];
+  readonly unit: DefinitionUnit;
+}
 
 export interface ValueDef {
   readonly value: number;
@@ -71,6 +80,8 @@ export interface SettingDefinition {
   readonly differs?: string;
   /** A length (F_CONVERT): the board reports it in inches under G20. From the file, or from the write object. */
   readonly convert?: true;
+  /** The unit it reads in on a rotary axis (describe only: writes and ranges keep `unit`). */
+  readonly rotary?: RotaryUnit;
   readonly write?: WriteDef;
 }
 

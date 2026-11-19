@@ -27,7 +27,7 @@ interface RawFile extends Omit<SettingsFile, 'tokens'> {
 }
 
 /** Fields copied as they are when present. */
-const OPTIONAL = ['display', 'reason', 'since', 'until', 'labelSrc', 'verify', 'differs'] as const;
+const OPTIONAL = ['display', 'reason', 'since', 'until', 'labelSrc', 'verify', 'differs', 'rotary'] as const;
 
 function validated(raw: unknown): RawFile {
   const errors = validateSchema(SETTINGS_FILE_SCHEMA, raw);
@@ -98,6 +98,13 @@ function checkProbeContact(file: RawFile, defined: ReadonlySet<string>): void {
   if (pc.token !== undefined && !defined.has(pc.token)) throw new Error(`probeContact: token "${pc.token}" is not defined`);
 }
 
+/** A rotary unit is decided by another token of the same file. */
+function checkRotary(tokens: readonly [string, SettingDefinition][], defined: ReadonlySet<string>): void {
+  for (const [key, d] of tokens) {
+    if (d.rotary !== undefined && !defined.has(d.rotary.when)) throw new Error(`${key}: rotary token "${d.rotary.when}" is not defined`);
+  }
+}
+
 function rawTokens(file: RawFile): [string, RawToken][] {
   return [...(file.families ?? []).flatMap(expandFamily), ...Object.entries(file.tokens)];
 }
@@ -116,6 +123,7 @@ export function expandSettingsFile(raw: unknown, fb?: number): SettingsFile {
     if (present(def, at)) tokens.push([key, def]);
   }
   checkProbeContact(file, seen);
+  checkRotary(tokens, seen);
   const { enums: _enums, families: _families, tokens: _raw, ...header } = file;
   return Object.freeze({ ...deepFreeze(structuredClone(header)), tokens: frozenMap(tokens) });
 }

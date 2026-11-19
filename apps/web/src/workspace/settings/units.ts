@@ -25,6 +25,7 @@ const WORDS: Readonly<Record<DefinitionUnit, string>> = Object.freeze({
   ratio: '',
   rpm: 'RPM',
   ms: 'ms',
+  'deg/rev': '°',
 });
 
 /** The unit's symbol; with `inches`, a millimetre unit reads in inches (the board reports lengths in inches under G20). */

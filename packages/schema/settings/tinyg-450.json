@@ -73,7 +73,7 @@
       "pattern": "{m}tr", "for": { "m": ["1", "2", "3", "4"] }, "rows": { "1": 213, "2": 223, "3": 234, "4": 245 }, "src": "EN config_app.c:{row}",
       "label": "Motor {m} travel per revolution", "short": "Travel per turn",
       "description": "Millimetres (or degrees, on a rotary axis) the axis moves per motor revolution: screw lead, or belt pitch × pulley teeth.",
-      "unit": "mm/rev", "group": "motor-{m}", "tab": "motors", "access": "write",
+      "unit": "mm/rev", "rotary": { "when": "{m}ma", "in": [3, 4, 5], "unit": "deg/rev" }, "group": "motor-{m}", "tab": "motors", "access": "write",
       "write": {
         "valueType": "number", "range": { "min": 0, "max": 1000, "minExclusive": true },
         "rangeSource": "EN stepper.c:1499 (E158: 0 or less refused with 108); host: at most 1000 per revolution",

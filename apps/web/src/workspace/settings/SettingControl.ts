@@ -20,8 +20,8 @@ import type { SettingValue, ValueDef } from '@synthetos/schema';
 import { draftStore, setDraft } from '../boardFacts.ts';
 import type { LiveView } from '../model.ts';
 import { boardBuild } from './defs.ts';
-import { APPLY_RUNNING, editBlocked } from './editGate.ts';
-import { boardInches, settingMeta, type SettingMeta } from './meta.ts';
+import { APPLY_RUNNING, editBlocked, plannedDrafts } from './editGate.ts';
+import { boardInches, metaWith, settingMeta, type SettingMeta } from './meta.ts';
 import { writableKey } from './pending.ts';
 import { numberWords, unitWords } from './units.ts';
 
@@ -157,8 +157,13 @@ function body(kind: ControlKind, c: Ctx): ComponentChild {
   }
 }
 
+/** The setting's words as the board reads them now (a motor on a rotary axis reads degrees). */
+function viewMeta(k: string, view: LiveView | null): SettingMeta {
+  return metaWith(settingMeta(k, view?.readout.dialectId ?? null, boardBuild(view)), { ...view?.readout.settings, ...plannedDrafts(view) });
+}
+
 function contextOf(k: string, view: LiveView | null): Ctx {
-  const meta = settingMeta(k, view?.readout.dialectId ?? null, boardBuild(view));
+  const meta = viewMeta(k, view);
   const board = view?.readout.settings[k];
   const inches = boardInches(view) && meta.def?.convert === true;
   const blocked = editBlocked(view);

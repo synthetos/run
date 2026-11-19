@@ -6,6 +6,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { h } from 'preact';
 import { clearDraft, setDraft } from '../src/workspace/boardFacts.ts';
+import { renderToString } from 'preact-render-to-string';
+import { AllSettings } from '../src/workspace/settings/AllSettings.ts';
+import { MotorFacts } from '../src/workspace/views/board/motorCard.ts';
 import { MotorsTab } from '../src/workspace/views/board/motors.ts';
 import { all, byAttr, one, root, text, type El } from './tree.ts';
 import { boardView, OWNER_449 } from './boardViews.ts';
@@ -31,6 +34,19 @@ describe('MotorsTab', () => {
     expect(text(row(m1, '1pm'))).toContain('On during a job, off after the idle time');
     expect(text(one(m1, byAttr('data-steps-per-unit')))).toBe('320');
     expect(enabled(el)).toEqual([]);
+  });
+
+  it('a motor on a rotary axis reads its travel per turn in degrees, everywhere (lead review, Motors 3)', () => {
+    for (const view of [boardView({ settings: OWNER_154 }), boardView({ ...OWNER_449, settings: OWNER_154 })]) {
+      const m4 = card(root(h(MotorsTab, { view })), 4);
+      expect(text(row(m4, '4tr'))).toContain('°');
+      expect(text(row(m4, '4tr'))).not.toContain('mm');
+      expect(text(row(card(root(h(MotorsTab, { view })), 1), '1tr'))).toContain('mm');
+      expect(text(root(h(MotorFacts, { m: 4, view })))).toContain('360°');
+      const all4 = /<tr[^>]*data-key="4tr"[\s\S]*?<\/tr>/.exec(renderToString(h(AllSettings, { view })))?.[0] ?? '';
+      expect(all4).toContain('°');
+      expect(all4).not.toContain('mm');
+    }
   });
 
   it('rows come from the motor group, with the short names', () => {

@@ -104,7 +104,18 @@
       }
     },
     "unit": {
-      "enum": ["mm", "mm/min", "mm/rev", "deg", "deg/min", "deg/step", "Mmm/min3", "Mdeg/min3", "microsteps", "s", "enum", "none", "text", "Hz", "mm/min2", "ratio", "rpm", "ms"]
+      "enum": ["mm", "mm/min", "mm/rev", "deg", "deg/min", "deg/step", "Mmm/min3", "Mdeg/min3", "microsteps", "s", "enum", "none", "text", "Hz", "mm/min2", "ratio", "rpm", "ms", "deg/rev"]
+    },
+    "rotary": {
+      "$comment": "The unit a setting reads in when the token `when` holds one of `in` (its motor drives a rotary axis). Describe only.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["when", "in", "unit"],
+      "properties": {
+        "when": { "type": "string", "pattern": "^[a-z0-9{}]+$" },
+        "in": { "type": "array", "minItems": 1, "items": { "type": "integer" } },
+        "unit": { "$ref": "#/$defs/unit" }
+      }
     },
     "access": { "enum": ["write", "read", "forbidden", "readout", "reserved"] },
     "range": {
@@ -165,6 +176,7 @@
         "verify": { "type": "string", "pattern": "^BC-[0-9]+$" },
         "differs": { "type": "string", "minLength": 1 },
         "convert": { "$comment": "F_CONVERT: the board reports it in inches under G20. A write object's convert must agree.", "type": "boolean" },
+        "rotary": { "$ref": "#/$defs/rotary" },
         "write": { "$ref": "#/$defs/write" }
       }
     },
@@ -202,6 +214,7 @@
         "verify": { "type": "string", "pattern": "^BC-[0-9]+$" },
         "differs": { "type": "string", "minLength": 1 },
         "convert": { "type": "boolean" },
+        "rotary": { "$ref": "#/$defs/rotary" },
         "write": { "$ref": "#/$defs/write" }
       }
     }

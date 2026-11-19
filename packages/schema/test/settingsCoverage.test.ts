@@ -169,6 +169,10 @@ describe('describe-only files for stock 449 and 440 (safety: nothing becomes wri
     expect([...settingsSchemaFor(S449).settings.values()].filter((d) => d.overlay).length).toBe(0);
   });
 
+  it.each(DIALECTS)('%s: travel per turn reads in degrees when its motor drives A, B or C', (d) => {
+    for (const m of ['1', '2', '3', '4']) expect(settingsDefsFor(d)!.tokens.get(`${m}tr`)?.rotary).toEqual({ when: `${m}ma`, in: [3, 4, 5], unit: 'deg/rev' });
+  });
+
   it.each(DIALECTS)('%s: exactly the cfgArray F_CONVERT rows (_fipc, _fipnc) are marked as lengths', (d) => {
     const marked = members(d).filter((k) => settingsDefsFor(d)!.tokens.get(k)?.convert === true).sort();
     expect(marked).toEqual(convertRows(d));
