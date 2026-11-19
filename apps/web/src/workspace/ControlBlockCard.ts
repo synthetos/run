@@ -13,6 +13,7 @@ import { usePublishNotes } from './notes/usePublishNotes.ts';
 import { controlBlock, type BlockActionId, type ControlBlock } from './controlBlock.ts';
 import type { WorkspaceModel } from './model.ts';
 import { observingElsewhere } from './tabControl.ts';
+import { ContextHelp } from '../shell/ContextHelp.ts';
 import { trustOffered } from './trustOffer.ts';
 import { ConfirmCard } from './ui.ts';
 
@@ -77,7 +78,7 @@ export function ControlBlockCard({ block, model }: { readonly block: ControlBloc
   return h(
     'div',
     { class: 'control-block', 'data-region': 'control-block', 'data-block': block.kind, ...(block.reason === undefined ? {} : { 'data-reason': block.reason }), role: 'status' },
-    h('p', null, h('strong', null, block.title), ...block.lines.map((l) => ` ${l}`)),
+    h('p', null, h('strong', null, block.title), ...block.lines.map((l) => ` ${l}`), block.help === undefined ? null : h(ContextHelp, { id: `block-help-${block.kind}`, label: 'Why Run reads this board only', end: true }, block.help)),
     // The session's own words are a note (Notes tab), for whoever reads the log or asks for help.
     usable.length === 0
       ? null

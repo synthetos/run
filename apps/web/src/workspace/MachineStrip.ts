@@ -73,10 +73,20 @@ function band(status: StripStatus, view: StopBarView | null, previousSession: bo
     // Owner, 2026-11-04: W6 is asked once, after connecting (the "state unknown" choice), not printed here first.
     return h('div', { class: 'state-meta', 'data-state': previousSession ? 'previous-session' : 'not-connected' }, h(ContextHelp, { id: 'connection-help', label: 'About the disconnected state', safety: 'W7', below: true }, ...signalText(w7())));
   }
+  return connectedMeta(status);
+}
+
+/**
+ * A connected board's pill and text. A pill with help (a read-only board, owner 2026-11-18, picture 149): its words
+ * open the details, and the text beside it shows only when it fits whole (workspace.css `.state-meta[data-fit]`).
+ */
+function connectedMeta(status: StripStatus): ComponentChild {
+  const pill = status.pill;
+  const pillBody = pill === null ? null : pill.help === undefined ? pill.text : h(ContextHelp, { id: 'strip-pill-help', label: `${pill.text}: details`, trigger: pill.text, below: true }, pill.help);
   return h(
     'div',
-    { class: 'state-meta', 'data-state': 'connected' },
-    status.pill === null ? null : h('span', { class: `pill ${status.pill.tone}` }, status.pill.text),
+    { class: 'state-meta', 'data-state': 'connected', ...(pill?.help === undefined ? {} : { 'data-fit': '' }) },
+    pill === null ? null : h('span', { class: `pill ${pill.tone}` }, pillBody),
     status.text === null ? null : h('span', { class: 'meta-text', title: status.text }, status.text),
   );
 }

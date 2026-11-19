@@ -58,8 +58,10 @@ describe('controlBlock: the reason and the way out', () => {
     expect(buildText(s)).toBe('450.02, no build id');
     const b = controlBlock(view(s), CTX);
     expect(b?.kind).toBe('not-approved');
-    expect(b?.title).toBe('Run can’t control this board yet.');
-    expect(b?.lines).toEqual(['Its firmware build isn’t on Run’s approved list (450.02, no build id).']);
+    // Owner 150: the state in two words, one short line, the long reason behind the "?".
+    expect(b?.title).toBe('Update required');
+    expect(b?.lines).toEqual(['450.02 is read only in Run. Install the newest release.']);
+    expect(b?.help).toBe('Its firmware build isn’t on Run’s approved list (450.02, no build id).');
     expect(b?.actions.map((a) => a.id)).toEqual(['update']);
     expect(controlBlock(view(s), { ...CTX, trustOffered: true })?.actions.map((a) => a.id)).toEqual(['trust', 'update']);
     // No flasher on this site: no Update button, and the card says so.
@@ -69,28 +71,31 @@ describe('controlBlock: the reason and the way out', () => {
     expect(buildText(snap({ identity: { fb: 450.02, fbs: '1a2b3c4d5e6f' } }))).toBe('450.02, build 1a2b3c4d');
   });
 
-  it('each read-only reason says its own cause in plain words, never the generic one (card, strip and control titles)', () => {
+  it('each read-only reason says its own cause in a few words, never the generic one (card, strip and control titles)', () => {
     const ro = (classification: Record<string, unknown>, extra: Record<string, unknown> = {}) => snap({ base: 'CONNECTED_UNKNOWN', overlays: ['READ_ONLY'], classification: { upgradeOffer: false, detail: 'session detail', ...classification }, ...extra });
-    const cases: [Snapshot, string, string, readonly string[]][] = [
-      [ro({ dialectId: 'tinyg-en', mode: 'readOnly', reason: 'flowControl' }, { live: { stat: 3, ex: 3 } }), 'flowControl', 'Its flow control setting is ex = 3, which Run doesn’t know.', ['disconnect']],
-      [ro({ dialectId: 'tinyg-en', mode: 'readOnly', reason: 'flowControl' }, { live: { stat: 3 } }), 'flowControl', 'Run couldn’t read its flow control setting (ex).', ['disconnect']],
-      [ro({ dialectId: 'tinyg-en', mode: 'readOnly', reason: 'en-not-approved' }), 'en-not-approved', 'Its firmware build isn’t on Run’s approved list (450.02, no build id).', ['update']],
-      [ro({ dialectId: 'tinyg-440', mode: 'readOnly', reason: 'tg440-not-approved' }, { identity: { fb: 440.2 } }), 'tg440-not-approved', 'Its firmware build isn’t on Run’s approved list (440.20, no build id).', ['update']],
-      [ro({ dialectId: 'tinyg-449-stock', mode: 'readOnly', reason: 'stock-449' }, { identity: { fb: 449.01 } }), 'stock-449', 'It runs stock TinyG firmware (449.01, no build id), which Run only reads.', ['update']],
-      [ro({ dialectId: 'g2core-edge', mode: 'readOnly', reason: 'g2core-read-only' }), 'g2core-read-only', 'Run reads g2core boards but doesn’t control them yet.', []],
-      [ro({ dialectId: null, mode: 'readOnly', reason: 'g2core-unknown-build' }, { identity: { fb: 101.5 } }), 'g2core-unknown-build', 'Run doesn’t know this g2core build (101.50, no build id).', ['disconnect']],
-      [ro({ dialectId: null, mode: 'readOnly', reason: 'probeFailed' }, { identity: {} }), 'probeFailed', 'Run couldn’t read the board’s identity.', ['disconnect']],
-      [ro({ dialectId: null, mode: 'readOnly', reason: 'conflict' }), 'conflict', 'Run couldn’t tell which firmware this board runs.', ['disconnect']],
+    // [snapshot, reason, the long why, card title, card first line, actions, strip text, refusal phrase]
+    const cases: [Snapshot, string, string, string, string, readonly string[], string, string][] = [
+      [ro({ dialectId: 'tinyg-en', mode: 'readOnly', reason: 'flowControl' }, { live: { stat: 3, ex: 3 } }), 'flowControl', 'Its flow control setting is ex = 3, which Run doesn’t know.', 'Flow control not supported', 'Its flow control setting is ex = 3, which Run doesn’t know.', ['disconnect'], 'Flow control ex = 3 is not supported', 'flow control ex = 3 is not supported'],
+      [ro({ dialectId: 'tinyg-en', mode: 'readOnly', reason: 'flowControl' }, { live: { stat: 3 } }), 'flowControl', 'Run couldn’t read its flow control setting (ex).', 'Flow control not read', 'Run couldn’t read its flow control setting (ex).', ['disconnect'], 'Flow control (ex) not read', 'flow control (ex) not read'],
+      [ro({ dialectId: 'tinyg-en', mode: 'readOnly', reason: 'en-not-approved' }), 'en-not-approved', 'Its firmware build isn’t on Run’s approved list (450.02, no build id).', 'Update required', '450.02 is read only in Run. Install the newest release.', ['update'], 'Firmware 450.02 · update required', 'firmware 450.02 needs an update'],
+      [ro({ dialectId: 'tinyg-440', mode: 'readOnly', reason: 'tg440-not-approved' }, { identity: { fb: 440.2 } }), 'tg440-not-approved', 'Its firmware build isn’t on Run’s approved list (440.20, no build id).', 'Update required', '440.20 is read only in Run. Install the newest release.', ['update'], 'Firmware 440.20 · update required', 'firmware 440.20 needs an update'],
+      [ro({ dialectId: 'tinyg-449-stock', mode: 'readOnly', reason: 'stock-449' }, { identity: { fb: 449.01 } }), 'stock-449', 'It runs stock TinyG firmware (449.01, no build id), which Run only reads.', 'Update required', '449.01 is read only in Run. Install the newest release.', ['update'], 'Firmware 449.01 · update required', 'firmware 449.01 needs an update'],
+      [ro({ dialectId: 'g2core-edge', mode: 'readOnly', reason: 'g2core-read-only' }), 'g2core-read-only', 'Run reads g2core boards but doesn’t control them yet.', 'g2core is read only', 'Run reads g2core boards but doesn’t control them yet.', [], 'G2core boards are read only', 'g2core boards are read only'],
+      [ro({ dialectId: null, mode: 'readOnly', reason: 'g2core-unknown-build' }, { identity: { fb: 101.5 } }), 'g2core-unknown-build', 'Run doesn’t know this g2core build (101.50, no build id).', 'Unknown g2core build', 'Run doesn’t know this g2core build (101.50, no build id).', ['disconnect'], 'G2core build 101.50 is not known', 'g2core build 101.50 is not known'],
+      [ro({ dialectId: null, mode: 'readOnly', reason: 'probeFailed' }, { identity: {} }), 'probeFailed', 'Run couldn’t read the board’s identity.', 'Board not identified', 'Run couldn’t read the board’s identity.', ['disconnect'], 'Board identity not read', 'board identity not read'],
+      [ro({ dialectId: null, mode: 'readOnly', reason: 'conflict' }), 'conflict', 'Run couldn’t tell which firmware this board runs.', 'Board not identified', 'Run couldn’t tell which firmware this board runs.', ['disconnect'], 'Firmware not identified', 'firmware not identified'],
     ];
-    for (const [s, reason, why, actions] of cases) {
+    for (const [s, reason, why, title, line, actions, strip, phrase] of cases) {
       const b = controlBlock(view(s), CTX);
       expect(b?.reason, reason).toBe(reason);
-      expect(b?.title, reason).toBe('Run can’t control this board yet.');
-      expect(b?.lines[0], reason).toBe(why);
+      expect(b?.title, reason).toBe(title);
+      expect(b?.lines[0], reason).toBe(line);
+      // The long reason stays one tap away: in the card's "?" when the line is the short one.
+      if (line !== why) expect(b?.help, reason).toBe(why);
       expect(b?.actions.map((a) => a.id), reason).toEqual(actions);
       expect(b?.detail, reason).toBe('session detail');
-      expect(stripStatus(view(s), null).text, reason).toBe(`${why} Run reads it and moves nothing.`);
-      expect(motionUi(view(s)).reason, reason).toBe(`Read only. ${why}`);
+      expect(stripStatus(view(s), null).text, reason).toBe(strip);
+      expect(motionUi(view(s)).reason, reason).toBe(`Read only: ${phrase}.`);
     }
     // Replies with no values: the $jv hint.
     expect(controlBlock(view(cases[7]?.[0] as Snapshot), CTX)?.lines).toContain('If its replies carry no values, set $jv to 4 on TinyG.');

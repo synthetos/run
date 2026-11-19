@@ -17,7 +17,10 @@ import { homingAxes, type HomingAxisConfig, type SettingValue } from '@synthetos
 import type { MotionAxis, MotionCommand, SnapshotMessage } from '../machine-worker/rpc.ts';
 import type { LiveView } from './model.ts';
 import { selectedMachine } from './library.ts';
-import { readOnlyWhy } from './readOnlyWhy.ts';
+import { readOnlyPhrase } from './readOnlyState.ts';
+
+/** A control's refusal on a read-only board, in a few words (owner 2026-11-18, 149: no run-on reasons). */
+const readOnlyRefusal = (s: SnapshotMessage['snapshot']): string => `Read only: ${readOnlyPhrase(s)}.`;
 
 type Snapshot = SnapshotMessage['snapshot'];
 
@@ -70,8 +73,8 @@ function why(s: Snapshot | null, flag: boolean): string | null {
   if (o.includes('FAULT')) return 'A fault is latched. Use Stop job if needed, then acknowledge the fault.';
   if (o.includes('ORPHANED_MOTION')) return 'The controller has motion this page did not send. Use Stop job first.';
   if (s.classification === null || s.base === 'IDENTIFYING' || s.base === 'READING' || s.base === 'OPENING' || s.base === 'PORT_REQUEST') return 'Identifying the board.';
-  if (s.classification.dialectId === null) return `Read only. ${readOnlyWhy(s)}`;
-  if (o.includes('READ_ONLY') || s.classification.mode !== 'full') return `Read only. ${readOnlyWhy(s)}`;
+  if (s.classification.dialectId === null) return readOnlyRefusal(s);
+  if (o.includes('READ_ONLY') || s.classification.mode !== 'full') return readOnlyRefusal(s);
   if (o.includes('STALE')) return 'No status from the machine. Wait for it to answer.';
   if (o.includes('UNKNOWN')) return 'The previous session ended while connected. Check the machine, then confirm below.';
   if (o.includes('NEEDS_REVIEW')) return 'The board’s settings differ from the reference. Review them first.';
@@ -282,7 +285,7 @@ export function homingView(view: LiveView | null, settings: Readonly<Record<stri
   if (s === null) reason = 'Connect a machine to home it.';
   else if (!flag) reason = 'Motion control is not enabled in this build.';
   else if (s.base === 'HOMING') reason = 'Homing. Pause or Stop job ends it.';
-  else if (s.classification?.mode !== 'full' || s.overlays.includes('READ_ONLY')) reason = `Read only. ${readOnlyWhy(s)}`;
+  else if (s.classification?.mode !== 'full' || s.overlays.includes('READ_ONLY')) reason = readOnlyRefusal(s);
   else if (s.overlays.some((o) => o !== 'UNKNOWN')) reason = why(s, flag) ?? 'Not available now.';
   else if (s.base !== 'IDLE_UNHOMED' && s.base !== 'IDLE_HOMED' && s.base !== 'CONNECTED_UNKNOWN') reason = why(s, flag) ?? 'Only available while the machine is idle.';
   else if ((s.motion ?? null) !== null) reason = 'A move is running.';

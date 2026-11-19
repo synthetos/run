@@ -21,7 +21,7 @@ describe('T-S92: motionUi decides when the motion controls are enabled', () => {
       [view(snap({ overlays: ['FAULT'] })), 'fault is latched'],
       [view(snap({ overlays: ['ORPHANED_MOTION'] })), 'did not send'],
       [view(snap({ base: 'IDENTIFYING', classification: null })), 'Identifying'],
-      [view(snap({ base: 'CONNECTED_UNKNOWN', overlays: ['READ_ONLY'], classification: { dialectId: 'tinyg-en', mode: 'readOnly' } })), 'isn’t on Run’s approved list (450.01, no build id)'],
+      [view(snap({ base: 'CONNECTED_UNKNOWN', overlays: ['READ_ONLY'], classification: { dialectId: 'tinyg-en', mode: 'readOnly' } })), 'Read only: firmware 450.01 is not approved.'],
       [view(snap({ overlays: ['STALE'] })), 'No status'],
       [view(snap({ base: 'CONNECTED_UNKNOWN', overlays: ['UNKNOWN'] })), 'confirm below'],
       [view(snap({ overlays: ['NEEDS_REVIEW'] })), 'Review them first'],

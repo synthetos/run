@@ -38,8 +38,9 @@ for (const level of ['simple', 'advanced'] as const) {
     expect((await session(worker)).overlays).toContain('READ_ONLY');
     const card = page.locator('[data-region="position"] [data-region="control-block"]');
     await expect(card).toHaveAttribute('data-block', 'not-approved');
-    await expect(card).toContainText('Run can’t control this board yet.');
-    await expect(card).toContainText('Its firmware build isn’t on Run’s approved list (450.90, no build id).');
+    // Owner 150: the state in two words and one short line; the long reason sits behind the card's "?".
+    await expect(card).toContainText('Update required');
+    await expect(card).toContainText('450.90 is read only in Run. Install 450.06.');
     for (const sel of ['[data-jog="panel"]', '[data-machine-control="zero"]', '[data-machine-control="jog"]', '.sec-home', '[data-region="home-quick"]', '#insp-tab-jog']) {
       await expect(inspector(page).locator(sel), sel).toHaveCount(0);
     }

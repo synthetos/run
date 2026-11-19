@@ -172,6 +172,10 @@ input::placeholder { color: var(--muted); opacity: 1; }
 .state-title small { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
 .state-meta { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
 .meta-text { color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* A pill with help (a read-only board, owner 2026-11-18, picture 149): the text beside it shows whole or not at all.
+   Without room it wraps to a second line that is clipped; the pill's help carries the same words. */
+.statebar .state-meta[data-fit] { flex-wrap: wrap; align-content: flex-start; row-gap: 40px; height: 28px; overflow-x: visible; overflow-y: clip; }
+.statebar .state-meta[data-fit] .meta-text { flex: none; overflow: visible; text-overflow: clip; line-height: 28px; }
 .readouts { display: flex; flex: none; gap: 0; min-width: 0; }
 .readout { padding: 0 16px; border-left: 1px solid var(--rule); display: flex; flex-direction: column; gap: 1px; }
 .readout span { font-size: 11px; color: var(--muted); }

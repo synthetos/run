@@ -8,6 +8,7 @@
 import { STOP_TEXT, w48, w50, w6Strip } from '@synthetos/safety';
 import { boardText } from '@synthetos/safety';
 import type { LiveView } from './model.ts';
+import { readOnlyPill, readOnlyStrip, updateFixes } from './readOnlyState.ts';
 import { readOnlyWhy } from './readOnlyWhy.ts';
 
 export const UNKNOWN = '—';
@@ -26,7 +27,8 @@ export interface StripStatus {
   readonly title: string;
   readonly name: string;
   readonly tone: StripTone;
-  readonly pill: { readonly text: string; readonly tone: 'live' | 'warn' | 'danger' | 'ok' } | null;
+  /** `help`: the pill's words open the details on demand; the strip then shows `text` only when it fits whole. */
+  readonly pill: { readonly text: string; readonly tone: 'live' | 'warn' | 'danger' | 'ok'; readonly help?: string } | null;
   readonly text: string | null;
   readonly readouts: readonly Readout[];
   /** The board reports the spindle on (`spe` 1): only picks the held wording "Paused · spindle still on". */
@@ -139,6 +141,20 @@ export function spindleReportedOn(view: LiveView): boolean {
 const MOVING = new Set(['running', 'jogging', 'homing', 'probing']);
 const ALARM = new Set(['alarm', 'shutdown', 'panic', 'softAlarm', 'interlock']);
 
+/**
+ * "Update required" is a warning; other read-only pills keep the live tone. The pill opens the strip text and the
+ * long reason on demand, so nothing is lost when the strip has no room for its text at 1280 (owner 149).
+ */
+function readOnlyStripPill(s: NonNullable<LiveView['message']>['snapshot'], text: string): StripStatus['pill'] {
+  return { text: readOnlyPill(s), tone: updateFixes(s) ? 'warn' : 'live', help: `${text}. ${readOnlyWhy(s)}` };
+}
+
+/** The verified release list, when the firmware hub has loaded it (it names the update target). */
+function readOnlyReleases(view: LiveView): import('@synthetos/protocol').FirmwareReleases | null {
+  const releases = view.firmware?.releases ?? null;
+  return releases !== null && releases.ok ? releases.list : null;
+}
+
 function units(view: LiveView): string {
   const u = view.message?.dro.units ?? null;
   return u === 'in' ? 'in/min' : u === 'mm' ? 'mm/min' : 'units/min';
@@ -227,8 +243,9 @@ export function stripStatus(view: LiveView, machineName: string | null): StripSt
   const trusted = s.classification?.approvalSource === 'trusted';
   if (trusted && o.includes('NEEDS_REVIEW')) return { ...base, title: 'Connected · settings to review', tone: 'live', pill: { text: w48(), tone: 'warn' }, text: 'The board’s settings differ from this computer’s reference.' };
   if (o.includes('NEEDS_REVIEW')) return { ...base, title: 'Connected · read only', tone: 'live', pill: { text: 'Needs review', tone: 'warn' }, text: 'The board’s settings differ from this computer’s reference.' };
-  // The real reason, never a generic "Phase 1" line (owner's bench 2026-11-09: a board left on RTS/CTS flow control).
-  if (o.includes('READ_ONLY')) return { ...base, title: 'Connected · read only', tone: 'live', pill: { text: 'Read only', tone: 'live' }, text: `${readOnlyWhy(s)} Run reads it and moves nothing.` };
+  // The real reason, never a generic "Phase 1" line (owner's bench 2026-11-09: a board left on RTS/CTS flow control),
+  // in words that fit beside the pill (owner 2026-11-18, picture 149); the Position card has the rest.
+  if (o.includes('READ_ONLY')) return { ...base, title: 'Connected · read only', tone: 'live', pill: readOnlyStripPill(s, readOnlyStrip(s, readOnlyReleases(view))), text: readOnlyStrip(s, readOnlyReleases(view)) };
   // A custom build the user trusted on this board (SAFETY H87): a persistent banner while it is in use (W48).
   if (trusted) return { ...base, title: 'Machine idle', tone: 'live', pill: { text: w48(), tone: 'warn' }, text: s.notices.motion?.text ?? 'This board runs custom firmware you trusted on it. It is not a signed build.' };
   // Phase 2: the last motion result in plain words ("Stopped: queue cleared, spindle and coolant off"), from polled state.

@@ -12,6 +12,7 @@ import type { LiveView } from './model.ts';
 import type { SnapshotMessage } from '../machine-worker/rpc.ts';
 import { coolantText, displayReadouts, spindleText } from './status.ts';
 import { buildText, readOnlyWhy } from './readOnlyWhy.ts';
+import { readOnlyCard } from './readOnlyState.ts';
 
 export { buildText, readOnlyWhy };
 
@@ -50,6 +51,8 @@ export interface ControlBlock {
   readonly reason?: string;
   /** The session's own detail, shown small in Advanced. */
   readonly detail?: string | null;
+  /** The long reason behind a short card (owner 150), shown by the card's "?". */
+  readonly help?: string;
 }
 
 /** What the card needs beyond the snapshot. */
@@ -60,27 +63,43 @@ export interface BlockContext {
   readonly trustOffered: boolean;
 }
 
-const CANT = 'Run can’t control this board yet.';
+/** The verified release list, when loaded (it names the update target). */
+function releasesOf(view: LiveView | null): import('@synthetos/protocol').FirmwareReleases | null {
+  const releases = view?.firmware?.releases ?? null;
+  return releases !== null && releases.ok ? releases.list : null;
+}
 
-function notApproved(s: Snapshot, flasher: boolean, ctx: BlockContext): ControlBlock {
+/**
+ * A read-only board (owner, 2026-11-18, picture 150: "another text runon"): a short title, then either the one
+ * short line with the long reason behind the card's "?" (an update fixes it), or the reason and how to fix it.
+ */
+function notApproved(s: Snapshot, view: LiveView | null, ctx: BlockContext): ControlBlock {
   const c = s.classification;
   const detail = c?.detail ?? null;
   const why = readOnlyWhy(s);
+  const { title, line } = readOnlyCard(s, releasesOf(view));
   const disconnect: BlockAction = { id: 'disconnect', label: 'Disconnect', primary: true };
   if (c?.reason === 'flowControl') {
     // An ex Run could not read or does not know (0, 1 and 2 are fine, OD-33). Run never writes ex (SAFETY H61): say how to fix it by hand.
-    return { kind: 'not-approved', reason: 'flowControl', title: CANT, lines: [why, 'Set ex to 1 (XON/XOFF) with another program, then connect again.'], actions: [disconnect], detail };
+    return { kind: 'not-approved', reason: 'flowControl', title, lines: [why, 'Set ex to 1 (XON/XOFF) with another program, then connect again.'], actions: [disconnect], detail };
   }
   if (c?.dialectId === null || c?.dialectId === undefined) {
     // Unidentified: nothing was read that names the firmware. Replies with no values usually mean $jv is below 4.
     const noValues = s.identity?.fb === undefined;
-    return { kind: 'unidentified', reason: c?.reason ?? 'unknown', title: CANT, lines: [why, ...(noValues ? ['If its replies carry no values, set $jv to 4 on TinyG.'] : []), 'Then connect again.'], actions: [disconnect], detail };
+    return { kind: 'unidentified', reason: c?.reason ?? 'unknown', title, lines: [why, ...(noValues ? ['If its replies carry no values, set $jv to 4 on TinyG.'] : []), 'Then connect again.'], actions: [disconnect], detail };
   }
-  if (c.reason === 'g2core-read-only') return { kind: 'not-approved', reason: c.reason, title: CANT, lines: [why], actions: [], detail };
+  if (c.reason === 'g2core-read-only') return { kind: 'not-approved', reason: c.reason, title, lines: [why], actions: [], detail };
+  return { kind: 'not-approved', reason: c.reason, title, ...wayOut(c.reason, view, ctx, { why, line }), detail };
+}
+
+/** An update (or trusting the build) is the way out: the buttons, and the short line with the reason behind "?". */
+function wayOut(reason: string, view: LiveView | null, ctx: BlockContext, words: { readonly why: string; readonly line: string | null }): Pick<ControlBlock, 'lines' | 'actions' | 'help'> {
+  const flasher = view?.message?.flasher === true;
   const update: BlockAction[] = flasher ? [{ id: 'update', label: 'Update firmware', primary: !ctx.trustOffered }] : [];
-  const trust: BlockAction[] = ctx.trustOffered && c.reason !== 'stock-449' ? [{ id: 'trust', label: 'Trust this firmware on this board', primary: true }] : [];
+  const trust: BlockAction[] = ctx.trustOffered && reason !== 'stock-449' ? [{ id: 'trust', label: 'Trust this firmware on this board', primary: true }] : [];
   const noUpdate = flasher ? [] : ['Firmware updates are not available on this site.'];
-  return { kind: 'not-approved', reason: c.reason, title: CANT, lines: [why, ...noUpdate], actions: [...trust, ...update], detail };
+  const actions = [...trust, ...update];
+  return words.line === null ? { lines: [words.why, ...noUpdate], actions } : { lines: [words.line, ...noUpdate], actions, help: words.why };
 }
 
 /**
@@ -101,7 +120,7 @@ export function controlBlock(view: LiveView | null, ctx: BlockContext): ControlB
   if (o.includes('FAULT')) return { kind: 'fault', title: 'Run stopped on a fault.', lines: ['Check the machine, then disconnect and connect again.'], actions: [{ id: 'disconnect', label: 'Disconnect', primary: true }] };
   if (o.includes('ORPHANED_MOTION')) return { kind: 'orphaned', title: 'The machine is moving and this page didn’t start it.', lines: ['Use Stop job at the top first.'], actions: [] };
   if (s.classification === null || s.base === 'IDENTIFYING' || s.base === 'READING' || s.base === 'OPENING' || s.base === 'PORT_REQUEST') return null;
-  if (o.includes('READ_ONLY') || s.classification.mode !== 'full') return notApproved(s, view?.message?.flasher === true, ctx);
+  if (o.includes('READ_ONLY') || s.classification.mode !== 'full') return notApproved(s, view, ctx);
   if (o.includes('STALE')) return null;
   // UNKNOWN's card is the Position panel's existing exits (homing.ts UnknownExits): verify, home, or set machine zero.
   if (o.includes('UNKNOWN')) return { kind: 'unknown', title: 'Position not verified.', lines: [], actions: [] };

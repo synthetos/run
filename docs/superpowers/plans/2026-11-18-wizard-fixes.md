@@ -112,3 +112,53 @@
 - [ ] Step 1: run the spec with `RUN_SCREENSHOTS=1`; look at every picture; fix what is broken; list findings in the ledger.
 - [ ] Step 2: write `WIZARD_FIXES.md` (one section per owner picture: owner image, new image, what was wrong, cause) and update `SETUP_WIZARD.md`.
 - [ ] Step 3: commit "Wizard walkthrough: new screenshots and the fixes write-up".
+
+---
+
+## Scope added by the lead (owner pictures 149–152)
+
+Owner: “[149] this text trails off, could be as simple as UPDATE REQUIRED to something..... [150] again another text runon that is not needed?” · “[151] this also looks like shit. also how in the hell would tg know if its flood or coolant? what do these buttons do?” · “[152] i think you would go to board and set this as flood or mist? this way the ui would auto set the button to the right text? we might want a step in the wizard to ask if the board using the coolant feature and if yes flood or mist kind of thing?”
+
+Constraint: say less, change nothing Run does. Job streaming of M7/M8/M9, Pause (never touches coolant) and Stop job are unchanged.
+
+### Task 6: Short read-only state (149, 150)
+
+**Files:**
+- Create: `apps/web/src/workspace/readOnlyState.ts`
+- Modify: `apps/web/src/firmware/updateNeeded.ts` (export `UPDATE_FIXES`), `apps/web/src/workspace/status.ts` (READ_ONLY branch), `apps/web/src/workspace/controlBlock.ts` (`notApproved` titles, lines, `help`), `apps/web/src/workspace/ControlBlockCard.ts` (renders `help` as a "?"), `apps/web/src/workspace/motion.ts` (three refusal texts)
+- Test: `apps/web/test/readOnlyState.test.ts`, `apps/web/test/controlBlock.test.ts`, `tools/e2e/specs/position-block.fake-serial.ts`, the layout spec
+
+**Interfaces:**
+- Consumes: `newestRelease(releases, hv, fb, true)` from Task 2.
+- Produces: `readOnlyPill(s)`, `readOnlyPhrase(s)` (lowercase, no full stop; refusals read `Read only: ${phrase}.`), `readOnlyStrip(s, releases | null)`, `readOnlyCard(s, releases | null): { title; line }`, `updateFixes(s)`.
+- Copy when an update fixes it (`stock-449`, `en-not-approved`, `tg440-not-approved`): pill "Update required"; strip "Firmware 449.01 → 450.06", or "Firmware 449.01 · update required" with no list; card title "Update required", line "449.01 is read only in Run. Install 450.06." (no list: "Install the newest release."); the long `readOnlyWhy` sentence moves to the card's "?".
+- Other reasons: short pill and card title; the card keeps its why and how-to-fix lines; the strip says the short phrase. Every strip text ≤ 36 characters.
+
+- [ ] Step 1: failing unit tests for every reason, stock-449 with and without a list, and the length cap.
+- [ ] Step 2: implement; update the tests that pinned the old sentences.
+- [ ] Step 3: browser: the strip text of the reachable read-only board (450.07, `en-not-approved`) is not truncated at 1280; the Position card says "Update required". Shots.
+- [ ] Step 4: commit.
+
+### Task 7: The machine knows what is wired to coolant (152: record, Board, Machines)
+
+**Files:**
+- Modify: `packages/library/src/machine.ts` (`coolant?: MachineCoolant`), `apps/web/src/workspace/cuttingQuestions.ts` (keys from `COOLANT_KINDS`), `views/board/pin.ts`, `views/MachinesView.ts` (one child), `boardNavigation.ts` (`pinRequest`), `views/board/overview.ts`, `boardFacts.ts` (`coolantPinRef()`)
+- Create: `apps/web/src/workspace/coolant.ts`, `views/board/CoolantWiring.ts`, `views/machines/MachineCoolantField.ts`
+- Test: `packages/library/test/machine.test.ts`, `apps/web/test/coolant.test.ts`
+
+**Interfaces:**
+- Library: `type MachineCoolant = 'none' | 'flood' | 'mist' | 'air'`, `COOLANT_KINDS`; the reader accepts absence and refuses other values.
+- `coolant.ts`: `COOLANT_WIRING` (Not used / Flood coolant / Mist / Air blast); `coolantLabel(kind | null)` (Flood, Mist, Air, Coolant); `coolantOnCommand(kind | null): MotionCommand` (mist and air → M7, flood and unset → M8); `coolantOn(live)`; `coolantReadout(live, kind | null)` ("Flood on", "Coolant off", "Not used", or the unreported text); `coolantHelp(kind | null)`.
+- Board panel: "Wired to" radios → `updateMachine(selected.id, { coolant })`; "Saved with the machine <name>. TinyG does not know what is wired to its output."; no machine → "Choose a machine on the Job page first", no radios.
+
+- [ ] Step 1: failing tests; Step 2: implement; Step 3: commit.
+
+### Task 8: One coolant toggle, the strip readout, the wizard question (151, 152)
+
+**Files:**
+- Modify: `views/run/spindle.ts` (one toggle named by the machine; hidden for `none`; "Set what is wired" when unset), `status.ts` (readout from the selected machine), CSS for the row; `wizard/steps/Homing.ts`, `wizardState.ts` ("Homing and coolant"), `SetupWizard.ts` (writes `coolant` on the step-2 machine)
+- Test: new `coolantToggle.test.ts`, `homingStep.test.ts`, `wizardState.test.ts`, browser shots
+
+- [ ] Step 1: failing tests: label and commands per choice (Flood M8/M9, Mist M7/M9, Air M7/M9, unset M8/M9 plus the link), hidden row for `none`, strip readout per choice, wizard question writing the machine.
+- [ ] Step 2: implement; the row aligned with the Spindle row in both themes.
+- [ ] Step 3: shots; commit.

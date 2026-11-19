@@ -3,9 +3,12 @@ import { belowMinimum, dialectById, mapStat, type FirmwareReleases } from '@synt
 import type { SnapshotMessage } from '../machine-worker/rpc.ts';
 type Snapshot = SnapshotMessage['snapshot'];
 
+/** The read-only reasons a listed TinyG release fixes (the strip and the Position card say "Update required"). */
+export const UPDATE_FIXES: readonly string[] = Object.freeze(['en-not-approved', 'tg440-not-approved', 'stock-449']);
+
 export function firmwareNeeded(s: Snapshot, releases: FirmwareReleases, hv: number, fb: number): boolean {
   return belowMinimum(releases, hv, fb).below ||
-    (s.classification?.mode === 'readOnly' && ['en-not-approved', 'tg440-not-approved', 'stock-449'].includes(s.classification.reason));
+    (s.classification?.mode === 'readOnly' && UPDATE_FIXES.includes(s.classification.reason));
 }
 
 /** A read-only session can stay CONNECTED_UNKNOWN even when the controller is alarmed. */

@@ -217,8 +217,7 @@
       "max-params $/FunctionDeclaration:enqueue#1": 5
     },
     "apps/web/src/workspace/controlBlock.ts": {
-      "complexity $/FunctionDeclaration:controlBlock#1": 29,
-      "complexity $/FunctionDeclaration:notApproved#1": 18
+      "complexity $/FunctionDeclaration:controlBlock#1": 27
     },
     "apps/web/src/workspace/cuttingQuestions.ts": {
       "complexity $/FunctionDeclaration:machineQuestion#1": 23

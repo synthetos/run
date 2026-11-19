@@ -57,7 +57,7 @@ describe('machine strip status', () => {
   it('connected read-only: plain words, unknown values never become zero', () => {
     const s = stripStatus(view(snap()), 'Workshop router');
     expect(s.title).toBe('Connected · read only');
-    expect(s.pill?.text).toBe('Read only');
+    expect([s.pill?.text, s.text]).toEqual(['Update required', 'Firmware 450.01 · update required']);
     expect(s.name).toContain('Workshop router');
     expect(s.name).toContain('TinyG v8');
     expect(s.name).toContain('450.01');

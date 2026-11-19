@@ -36,7 +36,7 @@ describe('amendment 2026-11-02: homing, offsets and the ways out of UNKNOWN (T-S
       [null, 'Connect a machine'],
       [withSettings(snap(), HOMING, false), 'not enabled in this build'],
       [withSettings(snap({ base: 'HOMING' }), HOMING), 'Homing.'],
-      [withSettings(snap({ base: 'CONNECTED_UNKNOWN', overlays: ['READ_ONLY'], classification: { dialectId: 'tinyg-en', mode: 'readOnly' } }), HOMING), 'isn’t on Run’s approved list'],
+      [withSettings(snap({ base: 'CONNECTED_UNKNOWN', overlays: ['READ_ONLY'], classification: { dialectId: 'tinyg-en', mode: 'readOnly' } }), HOMING), 'Read only: firmware 450.01 is not approved.'],
       [withSettings(snap({ overlays: ['STALE'] }), HOMING), 'No status'],
       [withSettings(snap({ base: 'ALARM' }), HOMING), 'alarm'],
       [withSettings(snap({ motion: { op: 'change', phase: 'drain', hold: false, held: false, stopping: false } }), HOMING), 'A move is running'],
