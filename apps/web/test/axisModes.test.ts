@@ -8,6 +8,7 @@ import { h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
 import { axisModeFact, axisModeLine, axisModeState, axisModeView, familyOf } from '../src/machine-ui/AxisModes.ts';
 import { AxesTab } from '../src/workspace/views/board/axes.ts';
+import { subTabChoice } from '../src/workspace/views/board/subTabs.ts';
 import { boardView } from './boardViews.ts';
 
 const STANDARD = { xam: 1, yam: 1, zam: 1, aam: 1, bam: 0, cam: 0 };
@@ -53,13 +54,17 @@ describe('axis-mode facts on the Axes tab (Board settings spec §5.6: each fact 
   const settings = { ...STANDARD, xam: 0, aam: 2, xtn: 0, xtm: 100, atn: 0, atm: 360 };
   const facts = axisModeView({ dialectId: 'tinyg-en', reading: false, settings, machine: AT_ZERO.map((a) => (a.axis === 'a' ? { axis: 'a', machine: 12 } : a)) });
 
-  it('renders every fact as text in its axis card, with its axis and code', () => {
-    const html = renderToString(h(AxesTab, { view: { ...boardView({ settings }), axisModes: facts } }));
-    expect(html).toContain('data-region="axes"');
-    expect(html).toContain('data-axis-modes="facts"');
-    expect(html).toContain('data-axis="X" data-axis-fact="linear-disabled"');
-    expect(html).toContain('data-axis="A" data-axis-fact="inhibited-away-from-zero"');
-    expect(html).toMatch(/A is inhibited \(aam=2\) and it reads 12(\.0+)?\b/);
+  it('renders every fact as text in its axis card (each axis on its own sub-tab), with its axis and code', () => {
+    const on = (axis: string): string => {
+      subTabChoice.axes.value = axis;
+      return renderToString(h(AxesTab, { view: { ...boardView({ settings }), axisModes: facts } }));
+    };
+    expect(on('x')).toContain('data-region="axes"');
+    expect(on('x')).toContain('data-axis-modes="facts"');
+    expect(on('x')).toContain('data-axis="X" data-axis-fact="linear-disabled"');
+    expect(on('a')).toContain('data-axis="A" data-axis-fact="inhibited-away-from-zero"');
+    expect(on('a')).toMatch(/A is inhibited \(aam=2\) and it reads 12(\.0+)?\b/);
+    subTabChoice.axes.value = null;
   });
 
   it('picks one axis\'s fact, and names the clear, reading and unclassified states', () => {

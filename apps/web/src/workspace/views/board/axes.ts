@@ -1,10 +1,11 @@
 /**
  * The Axes tab (Board settings spec §5.6, owner picture 157): an All axes card (soft limits, junction acceleration,
- * chordal tolerance), one card per axis the machine uses or whose mode is not Off, and one line for the unused axes
- * that are Off. Switch modes and contact live on Inputs, motor idle time on Motors (one home per setting).
+ * chordal tolerance), one card per axis the machine uses or whose mode is not Off, and the unused axes that are Off.
+ * Each is its own sub-tab, so nothing scrolls (owner walk 2026-11-19, picture 166). Switch modes and contact live on
+ * Inputs, motor idle time on Motors (one home per setting).
  */
 import { h, type ComponentChild } from 'preact';
-import type { SettingValue, SettingsFile } from '@synthetos/schema';
+import type { SettingValue } from '@synthetos/schema';
 import { axisModeState } from '../../../machine-ui/AxisModes.ts';
 import { settingMeta, settingsOf } from '../../boardFacts.ts';
 import { selectedMachine } from '../../library.ts';
@@ -17,10 +18,10 @@ import { SettingControl } from '../../settings/SettingControl.ts';
 import { axisCards, type AxisContext } from './axesModel.ts';
 import { AxisCardView } from './axisCardView.ts';
 import { Empty } from './shared.ts';
+import { SubTabs, subTabChoice, type SubTab } from './subTabs.ts';
 
 type Settings = Readonly<Record<string, SettingValue>>;
 
-const NARROW = 1100;
 const AXIS_TOKEN = /^[xyzabc](am|vm|fr|tn|tm|jm|jd|ra|sv|lv|lb|zb|jh)$/;
 
 function AllAxes({ view }: { readonly view: LiveView | null }): ComponentChild {
@@ -42,23 +43,18 @@ function AllAxes({ view }: { readonly view: LiveView | null }): ComponentChild {
   );
 }
 
-function names(axes: readonly string[]): string {
-  const up = axes.map((a) => a.toUpperCase());
-  return up.length === 1 ? (up[0] as string) : `${up.slice(0, -1).join(', ')} and ${up[up.length - 1] ?? ''}`;
-}
-
 /** The board the cards describe: its dialect, and whether it reports lengths in inches (G20). */
 function axisContext(view: LiveView | null): AxisContext {
   return { dialectId: view?.readout.dialectId ?? '', inches: boardInches(view) };
 }
 
-function OffAxes({ defs, view, planned, axes, machine }: { readonly defs: SettingsFile; readonly view: LiveView | null; readonly planned: Settings; readonly axes: readonly string[]; readonly machine: readonly string[] }): ComponentChild {
-  const cards = axisCards(defs, planned, [...machine, ...axes], axisContext(view)).cards.filter((c) => axes.includes(c.axis));
+/** The axes this machine does not use and whose mode is Off: one row each, with the mode, so one can be turned on. */
+function OffAxes({ view, axes }: { readonly view: LiveView | null; readonly axes: readonly string[] }): ComponentChild {
   return h(
-    'details',
+    'section',
     { class: 'board-card axes-off', 'data-region': 'axes-off' },
-    h('summary', null, `${names(axes)} · Off · Not used on this machine · Show`),
-    cards.map((c) => h(AxisCardView, { key: c.axis, c, defs, view, planned, open: true, modes: view?.axisModes ?? null })),
+    h('div', { class: 'sec-head' }, h('h3', { class: 'card-title' }, 'Other axes'), h('span', { class: 'fine' }, 'Not used on this machine. Choose a mode to use one; it then gets its own tab.')),
+    h('table', { class: 'cfg-table axis-table' }, h('tbody', null, axes.map((a) => h('tr', { key: a, 'data-axis-off': a }, h('th', { scope: 'row' }, `${a.toUpperCase()} axis`), h('td', null, h(SettingControl, { k: `${a}am`, view })))))),
   );
 }
 
@@ -83,12 +79,17 @@ export function AxesTab({ view }: { readonly view: LiveView | null }): Component
   const planned: Settings = { ...settings, ...plannedDrafts(view) };
   const machine = guidedAxes(selectedMachine.value, settings);
   const { cards, collapsedOff } = axisCards(defs, planned, machine, axisContext(view));
-  const narrow = typeof window !== 'undefined' && window.innerWidth < NARROW;
-  return h(
-    'div',
-    root,
-    h(AllAxes, { view }),
-    cards.map((c, i) => h(AxisCardView, { key: c.axis, c, defs, view, planned, open: !narrow || i === 0, modes })),
-    collapsedOff.length === 0 ? null : h(OffAxes, { defs, view, planned, axes: collapsedOff, machine }),
-  );
+  // One view at a time (owner walk 2026-11-19, picture 166): All axes, each axis in use, then the unused ones.
+  const tabs: readonly SubTab[] = [
+    { id: 'all', label: 'All axes' },
+    ...cards.map((c) => ({ id: c.axis, label: `${c.axis.toUpperCase()} axis` })),
+    ...(collapsedOff.length === 0 ? [] : [{ id: 'other', label: 'Other axes' }]),
+  ];
+  const part = (id: string): ComponentChild => {
+    if (id === 'all') return h(AllAxes, { view });
+    if (id === 'other') return h(OffAxes, { view, axes: collapsedOff });
+    const c = cards.find((x) => x.axis === id);
+    return c === undefined ? null : h(AxisCardView, { c, defs, view, planned, open: true, modes });
+  };
+  return h('div', root, h(SubTabs, { name: 'Axes', prefix: 'board-axes', tabs, choice: subTabChoice.axes, render: part }));
 }

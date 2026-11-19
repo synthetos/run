@@ -12,6 +12,7 @@ import { AllSettings } from '../src/workspace/settings/AllSettings.ts';
 import { valueWordsOf } from '../src/workspace/settings/meta.ts';
 import { axisCards, travelLine } from '../src/workspace/views/board/axesModel.ts';
 import { AxesTab } from '../src/workspace/views/board/axes.ts';
+import { subTabChoice } from '../src/workspace/views/board/subTabs.ts';
 import { MotorFacts } from '../src/workspace/views/board/motorCard.ts';
 import { MotorsTab } from '../src/workspace/views/board/motors.ts';
 import { one, byAttr, root, text } from './tree.ts';
@@ -34,7 +35,9 @@ describe('a 449 board in G20 shows lengths in inches', () => {
   });
 
   it('Axes: End reads 5.906 in, the summary and the homing search are in inches', () => {
+    subTabChoice.axes.value = 'x';
     const x = one(root(h(AxesTab, { view: inches449 })), byAttr('data-axis-card', 'x'));
+    subTabChoice.axes.value = null;
     expect(text(one(x, byAttr('data-axis-row', 'xtm')))).toContain('5.906 in');
     expect(text(one(x, byAttr('data-axis-row', 'xtm')))).not.toContain('mm');
     expect(text(x)).toContain('0 to 5.906 in');

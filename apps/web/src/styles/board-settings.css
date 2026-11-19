@@ -45,12 +45,19 @@
 .cfg-table.motor-table :is(td, th) { vertical-align: middle; height: 38px; padding-top: 4px; padding-bottom: 4px; }
 .cfg-table.motor-table tbody th { font-weight: 400; width: 10em; }
 .motor-extra { margin-left: 8px; }
-.axis-card > summary, .axes-off > summary { cursor: pointer; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; list-style-position: inside; }
-.axis-card > summary strong { font-size: 15px; }
-.axis-card[open] > summary { margin-bottom: 8px; }
-.axes-off .axis-card { margin: 12px 0 0; }
-.axis-sections { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 4px 24px; align-items: start; }
+.axis-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+.axis-head strong { font-size: 15px; }
+/* One axis per sub-tab, in three columns, fits 1280 × 800 with no scrolling (owner walk 2026-11-19). */
+.axis-sections { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 24px; align-items: start; }
+@media (max-width: 1000px) { .axis-sections { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); } }
 .axis-col { min-width: 0; }
+.axis-card .cfg-table.axis-table tbody th { width: 8.5em; }
+
+/* ---------- Sub-tabs inside a Board tab (views/board/subTabs.ts) ---------- */
+.subtabs { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.subtabs > .utabs { padding: 0; }
+.subtab-pane { min-height: 0; }
+.subtab-pane > .board-card { margin-bottom: 0; }
 .axis-section h4 { margin: 10px 0 4px; }
 .cfg-table.axis-table :is(td, th) { vertical-align: middle; height: 38px; padding-top: 4px; padding-bottom: 4px; }
 .cfg-table.axis-table tbody th { font-weight: 400; width: 11em; }

@@ -81,21 +81,21 @@ export function AxisCardView(p: CardProps): ComponentChild {
   const radius = c.rotary && c.mode === 3;
   const length = travelLength(p);
   return h(
-    'details',
-    { class: 'board-card axis-card', 'data-axis-card': a, id: `board-axis-${a}`, open: p.open },
-    h('summary', null, h('strong', null, `${a.toUpperCase()} axis`), ' ', h('span', { class: 'fine axis-summary' }, c.summary.split(' · ').slice(1).join(' · ')), c.motor === null ? null : h('span', { class: 'tag' }, `motor ${c.motor}`)),
+    'section',
+    { class: 'board-card axis-card', 'data-axis-card': a, id: `board-axis-${a}` },
+    h('div', { class: 'axis-head' }, h('strong', null, `${a.toUpperCase()} axis`), ' ', h('span', { class: 'fine axis-summary' }, c.summary.split(' · ').slice(1).join(' · ')), c.motor === null ? null : h('span', { class: 'tag' }, `motor ${c.motor}`)),
     fact === null ? null : h('p', { class: 'note', 'data-axis': fact.axis, 'data-axis-fact': fact.code }, fact.text),
     c.modeLine === null ? null : h('p', { class: 'note info' }, c.modeLine),
-    // Two independent columns, so a tall Travel or Homing never leaves a gap under Mode.
+    // Three independent columns fit one axis in a 1280 × 800 window with no scrolling (owner walk 2026-11-19).
     h('div', { class: 'axis-sections' },
       h('div', { class: 'axis-col', 'data-axis-col': 'left' },
         h(Section, { title: 'Mode', keys: radius ? [`${a}am`, `${a}ra`] : [`${a}am`], p }),
         h(Section, { title: 'Speed', keys: [`${a}vm`, `${a}fr`, `${a}jm`, `${a}jd`], p }),
       ),
-      h('div', { class: 'axis-col', 'data-axis-col': 'right' },
+      h('div', { class: 'axis-col', 'data-axis-col': 'middle' },
         h(Section, { title: 'Travel', keys: [`${a}tn`, `${a}tm`], p }, length === null ? null : h('p', { class: 'fine' }, length), h('p', { class: 'fine travel-line', 'data-travel-line': '' }, c.travelLine)),
-        h(Homing, { p }),
       ),
+      h('div', { class: 'axis-col', 'data-axis-col': 'right' }, h(Homing, { p })),
     ),
   );
 }

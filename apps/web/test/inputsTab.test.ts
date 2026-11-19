@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { h } from 'preact';
 import { clearDraft, setDraft } from '../src/workspace/boardFacts.ts';
 import { AxesTab } from '../src/workspace/views/board/axes.ts';
+import { subTabChoice } from '../src/workspace/views/board/subTabs.ts';
 import { InputsTab } from '../src/workspace/views/board/inputs.ts';
 import { all, byAttr, one, root, text, type El } from './tree.ts';
 import { boardView, OWNER_449 } from './boardViews.ts';
@@ -28,7 +29,9 @@ describe('a read-only board with a pending change left from before (review findi
     expect(all(el, (e) => e.props['class'] === 'drafted')).toEqual([]);
     expect(text(el)).not.toContain('Homing, with the pending changes');
     expect(text(el)).toContain('X homes towards min');
+    subTabChoice.axes.value = 'x';
     const x = one(root(h(AxesTab, { view: ro })), byAttr('data-axis-card', 'x'));
+    subTabChoice.axes.value = null;
     expect(text(x)).toContain('homes towards min');
   });
 });

@@ -1,28 +1,60 @@
 /**
  * The Axes tab built from the settings file (Board settings spec §5.6, owner picture 157): an All axes card, one
  * card per axis, travel rules in words, units from the data, and no switch-mode, switch-contact or motor-idle
- * controls (their home is Inputs and Motors).
+ * controls (their home is Inputs and Motors). Owner walk 2026-11-19 (picture 166): no scrolling, so the tab has its
+ * own tabs: All axes, one per axis the machine uses, and Other axes; one view at a time.
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import { h } from 'preact';
 import { clearDraft } from '../src/workspace/boardFacts.ts';
+import type { LiveView } from '../src/workspace/model.ts';
 import { AxesTab } from '../src/workspace/views/board/axes.ts';
+import { subTabChoice } from '../src/workspace/views/board/subTabs.ts';
 import { all, byAttr, one, root, text, type El } from './tree.ts';
 import { boardView, OWNER_449 } from './boardViews.ts';
 import { OWNER_157 } from './axesModel.test.ts';
 
-const render = (view = boardView({ settings: OWNER_157 })): El => root(h(AxesTab, { view }));
+const APPROVED = boardView({ settings: OWNER_157 });
+/** The Axes tab showing sub-tab `sub` (All axes when omitted). */
+const render = (view: LiveView = APPROVED, sub: string | null = null): El => {
+  subTabChoice.axes.value = sub;
+  return root(h(AxesTab, { view }));
+};
 const controls = (el: El): string[] => all(el, byAttr('data-setting-control')).map((e) => e.props['data-setting-control'] as string);
-const card = (el: El, a: string): El => one(el, byAttr('data-axis-card', a));
+/** The card of axis `a`, on its own sub-tab. */
+const card = (a: string, view: LiveView = APPROVED): El => one(render(view, a), byAttr('data-axis-card', a));
+const subtabs = (el: El): string[] => all(el, byAttr('data-subtab')).map((e) => e.props['data-subtab'] as string);
 
-beforeEach(() => clearDraft());
+beforeEach(() => {
+  clearDraft();
+  subTabChoice.axes.value = null;
+});
 
-describe('AxesTab layout', () => {
-  it('two independent columns: Speed follows Mode, Homing follows Travel (lead review, Axes)', () => {
-    const x = card(render(), 'x');
+describe('AxesTab sub-tabs (owner walk 2026-11-19: no scroll bars)', () => {
+  it('All axes, one tab per axis the machine uses, then Other axes; All axes first and alone', () => {
+    const el = render();
+    expect(subtabs(el)).toEqual(['all', 'x', 'y', 'z', 'a', 'other']);
+    expect(all(el, byAttr('data-region', 'all-axes'))).toHaveLength(1);
+    expect(all(el, byAttr('data-axis-card'))).toEqual([]);
+  });
+
+  it('an axis tab shows that axis alone, in three columns: Mode and Speed, Travel, Homing', () => {
+    const el = render(APPROVED, 'x');
+    expect(all(el, byAttr('data-axis-card')).map((c) => c.props['data-axis-card'])).toEqual(['x']);
+    const x = card('x');
     const titles = (col: string): string[] => all(one(x, byAttr('data-axis-col', col)), (e) => e.tag === 'h4').map(text);
     expect(titles('left')).toEqual(['Mode', 'Speed']);
-    expect(titles('right')).toEqual(['Travel', 'Homing']);
+    expect(titles('middle')).toEqual(['Travel']);
+    expect(titles('right')).toEqual(['Homing']);
+  });
+
+  it('Other axes lists the unused axes, each with its mode, and says they are not used', () => {
+    const el = render(APPROVED, 'other');
+    const off = one(el, byAttr('data-region', 'axes-off'));
+    expect(all(off, byAttr('data-axis-off')).map((r) => r.props['data-axis-off'])).toEqual(['b', 'c']);
+    expect(controls(off)).toEqual(['bam', 'cam']);
+    expect(text(off)).toContain('Not used on this machine');
+    expect(all(el, byAttr('data-axis-card'))).toEqual([]);
   });
 });
 
@@ -35,29 +67,29 @@ describe('AxesTab', () => {
   });
 
   it('jerk renders 20 with unit million mm/min³', () => {
-    const jm = one(card(render(), 'x'), byAttr('data-setting-control', 'xjm'));
+    const jm = one(card('x'), byAttr('data-setting-control', 'xjm'));
     expect(one(jm, (e) => e.tag === 'input').props['defaultValue']).toBe('20');
     expect(text(jm)).toContain('million mm/min³');
   });
 
   it('A rapid renders 230 400 °/min and 640 turns a minute', () => {
-    const a = card(render(boardView({ ...OWNER_449, settings: OWNER_157 })), 'a');
+    const a = card('a', boardView({ ...OWNER_449, settings: OWNER_157 }));
     expect(text(one(a, byAttr('data-axis-row', 'avm')))).toContain('230 400 °/min');
     expect(text(one(a, byAttr('data-axis-row', 'avm')))).toContain('640 turns a minute');
   });
 
   it('the A radius shows in radius mode only', () => {
-    expect(controls(card(render(), 'a'))).toContain('ara');
-    expect(controls(card(render(boardView({ settings: { ...OWNER_157, aam: 1 } })), 'a'))).not.toContain('ara');
+    expect(controls(card('a'))).toContain('ara');
+    expect(controls(card('a', boardView({ settings: { ...OWNER_157, aam: 1 } })))).not.toContain('ara');
   });
 
   it('no switch-mode, switch-contact or motor-idle control on Axes', () => {
-    const keys = controls(render());
+    const keys = ['all', 'x', 'y', 'z', 'a', 'other'].flatMap((s) => controls(render(APPROVED, s)));
     expect(keys.filter((k) => /^([xyzabc]s[nx]|st|mt)$/.test(k))).toEqual([]);
   });
 
   it('travel and homing lines in words; the homing section links to Inputs', () => {
-    const x = card(render(), 'x');
+    const x = card('x');
     expect(text(one(x, byAttr('data-travel-line')))).toBe('Soft limits are off, so these ends are not checked. Homing searches 155 mm.');
     const homing = one(x, byAttr('id', 'board-axis-x-homing'));
     expect(text(homing)).toContain('Homes towards min at the X min switch, J7.3.');
@@ -65,18 +97,10 @@ describe('AxesTab', () => {
   });
 
   it('one homing link per card, and none on a read-only board (review finding 10)', () => {
-    const x = card(render(boardView({ settings: { ...OWNER_157, xsn: 0 } })), 'x');
+    const x = card('x', boardView({ settings: { ...OWNER_157, xsn: 0 } }));
     expect(all(x, byAttr('data-action', 'open-inputs'))).toHaveLength(1);
     expect(text(x)).not.toContain('Set one on Inputs');
-    const ro = render(boardView({ ...OWNER_449, settings: OWNER_157 }));
-    expect(all(ro, byAttr('data-action', 'open-inputs'))).toEqual([]);
-  });
-
-  it('B and C collapse into one line', () => {
-    const off = one(render(), byAttr('data-region', 'axes-off'));
-    const own = off.children.find((c): c is El => typeof c !== 'string' && c.tag === 'summary');
-    expect(text(own as El)).toBe('B and C · Off · Not used on this machine · Show');
-    expect(all(off, byAttr('data-axis-card')).map((c) => c.props['data-axis-card'])).toEqual(['b', 'c']);
+    expect(all(card('x', boardView({ ...OWNER_449, settings: OWNER_157 })), byAttr('data-action', 'open-inputs'))).toEqual([]);
   });
 
   it('"This release never moves the machine" appears nowhere; the old axis-modes box is gone', () => {
@@ -86,14 +110,17 @@ describe('AxesTab', () => {
   });
 
   it('a read-only board renders every value as text or locked, with no enabled control, and does not repeat why per row', () => {
-    const el = render(boardView({ ...OWNER_449, settings: OWNER_157 }));
-    expect(text(one(el, byAttr('data-region', 'all-axes')))).not.toMatch(/Read only on this firmware|Run doesn't change this setting/);
-    expect(all(el, (e) => ['input', 'select', 'button'].includes(e.tag) && e.props['disabled'] !== true)).toEqual([]);
-    expect(all(el, byAttr('data-control-kind')).every((e) => e.props['data-control-kind'] === 'text' || e.props['data-control-kind'] === 'locked')).toBe(true);
+    const ro = boardView({ ...OWNER_449, settings: OWNER_157 });
+    expect(text(one(render(ro), byAttr('data-region', 'all-axes')))).not.toMatch(/Read only on this firmware|Run doesn't change this setting/);
+    for (const sub of ['all', 'x', 'a', 'other']) {
+      const el = render(ro, sub);
+      expect(all(el, (e) => ['input', 'select'].includes(e.tag) && e.props['disabled'] !== true)).toEqual([]);
+      expect(all(el, byAttr('data-control-kind')).every((e) => e.props['data-control-kind'] === 'text' || e.props['data-control-kind'] === 'locked')).toBe(true);
+    }
   });
 
   it('a mode other than Standard reads as one line in the card', () => {
-    const y = card(render(boardView({ settings: { ...OWNER_157, yam: 2 } })), 'y');
+    const y = card('y', boardView({ settings: { ...OWNER_157, yam: 2 } }));
     expect(text(y)).toContain('Mode Inhibited: the position follows the program, but the motor is held at step 0.');
   });
 });
