@@ -8,6 +8,7 @@ import { h } from 'preact';
 import { signal } from '@preact/signals';
 import type { PlannedChange } from '@synthetos/schema';
 import { clearDraft, draftStore, setDraft } from '../src/workspace/boardFacts.ts';
+import { uiLevel } from '../src/workspace/jobWorkflow.ts';
 import type { LiveView, WorkspaceModel } from '../src/workspace/model.ts';
 import { ApplyConfirm } from '../src/workspace/settings/SettingsUi.ts';
 import { boardIdOf, DISCARDED_TEXT, discardNotice, discardOnBoardChange, draftOwner, reconcileDrafts, watchBoardChange } from '../src/workspace/settings/boardChange.ts';
@@ -93,7 +94,14 @@ describe('PendingBar', () => {
     click(el, 'review-apply');
     expect(reviewOpen.value).toBe(true);
     const panel = rootUntil(h(ReviewPanel, { model: fakeModel(boardView({ settings: { ...BOARD, xvm: 16000 } })).model }), [ApplyConfirm]);
-    expect(text(one(panel, (e) => e.props['class'] === 'tray-refused'))).toContain('xvm');
+    const refusedList = one(panel, (e) => e.props['class'] === 'tray-refused');
+    expect(text(refusedList)).toContain('X maximum velocity');
+    // Simple shows no token (OD-44); Advanced puts it beside the words.
+    expect(all(refusedList, (e) => e.tag === 'code')).toEqual([]);
+    uiLevel.set('advanced');
+    const adv = rootUntil(h(ReviewPanel, { model: fakeModel(boardView({ settings: { ...BOARD, xvm: 16000 } })).model }), [ApplyConfirm]);
+    expect(text(one(one(adv, (e) => e.props['class'] === 'tray-refused'), (e) => e.tag === 'code'))).toBe('xvm');
+    uiLevel.set('simple');
     expect(one(panel, byAttr('data-action', 'apply-settings')).props['disabled']).toBe(true);
   });
 

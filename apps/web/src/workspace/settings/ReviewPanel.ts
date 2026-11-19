@@ -9,6 +9,7 @@
 import { h, type ComponentChild } from 'preact';
 import type { PlannedChange } from '@synthetos/schema';
 import { draftStore, plainValue, setDraft } from '../boardFacts.ts';
+import { uiLevel } from '../jobWorkflow.ts';
 import type { LiveView, WorkspaceModel } from '../model.ts';
 import { ApplyProgress, riskTag } from './ApplyProgress.ts';
 import { boardBuild } from './defs.ts';
@@ -69,7 +70,9 @@ function ReviewHead({ blocked, running, count }: { readonly blocked: string | nu
 function PlanNotes({ plan }: { readonly plan: ReturnType<typeof pendingPlan> }): ComponentChild {
   if (plan === null) return null;
   if (!plan.ok) {
-    return h('div', { class: 'tray-refused', role: 'alert' }, h('strong', null, 'These changes cannot be written as they are:'), h('ul', null, plan.refused.map((i) => h('li', { key: `${i.key}${i.code}` }, h('code', null, i.key), ` ${i.message}`))));
+    // The reason names the setting in words; the token sits beside it at Advanced only (OD-44).
+    const advanced = uiLevel.value.value === 'advanced';
+    return h('div', { class: 'tray-refused', role: 'alert' }, h('strong', null, 'These changes cannot be written as they are:'), h('ul', null, plan.refused.map((i) => h('li', { key: `${i.key}${i.code}` }, advanced ? h('code', null, i.key) : null, advanced ? ` ${i.message}` : i.message))));
   }
   return plan.changes.length === 0 && Object.keys(draftStore.value.value).length > 0 ? h('p', { class: 'fine' }, 'Every pending value already matches the board.') : null;
 }
