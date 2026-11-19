@@ -56,7 +56,7 @@ type Behind = Extract<FirmwareState, { kind: 'needed' | 'available' }>;
 /** Under the facts: the other-board alert, why it cannot run now (with the page when it can help), or Update firmware. */
 function offerAction(p: FirmwareProps, state: Behind): ComponentChild {
   if (p.mismatch !== null) return h('p', { class: 'wizard-line', role: 'alert' }, p.mismatch);
-  if (state.held !== null) return h('div', null, line(HELD_TEXT[state.held], 'held'), PAGE_HELPS.has(state.held) ? button(p.onUpdate) : null);
+  if (state.held !== null) return h('div', null, HELD_TEXT[state.held] === '' ? null : line(HELD_TEXT[state.held], 'held'), PAGE_HELPS.has(state.held) ? button(p.onUpdate) : null);
   return button(p.onUpdate);
 }
 

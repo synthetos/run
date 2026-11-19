@@ -19,10 +19,11 @@ export type HeldReason = 'no-updater' | 'flow-control' | 'unidentified' | 'busy'
 export const HELD_TEXT: Readonly<Record<HeldReason, string>> = Object.freeze({
   'no-updater': 'Firmware updates are not available on this site.',
   'flow-control': 'Set ex to 1 (XON/XOFF) with another program, then connect again.',
-  unidentified: 'Run could not identify this firmware. Update from Board → Firmware.',
-  busy: 'The machine is not idle. Update from Board → Firmware once it is.',
-  'read-only': 'This connection is read-only. Update from Board → Firmware once the machine is idle.',
-  other: 'Update from Board → Firmware.',
+  // The step's "Update firmware" button opens Board → Firmware for these (owner 168), so the text only says why.
+  unidentified: 'Run could not identify this firmware.',
+  busy: 'The machine is not idle. Update it once it is.',
+  'read-only': 'This connection is read-only. Update it once the machine is idle.',
+  other: '',
 });
 
 /** A newer (or required) release: the facts, the offer when it can run now, otherwise why not. */

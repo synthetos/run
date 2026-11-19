@@ -58,8 +58,10 @@ describe('firmwareState: the board against the release list, the offer only for 
     expect(noQr).toMatchObject({ kind: 'needed', offer: null, held: 'other' });
     for (const s of [flow, unidentified, noQr]) expect(firmwareGate(s)).toEqual({ skippable: true, nextEnabled: false });
     expect(HELD_TEXT['flow-control']).toBe('Set ex to 1 (XON/XOFF) with another program, then connect again.');
-    expect(HELD_TEXT.unidentified).toBe('Run could not identify this firmware. Update from Board → Firmware.');
-    expect(HELD_TEXT.other).toBe('Update from Board → Firmware.');
+    // The "Update firmware" button is the way to the page (owner 168: no bare "Update from Board → Firmware" pointer).
+    expect(HELD_TEXT.unidentified).toBe('Run could not identify this firmware.');
+    expect(HELD_TEXT.other).toBe('');
+    for (const text of Object.values(HELD_TEXT)) expect(text).not.toMatch(/Board → Firmware/);
     // "Not idle" only when the board really is not at rest.
     expect(firmwareState(board(450.07, { ...READ_ONLY_EN, base: 'JOB_RUNNING', job: { phase: 'running' } }))).toMatchObject({ held: 'busy' });
     for (const s of [flow, unidentified, noQr]) expect(HELD_TEXT[(s as { held: keyof typeof HELD_TEXT }).held]).not.toMatch(/idle/);
@@ -152,8 +154,12 @@ describe('step 3 Firmware (render)', () => {
     expect(html).not.toContain('current');
     const busy = renderToString(h(Firmware, { ...base, model, state: firmwareState(board(450.02, { base: 'JOB_RUNNING', job: { phase: 'running' } })) }));
     expect(busy).toContain(HELD_TEXT.busy);
-    expect(HELD_TEXT.busy).toBe('The machine is not idle. Update from Board → Firmware once it is.');
-    expect(HELD_TEXT['read-only']).toBe('This connection is read-only. Update from Board → Firmware once the machine is idle.');
+    expect(HELD_TEXT.busy).toBe('The machine is not idle. Update it once it is.');
+    expect(HELD_TEXT['read-only']).toBe('This connection is read-only. Update it once the machine is idle.');
+    // owner 168: the held "other" state shows the button and no empty line.
+    const other = renderToString(h(Firmware, { ...base, model, state: { ...firmwareState(board(450.02)), kind: 'needed', offer: null, held: 'other' } as FirmwareState }));
+    expect(other).toContain('data-action="wizard-update"');
+    expect(other).not.toContain('data-firmware-step="held"');
     expect(HELD_TEXT['no-updater']).toBe('Firmware updates are not available on this site.');
   });
   it('checking and list-failed: one line each, never "current"', () => {
