@@ -1,3 +1,6 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import { latestGithubReleases, MAX_GITHUB_HEX_BYTES } from '../src/githubReleaseData.ts';
 import { githubReleaseLoader, RELEASE_CACHE_MS, TINYG_RELEASES_API } from '../src/githubReleases.ts';
@@ -45,9 +48,26 @@ it('fetches only the fixed API, coalesces refresh and expires after ten minutes'
   const load = githubReleaseLoader(fetcher, () => now);
   await Promise.all([load(), load()]);
   expect(fetcher).toHaveBeenCalledTimes(1);
-  expect(fetcher.mock.calls[0]).toEqual([TINYG_RELEASES_API, expect.objectContaining({ method: 'GET', redirect: 'error' })]);
+  // Cloudflare's runtime throws on redirect 'error' ("use manual and check the response status code"), so the
+  // hosted list never loaded (owner 2026-11-19). 'manual' plus refusing every 3xx keeps "never follow a redirect".
+  expect(fetcher.mock.calls[0]).toEqual([TINYG_RELEASES_API, expect.objectContaining({ method: 'GET', redirect: 'manual' })]);
   now = RELEASE_CACHE_MS - 1; await load(); expect(fetcher).toHaveBeenCalledTimes(1);
   now++; await load(); expect(fetcher).toHaveBeenCalledTimes(2);
+});
+it('refuses a redirect from GitHub instead of following it', async () => {
+  const load = githubReleaseLoader(async () => new Response(null, { status: 302, headers: { location: 'https://elsewhere.invalid/' } }));
+  await expect(load()).rejects.toThrow('(HTTP 302)');
+});
+it('no Worker source asks fetch for redirect "error", which the Cloudflare runtime refuses', () => {
+  const root = fileURLToPath(new URL('../../', import.meta.url));
+  const offenders: string[] = [];
+  for (const worker of readdirSync(root)) {
+    const src = join(root, worker, 'src');
+    let files: string[] = [];
+    try { files = readdirSync(src, { recursive: true }).map(String).filter(f => f.endsWith('.ts')); } catch { continue; }
+    for (const file of files) if (/redirect:\s*['"]error['"]/.test(readFileSync(join(src, file), 'utf8'))) offenders.push(`${worker}/src/${file}`);
+  }
+  expect(offenders).toEqual([]);
 });
 it('never serves expired data after a failed refresh and retries the next request', async () => {
   let now = 0;

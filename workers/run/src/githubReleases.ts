@@ -39,7 +39,8 @@ export function githubReleaseLoader(fetcher: GithubFetch, now: () => number = Da
   let cached: { until: number; releases: readonly GithubFirmwareRelease[] } | null = null;
   let pending: Promise<readonly GithubFirmwareRelease[]> | null = null;
   async function refresh(token: string | undefined): Promise<readonly GithubFirmwareRelease[]> {
-    const response = await fetcher(TINYG_RELEASES_API, { method: 'GET', redirect: 'error', headers: requestHeaders(token) });
+    // 'manual', never 'error': the Cloudflare runtime throws on 'error'. A 3xx is not ok, so readList refuses it unfollowed.
+    const response = await fetcher(TINYG_RELEASES_API, { method: 'GET', redirect: 'manual', headers: requestHeaders(token) });
     const releases = latestGithubReleases(await readList(response));
     cached = { until: now() + RELEASE_CACHE_MS, releases };
     return releases;
