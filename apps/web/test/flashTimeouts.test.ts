@@ -11,7 +11,7 @@ import { PHASE_1_RELEASE } from '@synthetos/safety';
 import { VirtualClock } from '@synthetos/testkit';
 import { MachineWorkerHost } from '../src/machine-worker/host.ts';
 import { memoryBootloaderMarks, type BootloaderMarks } from '../src/machine-worker/bootloaderMark.ts';
-import { BOOTLOADER_ADVICE } from '../src/machine-worker/flashService.ts';
+import { BOOTLOADER_ADVICE } from '../src/machine-worker/bootloaderAdvice.ts';
 
 const port = { usbVendorId: 1027, usbProductId: 24597, grantIndex: 0 };
 const platform = { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/130' };

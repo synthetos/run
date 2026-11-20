@@ -10,7 +10,8 @@ import { PHASE_1_RELEASE } from '@synthetos/safety';
 import { FlashableBoard, SimEndpoint, VirtualClock } from '@synthetos/testkit';
 import { memoryBootloaderMarks } from '../src/machine-worker/bootloaderMark.ts';
 import { BANNER_WAIT_MS } from '../src/machine-worker/bannerWait.ts';
-import { BOOTLOADER_ADVICE, type FlashView } from '../src/machine-worker/flashService.ts';
+import { BOOTLOADER_ADVICE } from '../src/machine-worker/bootloaderAdvice.ts';
+import type { FlashView } from '../src/machine-worker/flashService.ts';
 import type { LiveView } from '../src/workspace/model.ts';
 import { FirmwareTab } from '../src/workspace/views/FirmwareViews.ts';
 import { h } from 'preact';
@@ -72,7 +73,8 @@ describe('Connect on a board marked after a failed update', () => {
     expect(await r.marks.find(PORT)).toBeNull();
     expect(r.waits).toContainEqual({ phase: 'waiting', seconds: BANNER_WAIT_MS / 1000 });
     expect(r.waits).toContainEqual({ phase: 'waiting', seconds: 20 });
-    expect(r.host.flash.view?.bannerWait ?? null).toBeNull();
+    // Firmware runs: the failed-update view (Recovery, the mark note) is gone; the page shows the normal Update view.
+    expect(r.host.flash.view).toBeNull();
     // Nothing normal before the banner: only the AVR109 check.
     expect(r.writesBeforeBanner()).toEqual(['1b', '53']);
     await r.call({ v: 3, kind: 'status' });
@@ -98,6 +100,7 @@ describe('Connect on a board marked after a failed update', () => {
     r.clock.setTimeout(() => r.board.resetBoard(), 8_000);
     await r.succeeds({ v: 3, kind: 'flash', command: { op: 'reconnect' } });
     expect(await r.marks.find(PORT)).toBeNull();
+    expect(r.host.flash.view).toBeNull();
     expect(r.writesBeforeBanner()).toEqual(['1b', '53']);
   }, 60_000);
 });

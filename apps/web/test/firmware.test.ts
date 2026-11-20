@@ -166,7 +166,7 @@ describe('the firmware update in the worker', () => {
   }, 60_000);
 
   it('Start firmware timeout becomes a failed-flash mark; another Start can never send E', async () => {
-    const r = rig({ board: { start: 'bootloader', model: { bootMs: 30_000, eepromWriteMs: 0 } } });
+    const r = rig({ board: { start: 'bootloader', model: { bootMs: 60_000, eepromWriteMs: 0 } } });
     await r.call({ v: 3, kind: 'open', port: PORT, boardId: null });
     expect(await r.call({ v: 3, kind: 'flash', command: { op: 'startFirmware' } })).toMatchObject({ ok: false });
     expect((await r.marks.find(PORT))?.kind).toBe('failed');
@@ -335,7 +335,7 @@ describe('the firmware update in the worker', () => {
   }, 60_000);
 
   it.each(['matching', 'different', 'unknown'] as const)('a late banner clears only its own board mark (%s id); silence never unlocks the session', async identity => {
-    // The banner comes 70 s after the exit: past the 10 s post-flash wait and the first 30 s Connect wait.
+    // The banner comes 70 s after the exit: past the 30 s post-flash wait and the first 30 s Connect wait (ends at 60 s).
     const r = rig({ board: { model: { bootMs: 70_000, eepromWriteMs: 0 } } }); await r.connect();
     await flash(r, 'update', {});
     expect(r.host.flash.view).toMatchObject({ phase: 'failed' });
@@ -559,4 +559,45 @@ it.each([['backup', false], ['write', true]] as const)('the mark of an update lo
   await r.until(() => r.host.flash.view?.phase === 'failed');
   expect(lost).toBe(true);
   expect((await r.marks.find(PORT))?.wrote).toBe(wrote);
+}, 60_000);
+
+/** When the flash view first reached `phase`, in virtual ms (-1: never). */
+function phaseTimes(r: Rig): Map<string, number> {
+  const at = new Map<string, number>();
+  r.host.flashListener = () => { const p = r.host.flash.view?.phase; if (p !== undefined && !at.has(p)) at.set(p, r.clock.now()); };
+  return at;
+}
+
+// The first boot after an update can be slow (a new EEPROM layout loads its defaults): not a failure (owner, 449.01 → 450.06).
+it('a first boot whose banner comes 18 s after the exit completes the update; nothing is sent before that banner', async () => {
+  const r = rig({ board: { model: { bootMs: 18_000, eepromWriteMs: 0 } } }); await r.connect();
+  await flash(r, 'update', {});
+  expect(r.host.flash.view, r.host.flash.view?.message ?? '').toMatchObject({ phase: 'done', recoveryOffered: false });
+  expect(await r.marks.find(PORT)).toBeNull();
+  expect(r.host.session.snapshot.identity?.fb).toBe(450.02);
+  const lines = await flashLines(r);
+  const exit = lines.map((l) => l.dir === 'tx' && l.hex === '45').lastIndexOf(true);
+  let text = '';
+  const banner = lines.findIndex((l, i) => i > exit && l.dir === 'rx' && (text += Buffer.from(l.hex, 'hex').toString('latin1')).includes('"fb":'));
+  expect(exit).toBeGreaterThan(0);
+  expect(banner).toBeGreaterThan(exit);
+  expect(lines.slice(exit + 1, banner).filter((l) => l.dir === 'tx')).toEqual([]);
+}, 60_000);
+
+it('no banner after the exit: Recovery, only once the whole 30 s wait ran out', async () => {
+  const r = rig({ board: { model: { bootMs: 600_000, eepromWriteMs: 0 } } }); await r.connect();
+  const at = phaseTimes(r);
+  await flash(r, 'update', {});
+  expect(r.host.flash.view).toMatchObject({ phase: 'failed', recoveryOffered: true });
+  expect((at.get('failed') ?? 0) - (at.get('reconnecting') ?? 0)).toBeGreaterThanOrEqual(29_900);
+  expect(await r.marks.find(PORT)).not.toBeNull();
+  expect(r.host.session.snapshot.base).toBe('NOT_CONNECTED');
+}, 60_000);
+
+it('Start firmware on a board found in its bootloader: a banner 18 s after E connects', async () => {
+  const r = rig({ board: { start: 'bootloader', model: { bootMs: 18_000, eepromWriteMs: 0 } } });
+  await r.call({ v: 3, kind: 'open', port: PORT, boardId: null });
+  expect(r.host.flash.view?.bootloader).toEqual({ startAllowed: true });
+  expect(await r.call({ v: 3, kind: 'flash', command: { op: 'startFirmware' } })).toMatchObject({ ok: true });
+  expect(await r.marks.find(PORT)).toBeNull();
 }, 60_000);

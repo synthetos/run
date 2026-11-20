@@ -1,12 +1,14 @@
 /**
  * Connect on a board marked after a failed update (owner report 2026-11-20, TinyG v8 3Y2462-WWR; fake-serial TEST
- * build). The update ends without a banner in time (the simulated board boots 15 s late), so the board keeps its
+ * build). The update ends without a banner in time (the simulated board boots 40 s late), so the board keeps its
  * mark. Board → Firmware says so. Connect then listens for the banner: the dialog says to press Reset, with the
  * countdown. Nobody presses it, so the wait runs out and Try again appears. Try again listens again; a simulated
  * Reset sends the banner, the mark clears and the session connects. Before that banner the bootloader link wrote
- * only the AVR109 check (ESC, S).
+ * only the AVR109 check (ESC, S). Then the page is the normal Update view (no Recovery card), its release rows
+ * capped on a wide window, and Update to 451.00 opens C6.
  *
- * With RUN_BOOTLOADER_MARK_SHOTS set to a directory, screenshots (1280×800, light and dark) are written there.
+ * With RUN_BOOTLOADER_MARK_SHOTS set to a directory, screenshots (light and dark; 1280×800, and 1600×1000 for the
+ * wide Update view) are written there.
  */
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -120,15 +122,19 @@ test('a marked board: press Reset during the countdown; the wait runs out, Try a
   await flashableBoard(worker);
   expect(await request(worker, { v: 3, kind: 'open', port: PORT })).toMatchObject({ ok: true });
   await expect.poll(() => base(worker), { timeout: 15_000 }).toMatch(/IDLE_UNHOMED|CONNECTED_UNKNOWN/);
-  // The updated firmware boots 15 s late: past the 10 s post-update wait, so the board keeps its mark.
-  await boardDo(worker, 15_000);
+  // The updated firmware boots 40 s late: past the 30 s post-update wait, so the board keeps its mark.
+  await boardDo(worker, 40_000);
   await updateTo45002(page);
   const note = page.locator('[data-region="bootloader-mark"]');
   await expect(note).toBeVisible({ timeout: 120_000 });
   await expect(note).toContainText('To clear the mark: press Connect, then press Reset on the board when Run asks.');
-  await expect(page.locator('[data-region="flash-recovery"]')).not.toContainText('Unplug USB and power');
-  // The late banner goes out to a closed port; later starts boot normally.
-  await page.waitForTimeout(7000);
+  const recovery = page.locator('[data-region="flash-recovery"]');
+  await expect(recovery).not.toContainText('Unplug USB and power');
+  // Pages were written: the card says no firmware may be running, and says "in its bootloader" once.
+  await expect(recovery).toContainText('No firmware running');
+  expect((await recovery.innerText()).split('may still be in its bootloader').length - 1).toBe(1);
+  // The late banner goes out to a closed port (40 s after the exit); later starts boot normally.
+  await page.waitForTimeout(12_000);
   await boardDo(worker, 0);
   await shots(page, 'firmware-mark-note');
 
@@ -154,11 +160,27 @@ test('a marked board: press Reset during the countdown; the wait runs out, Try a
   await expect.poll(() => base(worker), { timeout: 15_000 }).toMatch(/IDLE_UNHOMED|CONNECTED_UNKNOWN/);
   await expect(note).toHaveCount(0);
   expect(await writesBeforeBanner(worker)).toEqual(['1b', '53']);
+
+  // Firmware runs and the mark is gone: the normal Update view, no Recovery card, and Update to 451.00 opens C6.
+  await expect(recovery).toHaveCount(0);
+  await expect(page.locator('[data-region="firmware-plan"]')).toBeVisible();
+  const next = page.locator('[data-release="sim-edge-next-451.00.hex"] [data-action="update-release"]');
+  await expect(next).toBeEnabled({ timeout: 20_000 });
+  await shots(page, 'firmware-update-1280');
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  const row = await page.locator('[data-release="sim-edge-next-451.00.hex"]').boundingBox();
+  expect(row?.width ?? 0, 'release rows stop at a readable width').toBeLessThanOrEqual(900);
+  await shots(page, 'firmware-update-1600');
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await next.click();
+  await expect(page.locator('[data-region="flash-confirm"]')).toBeVisible();
+  await expect(page.locator('[data-region="flash-recovery"]')).toHaveCount(0);
+  await page.locator('[data-action="cancel-flash"]').click();
 });
 
 /**
  * The setup wizard's Machine step (step 2) shows the same guidance over the wizard. The mark comes from a board found
- * in its bootloader whose Start firmware got no banner in time (the firmware boots 10 s late): a failed mark.
+ * in its bootloader whose Start firmware got no banner in time (the firmware boots 40 s late): a failed mark.
  */
 test('setup, Machine step: a marked board gets the countdown, Try again, and connects after Reset', async ({ page }) => {
   test.setTimeout(180_000);
@@ -166,11 +188,11 @@ test('setup, Machine step: a marked board gets the countdown, Try again, and con
   const { worker } = await openWizard(page, [setupRecord({ step: 2, done: [1] })], 2);
   await flashableBoard(worker, 'bootloader');
   expect(await request(worker, { v: 3, kind: 'open', port: PORT })).toMatchObject({ ok: false });
-  await boardDo(worker, 10_000);
+  await boardDo(worker, 40_000);
   await inBackground(worker, { v: 3, kind: 'flash', command: { op: 'startFirmware' } });
-  await expect.poll(() => openReply(worker), { timeout: 20_000 }).toMatchObject({ ok: false });
-  // The late banner goes out to a closed port; later starts boot normally.
-  await page.waitForTimeout(7000);
+  await expect.poll(() => openReply(worker), { timeout: 45_000 }).toMatchObject({ ok: false });
+  // The late banner goes out to a closed port (40 s after E); later starts boot normally.
+  await page.waitForTimeout(12_000);
   await boardDo(worker, 0);
 
   await openInBackground(worker);

@@ -59,6 +59,7 @@ import { type FirmwareReleases } from '@synthetos/protocol';
 import { categoryOf, restoreChanges, type SettingValue } from '@synthetos/schema';
 import type { BootloaderMark, BootloaderMarks } from './bootloaderMark.ts';
 import { listenForBanner, type BannerWaitView } from './bannerWait.ts';
+import { BOOTLOADER_ADVICE, withAdvice } from './bootloaderAdvice.ts';
 import { requiredInputs } from './switchInputs.ts';
 import { entryDiagnosis } from './flashDiagnosis.ts';
 import { boardFacts, endsWritten, startsWritten } from './flashViewFacts.ts';
@@ -67,13 +68,13 @@ import { boardFacts, endsWritten, startsWritten } from './flashViewFacts.ts';
 export const BACKUP_SAVE_MS = 60_000;
 /** The recovery countdown: unplug and replug within this time. */
 export const RECOVERY_MS = 45_000;
-/** Maximum silent wait for a fresh firmware-ready banner after verified exit (Connect on a marked board: bannerWait.ts). */
-export const FIRMWARE_BANNER_MS = 10_000;
 /**
- * The banner that clears the mark must arrive while Connect listens (bannerWait.ts), so this never says to
- * power-cycle first: a TinyG prints its banner once, and a person who power-cycles before Connect loses it.
+ * The silent wait for a fresh firmware-ready banner after the exit, and after Start firmware (Connect on a marked
+ * board: BANNER_WAIT_MS in bannerWait.ts). 30 s: the first boot after an update can be slow. When the EEPROM layout
+ * changed, the firmware loads its defaults and writes them before its banner (owner's 449.01 → 450.06 update ran
+ * past the old 10 s). The rule stays: nothing is sent until a banner arrives; no banner in 30 s is a failure.
  */
-export const BOOTLOADER_ADVICE = 'The board may still be in its bootloader. Normal commands could damage it. Press Connect, then press Reset on the board when Run asks.';
+export const FIRMWARE_BANNER_MS = 30_000;
 /** Longest `.hex` text the page may pass. */
 export const MAX_HEX_TEXT = 2 * 1024 * 1024;
 
@@ -494,13 +495,14 @@ export class FlashService {
         if (await this.#d.marks.find(port, boardId)) throw new Error('The board was quarantined during the pre-check.');
         return await link.finishOrdinaryPrecheck();
       }
-      if (await listenForBanner(link, this.#d.clock, (bannerWait) => this.#set({ bannerWait }))) return await this.#handoff(link, mark, true);
+      // A live banner: firmware runs on this port. The failed-update view is history (the mark, if kept, restores it).
+      if (await listenForBanner(link, this.#d.clock, (bannerWait) => this.#set({ bannerWait }))) { const ready = await this.#handoff(link, mark, true); this.#view = null; this.#begin = null; return ready; }
       await link.close();
       this.#set({ message: BOOTLOADER_ADVICE });
       return BOOTLOADER_ADVICE;
     } catch (error) {
       await link?.close();
-      return `Run could not verify that this board is safe to connect: ${error instanceof Error ? error.message : String(error)}. ` + BOOTLOADER_ADVICE;
+      return withAdvice(`Run could not verify that this board is safe to connect: ${error instanceof Error ? error.message : String(error)}.`);
     } finally { this.#running = false; this.#d.onChange(); }
   }
 
@@ -582,10 +584,10 @@ export class FlashService {
         this.#set({ bootloader: { startAllowed: false } });
         await link.startFirmware();
       }
-      if (!(await link.waitForFirmwareBanner(5000))) {
+      if (!(await link.waitForFirmwareBanner(FIRMWARE_BANNER_MS))) {
         mark = { ...mark, kind: 'failed' };
         await this.#d.marks.put(mark);
-        this.#set({ bootloader: { startAllowed: false }, message: 'No firmware banner arrived. Update the firmware to recover this board. ' + BOOTLOADER_ADVICE });
+        this.#set({ bootloader: { startAllowed: false }, message: withAdvice('No firmware banner arrived. Update the firmware to recover this board.') });
         await link.close();
         return fail(this.#view?.message ?? BOOTLOADER_ADVICE);
       }
@@ -636,13 +638,13 @@ export class FlashService {
         const entered = await this.#enterBootloader();
         if (entered !== null) {
           await this.#d.session.disconnect();
-          this.#finish(id, { phase: 'failed', message: entered + ' ' + BOOTLOADER_ADVICE, recoveryOffered: true });
+          this.#finish(id, { phase: 'failed', message: withAdvice(entered), recoveryOffered: true });
           return;
         }
       }
       link = recovery ? await this.#recoveryLink(id, auth, port) : await this.#openLink(auth, port);
       if (link === null) {
-        this.#finish(id, { phase: 'failed', message: (recovery ? `The bootloader did not answer. ${this.#diagnosis()}` : 'The port could not be opened in bootloader role.') + ' ' + BOOTLOADER_ADVICE, recoveryOffered: true });
+        this.#finish(id, { phase: 'failed', message: withAdvice(recovery ? `The bootloader did not answer. ${this.#diagnosis()}` : 'The port could not be opened in bootloader role.'), recoveryOffered: true });
         return;
       }
       const client = new XbootClient(link, this.#d.clock, X192A3);
@@ -666,7 +668,7 @@ export class FlashService {
         await link.close();
         link = null;
         const message = outcome.code === 'no-entry' ? `${outcome.message}. ${this.#diagnosis()}` : outcome.message;
-        this.#finish(id, { phase: 'failed', message: message + ' ' + BOOTLOADER_ADVICE, recoveryOffered: true, wrote: endsWritten(outcome.wrote, this.#view) });
+        this.#finish(id, { phase: 'failed', message: withAdvice(message), recoveryOffered: true, wrote: endsWritten(outcome.wrote, this.#view) });
         return;
       }
       auth.finish();
@@ -687,7 +689,7 @@ export class FlashService {
       this.#set({ phase: 'done', message: r.ok ? null : r.message });
     } catch (error) {
       await link?.close().catch(() => undefined);
-      this.#finish(id, { phase: 'failed', message: (error instanceof Error ? error.message : String(error)) + ' ' + BOOTLOADER_ADVICE, recoveryOffered: true });
+      this.#finish(id, { phase: 'failed', message: withAdvice(error instanceof Error ? error.message : String(error)), recoveryOffered: true });
     }
   }
 

@@ -95,6 +95,17 @@ function baselineOf(pending: PendingRestore | undefined, file: BackupFile | null
   return unit === 1 ? { tokens } : NOT_MILLIMETRES;
 }
 
+/**
+ * An update enters through the bootloader (recovery, no settings backup) only for a board that is not connected and
+ * was found in its bootloader with its hardware confirmed. A connected board gets the normal update, whatever
+ * failed-update view the snapshot still carries (owner report 2026-11-20).
+ */
+export function recoveryEntry(m: SnapshotMessage | null): boolean {
+  const flash = m?.flash ?? null;
+  if (m?.snapshot.base !== 'NOT_CONNECTED' || flash?.bootloader === undefined) return false;
+  return typeof flash.board?.hv === 'number';
+}
+
 export class FirmwareUpdater {
   readonly #d: UpdaterDeps;
   #step: UpdaterStep = { kind: 'idle' };
@@ -131,7 +142,7 @@ export class FirmwareUpdater {
   async start(req: UpdateRequest): Promise<string | null> {
     if (this.#step.kind === 'preparing' || this.#step.kind === 'flashing') return 'An update is already in progress.';
     const s = this.#message?.snapshot ?? null;
-    const bootloader = this.#message?.flash?.bootloader !== undefined && this.#message.flash.board?.hv !== null && this.#message.flash.board?.hv !== undefined;
+    const bootloader = recoveryEntry(this.#message);
     if (s === null || (s.base === 'NOT_CONNECTED' && !bootloader)) return this.#fail('Connect the board first.');
     const boardId = typeof s.identity?.id === 'string' ? s.identity.id : null;
     try {

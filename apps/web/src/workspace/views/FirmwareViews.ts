@@ -59,6 +59,21 @@ export function flashBlocked(view: LiveView | null): string | null {
   return null;
 }
 
+/** The view already says the board may be in its bootloader: its message (the advice), or the mark note. */
+function saysBootloader(flash: FlashView): boolean {
+  return flash.marked === true || (flash.message ?? '').includes('may still be in its bootloader');
+}
+
+/** A failed update that offers no recovery: what stopped it, then Dismiss. */
+function FlashFailedCard({ flash, actions }: { readonly flash: FlashView; readonly actions: WorkspaceModel['actions']['value'] }): ComponentChild {
+  const fine = flash.wrote ? 'Pages were written: use recovery.' : saysBootloader(flash) ? null : 'The board may still be in its bootloader.';
+  return h('section', { class: 'insp', 'data-region': 'flash-failed' },
+    h('header', null, h('h2', null, 'Update stopped')),
+    h('p', { role: 'alert' }, flash.message ?? 'The update stopped.'),
+    fine === null ? null : h('p', { class: 'fine' }, fine),
+    h('button', { type: 'button', class: 'small', 'data-action': 'flash-dismiss', onClick: () => void actions?.firmware?.dismiss() }, 'Dismiss'));
+}
+
 function RecoveryCard({ flash, actions }: { readonly flash: FlashView; readonly actions: WorkspaceModel['actions']['value'] }): ComponentChild {
   const counting = flash.phase === 'recovery' && flash.countdown !== null;
   // Only a run that wrote to the flash can have left the board without firmware.
@@ -70,8 +85,8 @@ function RecoveryCard({ flash, actions }: { readonly flash: FlashView; readonly 
     flash.wrote ? null : h('p', null, 'Nothing was written to the board. Its old firmware is still there.'),
     counting
       ? h('p', { class: 'recovery-count', role: 'alert', 'data-safety': 'W49' }, w49({ seconds: flash.countdown ?? 0 }))
-      // A marked board: the mark note above says it may be in its bootloader and how the mark clears.
-      : h('p', null, flash.marked === true ? 'You can also try the update again. Do not unplug it during the update.' : 'The board may still be in its bootloader. Try the update again. Do not unplug it during the update.'),
+      // Said once: the message (the advice) or the mark note above may already say it may be in its bootloader.
+      : h('p', null, saysBootloader(flash) ? 'You can also try the update again. Do not unplug it during the update.' : 'The board may still be in its bootloader. Try the update again. Do not unplug it during the update.'),
     flash.message === null ? null : h('p', { role: 'alert' }, flash.message),
     h('p', { class: 'flash-danger', 'data-safety': 'W28' }, ...signalText(w28())),
     counting ? null : h('button', { type: 'button', class: 'primary wide', 'data-machine-control': 'flash', 'data-action': 'flash-recover', disabled: actions?.firmware === undefined, onClick: () => void actions?.firmware?.recover() }, 'Try the update again'),
@@ -300,7 +315,7 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
       ) : null,
       h(BootloaderMarkNote, { flash }), flash !== null && (flash.phase === 'recovery' || (flash.phase === 'failed' && flash.recoveryOffered)) ? h(RecoveryCard, { flash, actions }) : null,
       flash !== null && flash.phase === 'failed' && !flash.recoveryOffered && flash.bootloader === undefined
-        ? h('section', { class: 'insp', 'data-region': 'flash-failed' }, h('header', null, h('h2', null, 'Update stopped')), h('p', { role: 'alert' }, flash.message ?? 'The update stopped.'), h('p', { class: 'fine' }, flash.wrote ? 'Pages were written: use recovery.' : 'The board may still be in its bootloader.'), h('button', { type: 'button', class: 'small', 'data-action': 'flash-dismiss', onClick: () => void actions?.firmware?.dismiss() }, 'Dismiss'))
+        ? h(FlashFailedCard, { flash, actions })
         : null,
       flash !== null && flash.phase === 'done'
         ? h(

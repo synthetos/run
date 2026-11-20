@@ -98,6 +98,9 @@
 .firmware-tab > .subtabs { flex: 1; min-height: 0; }
 .firmware-tab .subtab-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .firmware-tab .subtab-pane > .configure-grid { flex: 1; min-height: 0; padding: 0; grid-template-rows: minmax(0, 1fr); }
+/* Wide windows (owner report 2026-11-20, about 1545 px): the release rows stop at a readable width instead of
+   spreading the version, notes and buttons across the screen. At 1280 the pane is narrower than this already. */
+.firmware-tab .subtab-pane > .configure-grid { width: 100%; max-width: 1240px; }
 /* A C6 confirm opens at the top of its column: no scroll anchoring pushes its W11 and W28 out of view (owner 167). */
 .firmware-tab .inspector, .firmware-tab .hub { overflow-anchor: none; }
 /* C6 on the Firmware page (owner 167: it fits at 1280 × 800, no scrolling): the warnings beside the boxes, then the

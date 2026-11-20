@@ -66,3 +66,13 @@ it('Board → Firmware says the board is marked and that Connect, then Reset, cl
   // The spindle and VFD warning stays on the Recovery card.
   expect(html).toContain('data-safety="W28"');
 });
+
+it.each([
+  ['the Recovery card', true],
+  ['the Update stopped card', false],
+] as const)('%s says "may still be in its bootloader" once when its message already does', (_name, recoveryOffered) => {
+  const f = { ...flash(null), marked: false, wrote: false, recoveryOffered, message: `Cancelled before anything was written. ${ADVICE}` };
+  const html = renderToString(h(FirmwareTab, { view: { message: { snapshot: { base: 'NOT_CONNECTED', identity: null, classification: null, values: {} }, flash: f, flasher: true } } as unknown as LiveView }));
+  expect(html).toContain(recoveryOffered ? 'data-region="flash-recovery"' : 'data-region="flash-failed"');
+  expect(html.split('may still be in its bootloader').length - 1).toBe(1);
+});

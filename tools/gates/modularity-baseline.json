@@ -34,7 +34,7 @@
     },
     "apps/web/src/firmware/updater.ts": {
       "complexity $/ClassDeclaration:FirmwareUpdater#1/FunctionExpression:onSnapshot#1": 32,
-      "complexity $/ClassDeclaration:FirmwareUpdater#1/FunctionExpression:start#1": 30,
+      "complexity $/ClassDeclaration:FirmwareUpdater#1/FunctionExpression:start#1": 24,
       "max-methods $/ClassDeclaration:FirmwareUpdater#1": 16
     },
     "apps/web/src/gcode-worker/camTools.ts": {
@@ -323,7 +323,7 @@
       "complexity $/FunctionDeclaration:AnalyzeView#1": 29
     },
     "apps/web/src/workspace/views/FirmwareViews.ts": {
-      "complexity $/FunctionDeclaration:FirmwareTab#1": 94,
+      "complexity $/FunctionDeclaration:FirmwareTab#1": 92,
       "complexity $/FunctionDeclaration:flashBlocked#1": 19,
       "max-lines-per-function $/FunctionDeclaration:FirmwareTab#1": 117
     },
