@@ -1222,7 +1222,7 @@ As OLD-S §4.3.
 - On EN, at most 20 blocks can be queued; on TG, 28.
 - **Ceiling:** queued path length is limited so the estimate stays at or below the configured time (default 5 s, range 2–20 s). **A single line cannot exceed the ceiling:** the sanitiser splits any G0/G1/G2/G3 whose modelled duration exceeds it into sub-segments (§4.7 step 6a), and preview and preflight interpret exactly the split lines. C7 states the longest single move.
 
-**Web Lock** `synthetos-machine:<board id>` is taken when entering LIVE. Other tabs get Pause-request and Stop-job-request buttons and are otherwise read-only. Revised in red-team round 2:
+**Web Lock** `synthetos-machine:<board id>` is taken when entering LIVE. Other tabs get Pause-request and Stop-job-request buttons and are otherwise read-only. The worker holding it also holds `synthetos-tab:<tab token>:<machine lock>` for exactly as long, so a tab tells its own machine lock from another tab's. Revised in red-team round 2:
 - Observer tabs watch the lock. When it is released (the controlling tab crashed or closed), they replace the request buttons with W29 "NO TAB CONTROLS THIS MACHINE".
 - The machine worker acknowledges every stop request on the BroadcastChannel within 250 ms. Without an acknowledgement, the requesting tab shows "STOP NOT DELIVERED — use your E-stop".
 - The worker accepts **only stop-class messages** (pause, stop job, spindle off) on the channel.

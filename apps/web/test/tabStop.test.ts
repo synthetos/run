@@ -310,15 +310,15 @@ describe('LockWatcher (observer tab)', () => {
     const locks = new FakeLocks();
     let live = false;
     const roles: unknown[] = [];
-    const watcher = new LockWatcher(locks, () => live, realTimers, (r) => roles.push(r));
+    const watcher = new LockWatcher({ locks, owner: null, isLive: () => live, timers: realTimers, onChange: (r) => roles.push(r) });
     await watcher.poll();
     expect(watcher.role).toEqual(NO_ROLE);
     locks.held.set('synthetos-machine:BOARD-A', () => undefined);
     await watcher.poll();
-    expect(watcher.role).toEqual({ held: ['synthetos-machine:BOARD-A'], released: [], observing: true });
+    expect(watcher.role).toEqual({ held: ['synthetos-machine:BOARD-A'], own: [], released: [], observing: true });
     locks.drop('synthetos-machine:BOARD-A');
     await watcher.poll();
-    expect(watcher.role).toEqual({ held: [], released: ['synthetos-machine:BOARD-A'], observing: false });
+    expect(watcher.role).toEqual({ held: [], own: [], released: ['synthetos-machine:BOARD-A'], observing: false });
     await watcher.poll();
     expect(watcher.role.released).toEqual(['synthetos-machine:BOARD-A']);
     watcher.dismissReleased();
@@ -334,7 +334,7 @@ describe('LockWatcher (observer tab)', () => {
   it('keeps what it shows when the locks cannot be read', async () => {
     const locks = new FakeLocks();
     locks.held.set('synthetos-machine:BOARD-A', () => undefined);
-    const watcher = new LockWatcher(locks, () => false, realTimers, () => undefined);
+    const watcher = new LockWatcher({ locks, owner: null, isLive: () => false, timers: realTimers, onChange: () => undefined });
     await watcher.poll();
     locks.failQuery = true;
     locks.drop('synthetos-machine:BOARD-A');
@@ -344,7 +344,7 @@ describe('LockWatcher (observer tab)', () => {
 
   it('polls every 250 ms once started', async () => {
     const locks = new FakeLocks();
-    const watcher = new LockWatcher(locks, () => false, realTimers, () => undefined);
+    const watcher = new LockWatcher({ locks, owner: null, isLive: () => false, timers: realTimers, onChange: () => undefined });
     watcher.start();
     await vi.advanceTimersByTimeAsync(1);
     locks.held.set('synthetos-machine:X', () => undefined);
@@ -532,9 +532,9 @@ describe('StopControls', () => {
   it('enables the stop button for an observer and after a release (W29)', () => {
     const { c } = controls();
     expect(c.view.value.available).toBe(false);
-    c.setRole({ held: ['synthetos-machine:A'], released: [], observing: true });
+    c.setRole({ held: ['synthetos-machine:A'], own: [], released: [], observing: true });
     expect(c.view.value.available).toBe(true);
-    c.setRole({ held: [], released: ['synthetos-machine:A'], observing: false });
+    c.setRole({ held: [], own: [], released: ['synthetos-machine:A'], observing: false });
     expect(c.view.value.available).toBe(true);
   });
 });
@@ -636,14 +636,14 @@ describe('machine strip stop controls and observer panel', () => {
 
   it('the observer panel offers the two requests, and W29 replaces them when the lock is released', () => {
     const props = { live: false, onPauseRequest: vi.fn(), onStopJobRequest: vi.fn(), onDismiss: vi.fn() };
-    const observing = root(h('div', null, h(ObserverPanel, { ...props, role: { held: ['synthetos-machine:A'], released: [], observing: true } })));
+    const observing = root(h('div', null, h(ObserverPanel, { ...props, role: { held: ['synthetos-machine:A'], own: [], released: [], observing: true } })));
     expect(text(observing)).toContain(STOP_TEXT.controlledElsewhere);
     const buttons = all(observing, (e) => e.tag === 'button').map((b) => b.props['data-action']);
     expect(buttons).toEqual(['pause-request', 'stop-job-request']);
-    const released = root(h('div', null, h(ObserverPanel, { ...props, role: { held: [], released: ['synthetos-machine:A'], observing: false } })));
+    const released = root(h('div', null, h(ObserverPanel, { ...props, role: { held: [], own: [], released: ['synthetos-machine:A'], observing: false } })));
     expect(text(one(released, (e) => e.props['data-safety'] === 'W29'))).toContain(w29().slice(w29().indexOf(' — ') + 3));
     expect(all(released, (e) => e.props['data-action'] === 'pause-request')).toEqual([]);
-    expect(all(root(h('div', null, h(ObserverPanel, { ...props, live: true, role: { held: ['synthetos-machine:A'], released: [], observing: true } }))), (e) => e.tag === 'button')).toEqual([]);
+    expect(all(root(h('div', null, h(ObserverPanel, { ...props, live: true, role: { held: ['synthetos-machine:A'], own: [], released: [], observing: true } }))), (e) => e.tag === 'button')).toEqual([]);
   });
 });
 

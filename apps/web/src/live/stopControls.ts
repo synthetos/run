@@ -8,7 +8,8 @@
  * sign-in, the advisory or LIVE entry (DECISIONS D1: stop is never gated).
  *
  * Pause, from the button or Escape:
- * 1. In a LIVE tab, the feedhold intent goes straight to this tab's worker.
+ * 1. In a tab that controls a machine (LIVE, or its own worker holds a
+ *    machine lock), the feedhold intent goes straight to this tab's worker.
  * 2. In every tab, a `pause` stop request is broadcast to every machine
  *    worker of this browser (all LIVE machines, SAFETY §4.3), and each
  *    machine's acknowledgement is reported; a missing one is STOP NOT
@@ -68,9 +69,9 @@ function finishedCycle(snapshot: SessionSnapshot): boolean {
 export interface StopControlsDeps {
   /** Broadcasts a stop request and resolves with each machine's outcome (TabStop.request). */
   readonly broadcast: (action: StopAction) => Promise<StopOutcome>;
-  /** Sends the feedhold intent straight to this tab's worker (only called while LIVE). */
+  /** Sends the feedhold intent straight to this tab's worker (only called while this tab controls a machine). */
   readonly pauseOwnWorker: () => void;
-  /** Sends the Stop job intent straight to this tab's worker (only called while LIVE; Phase 1 answers with `!`). */
+  /** Sends the Stop job intent straight to this tab's worker (only while this tab controls a machine; Phase 1 answers with `!`). */
   readonly stopJobOwnWorker?: () => void;
   readonly timers: Timers;
 }
@@ -105,10 +106,18 @@ export class StopControls {
     return this.#live;
   }
 
+  /**
+   * True when this tab controls a machine: LIVE, or its own worker holds a machine lock (the firmware path
+   * connects without LIVE entry). Pause and Stop job are then this tab's own controls (D1, SAFETY §4.4).
+   */
+  get #controls(): boolean {
+    return this.#live || this.role.value.own.length > 0;
+  }
+
   /** The W2 button and Escape. */
   pause(): void {
-    this.#idleAtPress = this.#live && atRest(this.#snapshot);
-    if (this.#live) {
+    this.#idleAtPress = this.#controls && atRest(this.#snapshot);
+    if (this.#controls) {
       this.#holdWanted = !this.#idleAtPress;
       this.#setPausePhase(this.#idleAtPress ? 'idle' : this.#held() ? 'none' : 'pausing');
       try {
@@ -121,14 +130,14 @@ export class StopControls {
   }
 
   /**
-   * The Stop job button. In a LIVE tab the intent goes straight to this tab's worker, then a `stopJob`
+   * The Stop job button. In a tab that controls a machine the intent goes straight to this tab's worker, then a `stopJob`
    * request is broadcast to every machine worker of this browser, like Pause (SAFETY §4.3). Phase 1
    * answers Stop job with `!` only (SAFETY §4.4 READ_ONLY row); the outcome line says so.
    */
   stopJob(): void {
     this.#idleAtPress = false;
     if (this.#pausePhase === 'idle') this.#setPausePhase('none');
-    if (this.#live) {
+    if (this.#controls) {
       try {
         this.#deps.stopJobOwnWorker?.();
       } catch {
@@ -176,7 +185,7 @@ export class StopControls {
   }
 
   #held(): boolean {
-    return this.#live && this.#snapshot?.live.machineClass === 'held';
+    return this.#controls && this.#snapshot?.live.machineClass === 'held';
   }
 
   #setPausePhase(phase: 'none' | 'pausing' | 'no-answer' | 'idle'): void {
@@ -224,10 +233,11 @@ export class StopControls {
   #draw(): void {
     const role = this.role.value;
     const held = this.#held();
-    const phase = this.#live ? this.#pausePhase : 'none';
+    const controls = this.#controls;
+    const phase = controls ? this.#pausePhase : 'none';
     this.view.value = Object.freeze({
-      available: this.#live || role.observing || role.released.length > 0,
-      prominent: (this.#live && (mayBeMoving(this.#snapshot) || this.#holdWanted)) || role.released.length > 0,
+      available: controls || role.observing || role.released.length > 0,
+      prominent: (controls && (mayBeMoving(this.#snapshot) || this.#holdWanted)) || role.released.length > 0,
       band: held ? 'held' : phase === 'pausing' ? 'pausing' : phase === 'no-answer' ? 'pause-no-answer' : phase === 'idle' ? 'paused-idle' : null,
       outcome: this.#outcome,
     });

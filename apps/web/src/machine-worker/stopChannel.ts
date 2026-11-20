@@ -5,7 +5,9 @@
  * - Each LIVE machine worker holds the Web Lock `synthetos-machine:<board
  *   id>` while its session has a port open. Other tabs watch the lock: a
  *   held lock they do not own means "Machine is controlled in another tab";
- *   a watched lock that goes away means W29.
+ *   a watched lock that goes away means W29. The worker also holds
+ *   `synthetos-tab:<tab token>:<machine lock>` for exactly as long
+ *   (ownerLock.ts), so a tab tells its own machine locks from another tab's.
  * - Every machine worker listens on the BroadcastChannel `STOP_CHANNEL`.
  *   It accepts ONLY stop-class requests (pause, stop job, spindle off),
  *   acts on them at once, and acknowledges each one; anything else on the
@@ -100,7 +102,7 @@ export function machineLockName(boardId: string | undefined, instance: string): 
 /** The parts of `LockManager` this app uses (injected, so tests use a fake). */
 export interface LockManagerLike {
   request(name: string, options: { readonly ifAvailable: true }, callback: (lock: unknown) => Promise<void>): Promise<void>;
-  query(): Promise<{ readonly held?: readonly { readonly name?: string }[] }>;
+  query(): Promise<{ readonly held?: readonly { readonly name?: string; readonly clientId?: string }[] }>;
 }
 
 /** The parts of `BroadcastChannel` this app uses. */

@@ -12,7 +12,7 @@ import type { SessionSnapshot } from '@synthetos/machine';
 import type { Decision } from '@synthetos/safety';
 import type { LockManagerLike } from '../src/machine-worker/stopChannel.ts';
 import { MachineStopService, type StopSession } from '../src/machine-worker/stopService.ts';
-import { othersOnly, ownerLockName, workerOwner } from '../src/machine-worker/ownerLock.ts';
+import { ownerLockName, workerOwner } from '../src/machine-worker/ownerLock.ts';
 import { MACHINE_WORKER_NAME, machineWorkerName } from '../src/machine-worker/client.ts';
 import { LockWatcher, NO_ROLE, type Timers } from '../src/live/tabStop.ts';
 import { startStopPaths } from '../src/live/stopBoot.ts';
@@ -104,11 +104,11 @@ describe('LockWatcher with the own lock left out', () => {
   it("the tab's own worker lock is not observed and its release is not W29, even when the tab is not LIVE", async () => {
     const locks = new FakeLocks();
     const s = worker(locks, 'tab-1');
-    const watcher = new LockWatcher(othersOnly(locks, 'tab-1'), () => false, timers, () => undefined);
+    const watcher = new LockWatcher({ locks, owner: 'tab-1', isLive: () => false, timers, onChange: () => undefined });
     s.open();
     await flush();
     await watcher.poll();
-    expect(watcher.role).toEqual(NO_ROLE);
+    expect(watcher.role).toEqual({ ...NO_ROLE, own: [MACHINE] });
     s.close();
     await flush();
     await watcher.poll();
@@ -118,15 +118,15 @@ describe('LockWatcher with the own lock left out', () => {
   it("another tab's worker lock still makes this tab an observer, and its release is still W29", async () => {
     const locks = new FakeLocks();
     const other = worker(locks, 'tab-2');
-    const watcher = new LockWatcher(othersOnly(locks, 'tab-1'), () => false, timers, () => undefined);
+    const watcher = new LockWatcher({ locks, owner: 'tab-1', isLive: () => false, timers, onChange: () => undefined });
     other.open();
     await flush();
     await watcher.poll();
-    expect(watcher.role).toEqual({ held: [MACHINE], released: [], observing: true });
+    expect(watcher.role).toEqual({ held: [MACHINE], own: [], released: [], observing: true });
     other.close();
     await flush();
     await watcher.poll();
-    expect(watcher.role).toEqual({ held: [], released: [MACHINE], observing: false });
+    expect(watcher.role).toEqual({ held: [], own: [], released: [MACHINE], observing: false });
   });
 
   it('startStopPaths leaves out the locks of its own tab token', async () => {

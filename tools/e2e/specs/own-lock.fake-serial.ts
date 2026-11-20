@@ -25,8 +25,7 @@ async function connectedOutsideLiveEntry(worker: Worker): Promise<void> {
 }
 
 test("a tab's own worker lock is never 'another tab'; a real second tab still observes it and gets W29", async ({ page }) => {
-  // The fixture dismisses W29 on the spec's page; this spec asserts it never appears there.
-  await page.removeLocatorHandler(page.locator('[data-action="dismiss-w29"]'));
+  // The fixture also fails the test on a W29 on this page; this spec watches the observer bar as well.
   const worker = await machineWorker(page);
   await page.evaluate(() => {
     const seen = ((globalThis as unknown as { __seen: Set<string> }).__seen = new Set<string>());
@@ -49,4 +48,33 @@ test("a tab's own worker lock is never 'another tab'; a real second tab still ob
   await expect(tabB.locator('[data-safety="W29"]')).toBeVisible();
   await page.waitForTimeout(1000);
   expect(await page.evaluate(() => [...(globalThis as unknown as { __seen: Set<string> }).__seen])).toEqual([]);
+});
+
+/** Every write the worker made to the simulated board, as text. */
+function writes(worker: Worker): Promise<string[]> {
+  return worker.evaluate(() => {
+    interface Entry {
+      readonly kind: string;
+      readonly data: Uint8Array;
+    }
+    const registry = (globalThis as unknown as { __RUN_FAKE_SERIAL__?: { ports: { endpoint: { transcript: { entries(): readonly Entry[] } } }[] } }).__RUN_FAKE_SERIAL__;
+    return (registry?.ports[0]?.endpoint.transcript.entries() ?? []).filter((e) => e.kind === 'host-write').map((e) => String.fromCharCode(...e.data));
+  });
+}
+
+test('in the own-lock, not-LIVE state Pause and Stop job stay available and reach this tab worker (D1, SAFETY §4.4)', async ({ page }) => {
+  const worker = await machineWorker(page);
+  await connectedOutsideLiveEntry(worker);
+  const pause = page.locator('[data-region="stop-controls"] .stop-button.pause').first();
+  const stopJob = page.locator('[data-region="stop-controls"] [data-action="stop-job"]').first();
+  await expect(pause).toBeEnabled();
+  await expect(stopJob).toBeEnabled();
+  const before = (await writes(worker)).filter((w) => w === '!').length;
+  await pause.click();
+  await expect.poll(async () => (await writes(worker)).filter((w) => w === '!').length).toBeGreaterThan(before);
+  // Phase 1 answers Stop job with `!` (SAFETY §4.4 READ_ONLY row).
+  const paused = (await writes(worker)).filter((w) => w === '!').length;
+  await stopJob.click();
+  await expect.poll(async () => (await writes(worker)).filter((w) => w === '!').length).toBeGreaterThan(paused);
+  await expect(page.locator('[data-observer="controlled"]')).toHaveCount(0);
 });
