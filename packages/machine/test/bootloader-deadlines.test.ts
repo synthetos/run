@@ -90,3 +90,21 @@ it('an open that never finishes fails after its deadline and asks the port to cl
   expect(link.closed).toBe(true);
   expect(wire.closes).toBe(1);
 });
+
+it('a write that fails with a non-Error value is an ordinary failure, not a deadline, and nothing more is written', async () => {
+  const clock = new VirtualClock();
+  const wire = port({});
+  wire.writeLine.mockImplementationOnce((bytes: Uint8Array) => {
+    wire.writes.push(bytes);
+    return Promise.reject('USB bridge gone');
+  });
+  const link = new BootloaderLink(wire, clock, X192A3);
+  await link.openProbe(true);
+  const check = await within(clock, link.checkBootloader(), BOOTLOADER_WRITE_MS + 500);
+  const error = (check as { error?: unknown }).error;
+  expect(error).toBeInstanceOf(Error);
+  expect(error).not.toBeInstanceOf(LinkDeadline);
+  expect(String((error as Error).message)).toContain('USB bridge gone');
+  await expect(link.write(Uint8Array.of(0x1b))).rejects.toThrow();
+  expect(wire.writes).toHaveLength(1);
+});

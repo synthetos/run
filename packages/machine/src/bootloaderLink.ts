@@ -156,7 +156,8 @@ export class BootloaderLink implements ByteLink {
       } catch (error) {
         this.#writeFailed = true;
         // A deadline stays a `LinkDeadline`: the port is stuck, which the caller tells the person (unplug USB).
-        const message = `the write failed: ${error instanceof Error ? error.message : String(error)}`;
+        // withDeadline always rejects with an Error (it wraps anything else), so `.message` is defined.
+        const message = `the write failed: ${(error as Error).message}`;
         throw error instanceof LinkDeadline ? new LinkDeadline(message) : new LinkClosed(message);
       }
     });
