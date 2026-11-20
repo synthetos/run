@@ -75,16 +75,6 @@ function wholeInView(page: Page, selector: string): Promise<boolean> {
   });
 }
 
-/**
- * Opening the port from the worker leaves this tab an observer (W29), again after the update's reconnect; a person
- * who connected here never sees it. Out of the wizard the app is live again, so the shared handler comes back.
- */
-async function dismissW29(page: Page): Promise<void> {
-  await page.addLocatorHandler(page.locator('[data-action="dismiss-w29"]'), async (ok) => { await ok.click(); });
-  const w29 = page.locator('[data-action="dismiss-w29"]');
-  await w29.waitFor({ timeout: 3_000 }).then(() => w29.click(), () => undefined);
-}
-
 /** Step 3 → Update firmware → Board → Firmware → Update with Back to setup, then C6 in full view and the update started. */
 async function updateFromTheStep(page: Page, theme: 'light' | 'dark'): Promise<void> {
   const frame = wizard(page);
@@ -98,7 +88,6 @@ async function updateFromTheStep(page: Page, theme: 'light' | 'dark'): Promise<v
   await frame.locator('[data-action="wizard-update"]').click();
   await expect(page.locator('[data-wizard-step]')).toHaveCount(0);
   await expect(page.locator('[inert]')).toHaveCount(0);
-  await dismissW29(page);
   await expect(page.locator('[data-screen="board"]')).toBeVisible();
   await expect(page.locator('[data-board-tab="firmware"]')).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('#board-pane-firmware [data-subtab="update"]')).toHaveAttribute('aria-selected', 'true');

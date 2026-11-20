@@ -112,9 +112,6 @@ test('walks all seven steps with the fake board, saves the setup record as it go
   await expect(page.locator('[data-wizard-step]')).toHaveCount(0);
   await expect(page.locator('[inert]')).toHaveCount(0);
   await expect(page.locator('[data-screen="job"] [data-preview="file-name"]')).toHaveText('name-plate.nc');
-  // Opening the port from the worker leaves this tab an observer (W29); a user who connected from the wizard never sees it.
-  const w29 = page.locator('[data-action="dismiss-w29"]');
-  if (await w29.isVisible()) await w29.click();
   await shot(page, 'job-demo-light-1280');
   await expect.poll(() => (account.records.get('setup:setup')?.content as { dismissed: boolean } | undefined)?.dismissed, { timeout: 10_000 }).toBe(true);
   const setup = account.records.get('setup:setup')?.content as { done: number[]; projectId: string | null; homing: string | null; stock: unknown; toolId: string | null };
@@ -166,8 +163,6 @@ test('firmware needed (simulated): no skip, Next held, Update firmware opens Boa
   await shot(page, 'step-3-needed-light-1280');
   await page.locator('[data-action="wizard-update"]').click();
   await expect(page.locator('[data-wizard-step]')).toHaveCount(0);
-  // Out of the wizard the app is live again: W29 (the port was opened from the worker) can come up at any time.
-  await page.addLocatorHandler(page.locator('[data-action="dismiss-w29"]'), async (ok) => { await ok.click(); });
   const row = page.locator('[data-screen="board"] [data-release="tinyg-450.06.hex"]');
   await expect(row).toHaveAttribute('data-release-focus', '');
   // The flash closes the session: back in setup, the step offers no Connect and holds Next and Skip.

@@ -39,10 +39,8 @@ async function finishWizard(page: Page, theme: 'light' | 'dark', build?: Record<
   await next(page).click();
   await expect(page.locator('[data-wizard-step]')).toHaveCount(0);
   await expect(page.locator('[inert]')).toHaveCount(0);
-  // Opening the port from the worker leaves this tab an observer (W29); a person who connected from the wizard never sees it.
-  const w29 = page.locator('[data-action="dismiss-w29"]');
-  await w29.waitFor({ timeout: 5_000 }).then(() => w29.click(), () => undefined);
-  await expect(w29).toHaveCount(0);
+  // The port opened from this page's worker is this tab's own lock: no W29 (the fixture fails the test on one).
+  await expect(page.locator('[data-action="dismiss-w29"]')).toHaveCount(0);
   return { worker, question: page.locator('[data-region="unknown-exits"]') };
 }
 

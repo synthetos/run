@@ -95,7 +95,6 @@ async function openFirmware(page: Page, worker: Worker): Promise<void> {
   expect(s.session.identity?.hv).toBe(8);
   await page.locator('[data-region="rail"] [data-view="board"]').click();
   await expect(page.locator('[data-screen="board"]')).toBeVisible();
-  // W29 is dismissed by the page fixture's handler (specs/fixtures.ts).
   await page.locator('[data-board-tab="firmware"]').click();
 }
 

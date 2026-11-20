@@ -39,8 +39,6 @@ async function connectedTab(page: Page): Promise<Worker> {
   // The connect-time read and report configuration (the status report list, then the heartbeat `{"rt":{"hb":N}}`)
   // go on after the base is idle; wait for them, so what a test writes afterwards is only its own.
   await expect.poll(async () => ((await request(worker, { v: 3, kind: 'status' })) as Status).status.session.reports.phase, { timeout: 15_000 }).toBe('done');
-  const w29 = page.locator('[data-action="dismiss-w29"]');
-  if ((await w29.count()) > 0) await w29.click();
   return worker;
 }
 

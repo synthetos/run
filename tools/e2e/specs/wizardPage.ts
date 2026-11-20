@@ -25,9 +25,8 @@ export async function open(page: Page, seed: Parameters<typeof fakeRecords>[1] =
   await stubAccount(page);
   const account = await fakeRecords(page, seed);
   const worker = await machineWorker(page);
-  // The shared handlers click inside the app (W29, the update offer); the app is inert under the wizard, so they
-  // would wait forever. Both modals stay behind the scrim and change nothing the wizard shows.
-  await page.removeLocatorHandler(page.locator('[data-action="dismiss-w29"]'));
+  // The shared update-offer handler clicks inside the app; the app is inert under the wizard, so it would wait
+  // forever. The offer stays behind the scrim and changes nothing the wizard shows.
   await page.removeLocatorHandler(page.locator('[data-action="firmware-offer-later"]'));
   await expect(step(page, at)).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('.app')).toHaveAttribute('inert', '');

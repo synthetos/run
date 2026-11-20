@@ -227,11 +227,8 @@ test('the document never scrolls at 1280 × 720, in any view', async ({ page }) 
     expect(size.w, view).toBeLessThanOrEqual(size.iw);
     expect(size.y, view).toBe(0);
   }
-  // The 3D view keeps a usable height on a short screen. This harness opens the port inside the worker,
-  // so the page is not LIVE and sees its own worker's first (unidentified) lock released: W29. Dismiss it.
+  // The 3D view keeps a usable height on a short screen.
   await show(page, 'run');
-  const w29 = page.locator('[data-action="dismiss-w29"]');
-  if ((await w29.count()) > 0) await w29.click();
   const viewer = await page.locator('.run-view .viewer').boundingBox();
   expect(viewer?.height ?? 0).toBeGreaterThanOrEqual(220);
 });
@@ -273,8 +270,6 @@ for (const width of [1440, 1280] as const) {
       await page.emulateMedia({ colorScheme: theme });
       await connectedTab(page);
       await expect(page.locator('[data-region="machine-strip"] [data-strip="state"]')).toHaveText('Machine idle', { timeout: 10_000 });
-      const w29 = page.locator('[data-action="dismiss-w29"]');
-      if ((await w29.count()) > 0) await w29.click();
       const shot = (name: string): Promise<Buffer> => page.screenshot({ path: `${SHOTS}/${width}-${theme}-${name}.png` });
       await page.locator('[data-job-step="place"]').click();
       await page.locator('[data-sample="mounting-plate"]').click();

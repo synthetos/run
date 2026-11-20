@@ -114,17 +114,20 @@ test('Escape from any focus pauses through the worker; Space never does (T-S18)'
   await page.keyboard.press('Space');
   await page.waitForTimeout(300);
   expect(bangs(await writes(worker))).toBe(before);
+  // This tab's own worker holds the lock, so it controls the machine as a LIVE tab does: each Escape sends the
+  // feedhold to its own worker and broadcasts a pause request, and each path writes one `!` (stopControls.ts).
+  const perPress = 2;
   await page.keyboard.press('Escape');
-  await expect.poll(async () => bangs(await writes(worker))).toBe(before + 1);
+  await expect.poll(async () => bangs(await writes(worker))).toBe(before + perPress);
   await page.getByRole('button', { name: 'About the preview', exact: true }).focus();
   await page.keyboard.press('Escape');
-  await expect.poll(async () => bangs(await writes(worker))).toBe(before + 2);
+  await expect.poll(async () => bangs(await writes(worker))).toBe(before + 2 * perPress);
   await expect(page.locator('[data-safety="W13"]')).toBeHidden();
   // An open help popover beside the machine controls (the coolant button's "?", OD-43).
   await page.getByRole('button', { name: 'What the coolant button sends' }).click();
   await expect(page.locator('#coolant-help')).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect.poll(async () => bangs(await writes(worker))).toBe(before + 3);
+  await expect.poll(async () => bangs(await writes(worker))).toBe(before + 3 * perPress);
   await expect(page.locator('#coolant-help')).toBeHidden();
   // The stop button stays visible and focusable.
   await expect(page.locator('.stop-button')).toBeVisible();
@@ -171,7 +174,8 @@ test('Escape reaches the wire as `!` in under 100 ms with a 1M-segment preview l
     };
   });
   await page.keyboard.press('Escape');
-  await expect.poll(() => worker.evaluate(() => (globalThis as unknown as { __bangAt: number[] }).__bangAt.length)).toBe(1);
+  // Two `!`: this tab's own worker gets the feedhold directly and through the broadcast (T-S18). The first counts.
+  await expect.poll(() => worker.evaluate(() => (globalThis as unknown as { __bangAt: number[] }).__bangAt.length)).toBe(2);
   const escAt = await page.evaluate(() => (globalThis as unknown as { __escAt?: number }).__escAt);
   const bangAt = await worker.evaluate(() => (globalThis as unknown as { __bangAt: number[] }).__bangAt[0]);
   expect(typeof escAt).toBe('number');

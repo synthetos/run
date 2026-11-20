@@ -100,8 +100,6 @@ async function connect(page: Page, worker: Worker, extra: Record<string, unknown
 async function openFirmware(page: Page, tab: 'firmware' | 'backups' = 'firmware'): Promise<void> {
   await page.locator('[data-region="rail"] [data-view="board"]').click();
   await expect(page.locator('[data-screen="board"]')).toBeVisible();
-  const w29 = page.locator('[data-action="dismiss-w29"]');
-  if ((await w29.count()) > 0) await w29.click();
   await page.locator(`[data-board-tab="${tab}"]`).click();
 }
 
