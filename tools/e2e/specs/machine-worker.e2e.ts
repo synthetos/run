@@ -24,7 +24,8 @@ test('the workspace starts one machine worker, whose Web Serial source the produ
   const worker = await machineWorker(page);
   expect(new URL(worker.url()).pathname).toMatch(MACHINE_WORKER_PATH);
   expect(page.workers()).toHaveLength(1);
-  expect(await worker.evaluate(() => (globalThis as unknown as { name: string }).name)).toBe('machine');
+  // The name carries this page's random tab token (machine-worker/ownerLock.ts): `machine:<token>`.
+  expect(await worker.evaluate(() => (globalThis as unknown as { name: string }).name)).toMatch(/^machine:[A-Za-z0-9-]{1,64}$/);
 
   expect(await request(worker, { v: 3, kind: 'status' })).toMatchObject({ v: 3, ok: true, kind: 'status', status: { source: 'serial', state: 'idle', session: { base: 'NOT_CONNECTED', overlays: [] } } });
   const reply = await request(worker, { v: 3, kind: 'prepare', port: { usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0, grantSnapshot: ['1027:24597'] } });
