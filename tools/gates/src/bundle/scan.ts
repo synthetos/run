@@ -166,13 +166,14 @@ function admitsWebSerial(_target: ScanTarget): boolean {
 export const ALLOWED_URL_SCHEMES: readonly string[] = ['data', 'blob'];
 
 /**
- * Web Lock name prefixes (P1-06, SAFETY §4.3 `synthetos-machine:<board id>`)
+ * Web Lock name prefixes (P1-06, SAFETY §4.3 `synthetos-machine:<board id>`,
+ * and its tab owner lock `synthetos-tab:<token>:<machine lock>`, ownerLock.ts)
  * that look like a scheme to the JavaScript string-literal rule. Exempt in
  * JavaScript string literals only (never in markup or CSS), exact and
  * case-sensitive. Residual: the rule cannot tell such a literal used as a
  * lock name from one assigned to `href`; no handler is registered for it.
  */
-export const LOCK_NAME_PREFIXES: readonly string[] = ['synthetos-machine'];
+export const LOCK_NAME_PREFIXES: readonly string[] = ['synthetos-machine', 'synthetos-tab'];
 
 /** run's own origins: the only origin literals allowed, and only in cloud chunks. */
 export const SELF_ORIGINS: readonly string[] = ['https://run.synthetos.com', 'https://staging.run.synthetos.com'];

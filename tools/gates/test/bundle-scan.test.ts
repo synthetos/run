@@ -317,7 +317,10 @@ describe('URL schemes other than relative, data: and blob: (P0-13)', () => {
   });
 
   it('exempts only the machine Web Lock prefix, only in JavaScript literals, only exactly (P1-06)', () => {
-    expect(LOCK_NAME_PREFIXES).toEqual(['synthetos-machine']);
+    // The tab owner lock (machine-worker/ownerLock.ts) wraps a machine lock: `synthetos-tab:<token>:<machine lock>`.
+    expect(LOCK_NAME_PREFIXES).toEqual(['synthetos-machine', 'synthetos-tab']);
+    expect(rules('assets/w.js', 'const o=`synthetos-tab:${t}:${n}`')).toEqual([]);
+    expect(rules('index.html', '<a href="synthetos-tab:x">t</a>')).toEqual(['url-scheme']);
     expect(rules('assets/w.js', 'const n=`synthetos-machine:${id}`;l.request("synthetos-machine:ABC")')).toEqual([]);
     expect(rules('assets/w.js', 'a.href="Synthetos-Machine:x"')).toEqual(['url-scheme']);
     expect(rules('assets/w.js', 'a.href="synthetos-machine2:x"')).toEqual(['url-scheme']);
