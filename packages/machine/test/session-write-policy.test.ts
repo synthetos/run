@@ -163,7 +163,8 @@ describe('T-S39: only MachineSession writes to the transport', () => {
     // guard admits, and opens only with the flasher's capability.
     // flashService's checked transport (proposed H92) only forwards the session's writes unchanged; it originates
     // none. It wraps the port to re-check the bootloader quarantine when the session opens it.
-    expect(callers).toEqual(['apps/web/src/machine-worker/flashService.ts', 'packages/machine/src/bootloaderLink.ts', 'packages/machine/src/guardedTransport.ts', 'packages/machine/src/session/sessionExecutor.ts']);
+    // checkedTransport.ts holds the pre-check pass-through moved out of flashService.ts unchanged (one writeLine).
+    expect(callers).toEqual(['apps/web/src/machine-worker/checkedTransport.ts', 'packages/machine/src/bootloaderLink.ts', 'packages/machine/src/guardedTransport.ts', 'packages/machine/src/session/sessionExecutor.ts']);
   });
 
   it('the web app reaches the machine only through the worker: no page or panel module imports the transport layer', () => {
