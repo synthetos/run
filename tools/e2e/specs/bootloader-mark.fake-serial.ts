@@ -127,7 +127,9 @@ test('a marked board: press Reset during the countdown; the wait runs out, Try a
   await updateTo45002(page);
   const note = page.locator('[data-region="bootloader-mark"]');
   await expect(note).toBeVisible({ timeout: 120_000 });
-  await expect(note).toContainText('To clear the mark: press Connect, then press Reset on the board when Run asks.');
+  // How the mark clears is said once: here by the failed update's message on the Recovery card.
+  const update = page.locator('#board-pane-firmware');
+  expect((await update.innerText()).split('press Reset on the board when Run asks').length - 1).toBe(1);
   const recovery = page.locator('[data-region="flash-recovery"]');
   await expect(recovery).not.toContainText('Unplug USB and power');
   // Pages were written: the card says no firmware may be running, and says "in its bootloader" once.
@@ -141,6 +143,8 @@ test('a marked board: press Reset during the countdown; the wait runs out, Try a
   await openInBackground(worker);
   const dialog = page.locator('[data-region="banner-wait"]');
   await expect(dialog).toHaveAttribute('data-banner-wait', 'waiting', { timeout: 10_000 });
+  await expect(dialog.locator('[data-safety="W28"]')).toContainText('Keep spindle and VFD mains switched off.');
+  await expect(dialog.locator('[data-action="banner-cancel"]')).toBeVisible();
   await expect(dialog).toContainText('Press the Reset button on the board now (or switch the board’s power off and on, keeping USB connected).');
   await expect(dialog.locator('[data-banner-wait-seconds]')).toHaveAttribute('data-banner-wait-seconds', /^(30|29|28|27|26|25)$/);
   await shots(page, 'connect-countdown');
@@ -148,7 +152,9 @@ test('a marked board: press Reset during the countdown; the wait runs out, Try a
   await expect(dialog).toHaveAttribute('data-banner-wait', 'expired', { timeout: 40_000 });
   expect(await openReply(worker)).toMatchObject({ ok: false, message: expect.stringContaining('Press Connect, then press Reset on the board when Run asks.') });
   await expect(dialog.locator('[data-action="banner-retry"]')).toBeVisible();
-  await expect(note).toBeVisible();
+  // The restored mark: the note says how it clears, once on the page.
+  await expect(note).toContainText('To clear the mark: press Connect, then press Reset on the board when Run asks.');
+  expect((await update.innerText()).split('press Reset on the board when Run asks').length - 1).toBe(1);
   expect(await writesBeforeBanner(worker)).toEqual(['1b', '53']);
   await shots(page, 'connect-expired');
 
@@ -198,6 +204,7 @@ test('setup, Machine step: a marked board gets the countdown, Try again, and con
   await openInBackground(worker);
   const dialog = page.locator('[data-banner-host="card"] [data-region="banner-wait"]');
   await expect(dialog).toHaveAttribute('data-banner-wait', 'waiting', { timeout: 10_000 });
+  await expect(dialog.locator('[data-safety="W28"]')).toContainText('Keep spindle and VFD mains switched off.');
   await expect(dialog).toContainText('Press the Reset button on the board now (or switch the board’s power off and on, keeping USB connected).');
   await expect(dialog.locator('[data-banner-wait-seconds]')).toHaveAttribute('data-banner-wait-seconds', /^(30|29|28|27|26|25)$/);
   await shots(page, 'wizard-countdown');

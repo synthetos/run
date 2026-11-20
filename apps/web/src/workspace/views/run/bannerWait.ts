@@ -10,6 +10,8 @@ import type { BannerWaitView } from '../../../machine-worker/bannerWait.ts';
 import type { FlashView } from '../../../machine-worker/flashService.ts';
 import type { LiveActions } from '../../model.ts';
 import { belowStrip } from '../../ui.ts';
+import { w28 } from '@synthetos/safety';
+import { signalText } from '../../../shell/signal.ts';
 
 /** The flash view whose expired wait the person closed: hidden until the next Connect (a new view id). */
 const closedFor = signal<number | null>(null);
@@ -20,11 +22,17 @@ export function shownBannerWait(flash: FlashView | null | undefined): BannerWait
   return wait === null || flash?.id === closedFor.value ? null : wait;
 }
 
-function Waiting({ seconds }: { readonly seconds: number }): ComponentChild {
+function Waiting({ seconds, actions }: { readonly seconds: number; readonly actions: LiveActions | null }): ComponentChild {
   return h(Fragment, null,
+    // A Reset puts the board in xboot's window, where the outputs float, and a slow first boot may load factory
+    // polarity: W28 comes before the instruction (safety review 2026-11-20).
+    h('p', { class: 'flash-danger', 'data-safety': 'W28' }, ...signalText(w28())),
     h('p', { class: 'banner-wait-do' }, 'Press the Reset button on the board now (or switch the board’s power off and on, keeping USB connected).'),
     h('p', { class: 'banner-wait-count', role: 'status', 'data-banner-wait-seconds': String(seconds) }, `Run is listening for the board to start: ${seconds} s.`),
-    h('p', { class: 'fine' }, 'Since the last update, the board may still be in its bootloader. Run connects only after it hears the board start.'));
+    h('p', { class: 'fine' }, 'Since the last update, the board may still be in its bootloader. Run connects only after it hears the board start.'),
+    // Ends the wait now: the port and the machine lock are released; the mark stays.
+    h('div', { class: 'row-actions banner-wait-actions' },
+      h('button', { type: 'button', class: 'button', 'data-action': 'banner-cancel', disabled: actions?.firmware === undefined, onClick: () => void actions?.firmware?.cancel() }, 'Cancel')));
 }
 
 function Expired({ flashId, actions }: { readonly flashId: number; readonly actions: LiveActions | null }): ComponentChild {
@@ -63,5 +71,5 @@ export function BannerWaitDialog({ flash, actions, where }: DialogProps): Compon
   return h('div', { class: 'dialog-wrap confirm-modal', role: 'presentation', ref: belowStrip, 'data-banner-host': where },
     h('div', { class: 'dialog banner-wait', role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': title, 'data-region': 'banner-wait', 'data-banner-wait': wait.phase },
       h('div', { class: 'dialog-head' }, h('h2', { id: title }, waiting ? 'Press Reset on the board' : 'The board did not start')),
-      waiting ? h(Waiting, { seconds: wait.seconds }) : h(Expired, { flashId: flash.id, actions })));
+      waiting ? h(Waiting, { seconds: wait.seconds, actions }) : h(Expired, { flashId: flash.id, actions })));
 }

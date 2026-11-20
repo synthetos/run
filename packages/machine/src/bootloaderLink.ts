@@ -155,7 +155,9 @@ export class BootloaderLink implements ByteLink {
         await withDeadline(this.#inner.writeLine(bytes), BOOTLOADER_WRITE_MS, this.#clock, 'a bootloader write');
       } catch (error) {
         this.#writeFailed = true;
-        throw new LinkClosed(`the write failed: ${error instanceof Error ? error.message : String(error)}`);
+        // A deadline stays a `LinkDeadline`: the port is stuck, which the caller tells the person (unplug USB).
+        const message = `the write failed: ${error instanceof Error ? error.message : String(error)}`;
+        throw error instanceof LinkDeadline ? new LinkDeadline(message) : new LinkClosed(message);
       }
     });
     this.#tail = run.then(
@@ -269,7 +271,7 @@ export class BootloaderLink implements ByteLink {
         }
         return { done: true, value: undefined };
       } }) },
-      close: () => this.close(),
+      close: async () => { await this.close(); },
       onDisconnect: callback => { this.#disconnect = callback; },
     };
   }
@@ -315,16 +317,16 @@ export class BootloaderLink implements ByteLink {
     this.#buffer.discard();
   }
 
-  /** Close the port. A write in progress finishes first. */
-  async close(): Promise<void> {
-    if (this.#state === 'closed') return;
+  /** Close the port. A write in progress finishes first. False when the port did not close in time (stuck). */
+  async close(): Promise<boolean> {
+    if (this.#state === 'closed') return true;
     const wasOpen = this.#state === 'open';
     this.#state = 'closed';
     this.#end('the bootloader link was closed');
-    if (!wasOpen) return;
+    if (!wasOpen) return true;
     // Settles within one write deadline: every queued frame is bounded, and none is sent after a failure.
     await this.#tail;
-    await closePort(this.#inner, this.#clock);
+    return closePort(this.#inner, this.#clock);
   }
 
   #end(why: string): void {

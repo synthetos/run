@@ -1,5 +1,11 @@
 /** Facts the flash view shows, derived from the session and the previous run (flashService.ts). */
 import type { SessionSnapshot } from '@synthetos/machine';
+import type { FlashView } from './flashService.ts';
+
+/** The view for a board found in its bootloader (unknown firmware; Run wrote nothing). */
+export function bootloaderView(id: number, startAllowed: boolean): FlashView {
+  return { id, phase: 'failed', bootloader: { startAllowed }, done: 0, of: 0, note: null, source: 'custom', target: { fb: null, label: 'Unknown firmware', sha256: '' }, boardId: null, board: null, countdown: null, wrote: false, message: 'The board is in its bootloader.', recoveryOffered: false, versionCheck: null, result: null };
+}
 
 /** The board's identity as the flash view records it: each field, or null when the board did not report it. */
 export function boardFacts(s: SessionSnapshot): { id: string | null; hv: number | null; fb: number | null; fv: number | null } {

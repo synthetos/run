@@ -11,7 +11,7 @@ import { PHASE_1_RELEASE } from '@synthetos/safety';
 import { VirtualClock } from '@synthetos/testkit';
 import { MachineWorkerHost } from '../src/machine-worker/host.ts';
 import { memoryBootloaderMarks, type BootloaderMarks } from '../src/machine-worker/bootloaderMark.ts';
-import { BOOTLOADER_ADVICE } from '../src/machine-worker/bootloaderAdvice.ts';
+import { PORT_STUCK_ADVICE } from '../src/machine-worker/bootloaderAdvice.ts';
 
 const port = { usbVendorId: 1027, usbProductId: 24597, grantIndex: 0 };
 const platform = { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/130' };
@@ -57,7 +57,9 @@ it('a pre-check write that never finishes refuses Connect with the unplug advice
   const h = host(wire, clock);
   const reply = await settle(clock, h.handle(request));
   expect(reply).toMatchObject({ ok: false });
-  expect(JSON.stringify(reply)).toContain(BOOTLOADER_ADVICE);
+  // The port is stuck: only unplugging USB frees it, so the advice says that, not "press Reset".
+  expect(JSON.stringify(reply)).toContain(PORT_STUCK_ADVICE);
+  expect(JSON.stringify(reply)).not.toContain('press Reset');
   expect(h.flash.busy).toBe(false);
   expect(wire.close).toHaveBeenCalled();
   // Only the ESC of the pre-check went out: no S after it, no line end, no JSON.
@@ -73,7 +75,7 @@ it('a quarantined board whose pre-check write never finishes keeps its failed-fl
   const h = host(wire, clock, marks);
   expect(await settle(clock, h.handle(request))).toMatchObject({ ok: false });
   expect(h.flash.busy).toBe(false);
-  expect(h.flash.view).toMatchObject({ phase: 'failed', wrote: true, message: BOOTLOADER_ADVICE });
+  expect(h.flash.view).toMatchObject({ phase: 'failed', wrote: true, message: PORT_STUCK_ADVICE });
   expect(wire.writes.map((b) => [...b])).toEqual([[0x1b]]);
 });
 
@@ -83,7 +85,10 @@ it('safety storage that never answers refuses Connect before the port is opened,
   const marks = memoryBootloaderMarks();
   marks.find = () => never();
   const h = host(wire, clock, marks);
-  expect(await settle(clock, h.handle(request))).toMatchObject({ ok: false });
+  const reply = await settle(clock, h.handle(request));
+  expect(reply).toMatchObject({ ok: false });
+  // Storage, not the port: nothing to unplug.
+  expect(JSON.stringify(reply)).not.toContain(PORT_STUCK_ADVICE);
   expect(h.flash.busy).toBe(false);
   expect(wire.open).not.toHaveBeenCalled();
   expect(wire.writes).toEqual([]);

@@ -23,12 +23,15 @@ export interface BannerSource {
   waitForFirmwareBanner(timeoutMs: number): Promise<boolean>;
 }
 
+export type BannerWaitOutcome = 'heard' | 'expired' | 'cancelled';
+
 /**
- * Listen for a live firmware banner for `ms`, updating the countdown once a second through `show`. True when the
- * banner arrived (`show(null)`), false when the wait ran out (`show` gets the expired view).
+ * Listen for a live firmware banner for BANNER_WAIT_MS, updating the countdown once a second through `show`.
+ * 'heard' when the banner arrived (`show(null)`); 'expired' when the wait ran out (`show` gets the expired view);
+ * 'cancelled' when `stop` settled first (the person pressed Cancel; `show(null)`).
  */
-export async function listenForBanner(link: BannerSource, clock: SessionClock, show: (wait: BannerWaitView | null) => void, ms = BANNER_WAIT_MS): Promise<boolean> {
-  const end = clock.now() + ms;
+export async function listenForBanner(link: BannerSource, clock: SessionClock, show: (wait: BannerWaitView | null) => void, stop: Promise<void>): Promise<BannerWaitOutcome> {
+  const end = clock.now() + BANNER_WAIT_MS;
   let timer: number | null = null;
   const tick = (): void => {
     show({ phase: 'waiting', seconds: Math.max(0, Math.ceil((end - clock.now()) / 1000)) });
@@ -36,9 +39,10 @@ export async function listenForBanner(link: BannerSource, clock: SessionClock, s
   };
   tick();
   try {
-    const heard = await link.waitForFirmwareBanner(ms);
-    show(heard ? null : { phase: 'expired', seconds: 0 });
-    return heard;
+    const cancelled: Promise<BannerWaitOutcome> = stop.then(() => 'cancelled');
+    const outcome = await Promise.race([link.waitForFirmwareBanner(BANNER_WAIT_MS).then((heard): BannerWaitOutcome => (heard ? 'heard' : 'expired')), cancelled]);
+    show(outcome === 'expired' ? { phase: 'expired', seconds: 0 } : null);
+    return outcome;
   } finally {
     if (timer !== null) clock.clearTimeout(timer);
   }

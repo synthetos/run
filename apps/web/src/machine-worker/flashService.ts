@@ -40,7 +40,7 @@ import { resolveFlashSource, flashSourceLabel, type FlashSourceRequest } from '.
  * can, and a flash in progress refuses a second (H88).
  */
 import { bootloaderHardwareVersions } from '../firmware/bootloaderHardware.ts';
-import { BootloaderLink, EventLog, sessionSettings, type SessionExecutor, type PortSelector, type SessionClock, type SessionSnapshot, type Transport, type TransportSource } from '@synthetos/machine';
+import { BootloaderLink, EventLog, LinkDeadline, sessionSettings, type SessionExecutor, type PortSelector, type SessionClock, type SessionSnapshot, type Transport, type TransportSource } from '@synthetos/machine';
 import {
   X192A3,
   XbootClient,
@@ -59,10 +59,13 @@ import { type FirmwareReleases } from '@synthetos/protocol';
 import { categoryOf, restoreChanges, type SettingValue } from '@synthetos/schema';
 import type { BootloaderMark, BootloaderMarks } from './bootloaderMark.ts';
 import { listenForBanner, type BannerWaitView } from './bannerWait.ts';
-import { BOOTLOADER_ADVICE, withAdvice } from './bootloaderAdvice.ts';
-import { requiredInputs } from './switchInputs.ts';
+import { BOOTLOADER_ADVICE, PORT_STUCK_ADVICE, withAdvice } from './bootloaderAdvice.ts';
+import { observeInputs, requiredInputs, type SeenInputs } from './switchInputs.ts';
+import { bannerClears, versionCheck, versionCheckDue, viewAfterBanner } from './markedConnect.ts';
+import { checkedTransport } from './checkedTransport.ts';
+import { enterBootloader } from './enterBootloader.ts';
 import { entryDiagnosis } from './flashDiagnosis.ts';
-import { boardFacts, endsWritten, startsWritten } from './flashViewFacts.ts';
+import { boardFacts, bootloaderView, endsWritten, startsWritten } from './flashViewFacts.ts';
 
 /** How long the page has to store the backups before the run gives up (nothing written). */
 export const BACKUP_SAVE_MS = 60_000;
@@ -138,6 +141,8 @@ export interface FlashView {
   readonly marked?: boolean;
   /** Connect on a marked board: listening for the banner (press Reset now), or the wait ran out (Try again). */
   readonly bannerWait?: BannerWaitView | null;
+  /** Another board proved by its banner that it is not the marked one: the mark (kept) is this board id's. */
+  readonly elsewhere?: string;
 }
 
 export type PostFlashPhase = 'awaitingRead' | 'restoreRequired' | 'switchCheck' | 'clear';
@@ -206,7 +211,9 @@ export class FlashService {
   #keepaliveTimer: number | null = null;
   #keepalive: Promise<void> = Promise.resolve();
   #post: (PostFlashView & { readonly baseline: Readonly<Record<string, number | string>> }) | null = null;
-  #seen = new Map<number, { open: boolean; closed: boolean }>();
+  #seen: SeenInputs = new Map();
+  /** Ends Connect's banner wait now (Cancel), while it listens. */
+  #stopWait: (() => void) | null = null;
   #installed = new Map<string, { sha256: string; fb: number | null }>();
   /** The bootloader link's bytes for the last run, from the moment it asked for the bootloader. */
   #transcript: EventLog | null = null;
@@ -349,8 +356,12 @@ export class FlashService {
     return { ok: true };
   }
 
-  /** Cancel: honoured only before the first page is written. */
+  /** Cancel: Connect's banner wait at any time (the mark stays); an update only before the first page is written. */
   cancel(): FlashReply {
+    if (this.#stopWait !== null) {
+      this.#stopWait();
+      return { ok: true };
+    }
     if (!this.#running) return fail('Nothing to cancel.');
     if (this.#view?.wrote === true) return fail('Writing has started: it cannot be cancelled. Let it finish.');
     this.#cancelled = true;
@@ -441,24 +452,12 @@ export class FlashService {
       this.#port = s.portSelector;
       this.#board = boardFacts(s);
     }
+    // After a marked Connect whose update may have written: what the board reports, once it identified.
+    const check = versionCheckDue(this.#view, s);
+    if (check !== null) this.#set({ versionCheck: check });
     const p = this.#post;
     if (p === null || p.phase !== 'switchCheck' || s.identity?.id !== p.boardId) return;
-    let changed = false;
-    for (const i of p.inputs) {
-      // A single read (`in5`) or the group (`in`, answered as {"1":0,...,"8":0}).
-      const single = s.values[`in${i.input}`];
-      const group = s.values['in'];
-      const groupValue = group !== undefined && group.status === 0 && typeof group.value === 'object' && group.value !== null && !Array.isArray(group.value) ? (group.value as Record<string, unknown>)[String(i.input)] : undefined;
-      const value = typeof groupValue === 'number' ? groupValue : single !== undefined && single.status === 0 && typeof single.value === 'number' ? single.value : undefined;
-      if (value === undefined) continue;
-      const seen = this.#seen.get(i.input) ?? { open: false, closed: false };
-      const next = { open: seen.open || value === 0, closed: seen.closed || value === 1 };
-      if (next.open !== seen.open || next.closed !== seen.closed) {
-        this.#seen.set(i.input, next);
-        changed = true;
-      }
-    }
-    if (changed) {
+    if (observeInputs(p.inputs, s.values, this.#seen)) {
       this.#refreshInputs();
       this.#d.onChange();
     }
@@ -468,42 +467,71 @@ export class FlashService {
   async guardConnect(port: PortSelector, inner: Transport, boardId?: string): Promise<Transport | string> {
     if (this.#running) return 'A firmware update is using the port.';
     let link: BootloaderLink | null = null;
+    let marked = false;
     this.#running = true;
     try {
-      let mark = await this.#d.marks.find(port, boardId);
+      const mark = await this.#d.marks.find(port, boardId);
+      marked = mark !== null;
       if (mark !== null) this.#restoreMark(mark, port);
       await this.closeBootloader();
       this.#transcript = new EventLog(this.#d.clock.now());
-      link = new BootloaderLink(mark === null ? this.#checkedTransport(port, inner, boardId) : inner, this.#d.clock, X192A3, this.#transcript);
+      link = new BootloaderLink(mark === null ? checkedTransport(port, inner, this.#d.marks, boardId) : inner, this.#d.clock, X192A3, this.#transcript);
       await link.openProbe(mark === null || mark.kind === 'detected');
-      const signature = await link.checkBootloader();
-      if (signature) {
-        if (mark === null) {
-          this.#port = port;
-          this.#board = null;
-          this.#begin = null;
-          this.#view = this.#bootloaderView(true);
-          mark = { nonce: crypto.randomUUID(), kind: 'detected', port, boardId: boardId ?? null, recovery: { begin: null, view: this.#view }, wrote: false };
-          await this.#d.marks.put(mark);
-        }
-        this.#set({ recoveryOffered: this.#begin !== null, bootloader: { startAllowed: mark.kind === 'detected' }, message: 'The board is in its bootloader.' });
-        this.#retainBootloader(link);
+      if (await link.checkBootloader()) {
+        const found = await this.#foundBootloader(link, mark, port, boardId);
         link = null;
-        return 'The board is in its bootloader.';
+        return found;
       }
       if (mark === null) {
         if (await this.#d.marks.find(port, boardId)) throw new Error('The board was quarantined during the pre-check.');
         return await link.finishOrdinaryPrecheck();
       }
-      // A live banner: firmware runs on this port. The failed-update view is history (the mark, if kept, restores it).
-      if (await listenForBanner(link, this.#d.clock, (bannerWait) => this.#set({ bannerWait }))) { const ready = await this.#handoff(link, mark, true); this.#view = null; this.#begin = null; return ready; }
-      await link.close();
-      this.#set({ message: BOOTLOADER_ADVICE });
-      return BOOTLOADER_ADVICE;
+      const stop = new Promise<void>((resolve) => { this.#stopWait = resolve; });
+      const outcome = await listenForBanner(link, this.#d.clock, (bannerWait) => this.#set({ bannerWait }), stop);
+      this.#stopWait = null;
+      if (outcome === 'heard') {
+        // Firmware runs on this port. The board's own banner clears its mark; another board's keeps it (a note).
+        const cleared = bannerClears(mark, link.firmwareBanner);
+        const ready = await this.#handoff(link, mark, true);
+        this.#view = viewAfterBanner(this.#view, mark, cleared);
+        this.#begin = null;
+        return ready;
+      }
+      return this.#refusal(await link.close(), marked, outcome === 'cancelled' ? 'Connect was cancelled. The board keeps its mark.' : BOOTLOADER_ADVICE);
     } catch (error) {
-      await link?.close();
-      return withAdvice(`Run could not verify that this board is safe to connect: ${error instanceof Error ? error.message : String(error)}.`);
-    } finally { this.#running = false; this.#d.onChange(); }
+      const portOk = (await link?.close()) !== false && !(error instanceof LinkDeadline);
+      return this.#refusal(portOk, marked, withAdvice(`Run could not verify that this board is safe to connect: ${error instanceof Error ? error.message : String(error)}.`));
+    } finally {
+      this.#stopWait = null;
+      this.#running = false;
+      this.#d.onChange();
+    }
+  }
+
+  /** The AVR109 check found xboot: an unmarked board gets a 'detected' mark (Run wrote nothing); keep the port open. */
+  async #foundBootloader(link: BootloaderLink, known: BootloaderMark | null, port: PortSelector, boardId?: string): Promise<string> {
+    let mark = known;
+    if (mark === null) {
+      this.#port = port;
+      this.#board = null;
+      this.#begin = null;
+      this.#view = bootloaderView(++this.#id, true);
+      mark = { nonce: crypto.randomUUID(), kind: 'detected', port, boardId: boardId ?? null, recovery: { begin: null, view: this.#view }, wrote: false };
+      await this.#d.marks.put(mark);
+    }
+    this.#set({ recoveryOffered: this.#begin !== null, bootloader: { startAllowed: mark.kind === 'detected' }, message: 'The board is in its bootloader.' });
+    this.#retainBootloader(link);
+    return 'The board is in its bootloader.';
+  }
+
+  /**
+   * Connect's refusal once it closed the port. A port call that passed its deadline (`portOk` false) leaves the port
+   * stuck: only unplugging USB frees it, so that is the advice, on a marked board's view too.
+   */
+  #refusal(portOk: boolean, marked: boolean, otherwise: string): string {
+    if (portOk) return otherwise;
+    if (marked) this.#set({ message: PORT_STUCK_ADVICE });
+    return PORT_STUCK_ADVICE;
   }
 
   #retainBootloader(link: BootloaderLink): void {
@@ -532,16 +560,14 @@ export class FlashService {
 
   async closeBootloader(): Promise<void> { await (await this.#takeBootloader())?.close(); }
 
-  #bootloaderView(startAllowed: boolean): FlashView {
-    return { id: ++this.#id, phase: 'failed', bootloader: { startAllowed }, done: 0, of: 0, note: null, source: 'custom', target: { fb: null, label: 'Unknown firmware', sha256: '' }, boardId: null, board: null, countdown: null, wrote: false, message: 'The board is in its bootloader.', recoveryOffered: false, versionCheck: null, result: null };
-  }
-
   #restoreMark(mark: BootloaderMark, port: PortSelector): void {
     const saved = mark.recovery as { begin: FlashBegin | null; view: FlashView };
     this.#port = port;
     this.#begin = saved.begin !== null && this.#d.authorizeBegin(saved.begin) === null ? saved.begin : null;
     this.#board = saved.view.board;
-    this.#view = { ...saved.view, id: ++this.#id, phase: 'failed', recoveryOffered: this.#begin !== null, bootloader: { startAllowed: mark.kind === 'detected' }, message: BOOTLOADER_ADVICE, marked: true, bannerWait: null, wrote: mark.wrote !== false };
+    // No message: the mark note says how the mark clears, and Connect's dialog says what to do (said once).
+    const { elsewhere: _elsewhere, ...view } = saved.view;
+    this.#view = { ...view, id: ++this.#id, phase: 'failed', recoveryOffered: this.#begin !== null, bootloader: { startAllowed: mark.kind === 'detected' }, message: null, marked: true, bannerWait: null, wrote: mark.wrote !== false };
     this.#d.onChange();
   }
 
@@ -603,24 +629,12 @@ export class FlashService {
     } finally { this.#running = false; this.#d.onChange(); }
   }
 
-  #checkedTransport(port: PortSelector, inner: Transport, boardId?: string): Transport {
-    return {
-      info: () => inner.info(), readable: inner.readable, close: () => inner.close(),
-      onDisconnect: callback => inner.onDisconnect(callback), writeLine: bytes => inner.writeLine(bytes),
-      open: async options => {
-        // Recheck after acquiring the exclusive physical port: another tab may have flashed since prepare.
-        if (await this.#d.marks.find(port, boardId)) throw new Error(BOOTLOADER_ADVICE);
-        await inner.open(options);
-        try { if (await this.#d.marks.find(port, boardId)) throw new Error(BOOTLOADER_ADVICE); }
-        catch (error) { await inner.close(); throw error; }
-      },
-    };
-  }
-
+  /** Hands the port to the normal session after a live banner; clears the mark only when that banner clears it. */
   async #handoff(link: BootloaderLink, mark: BootloaderMark, finishPrecheck = false): Promise<Transport> {
-    // A banner from a different board never clears the recorded board's quarantine.
-    // If no board id was known, the live ready banner on this port is the only available proof and clears that mark.
-    if (mark.boardId === null || link.firmwareBanner?.id === mark.boardId) { await this.#d.marks.clear(mark); this.#set({ marked: false }); }
+    if (bannerClears(mark, link.firmwareBanner)) {
+      await this.#d.marks.clear(mark);
+      this.#set({ marked: false });
+    }
     return finishPrecheck ? link.finishReadyPrecheck() : link.applicationTransport();
   }
 
@@ -635,7 +649,7 @@ export class FlashService {
       await this.#d.marks.put(mark);
       this.#set({ marked: true });
       if (!recovery) {
-        const entered = await this.#enterBootloader();
+        const entered = await enterBootloader(this.#d.session);
         if (entered !== null) {
           await this.#d.session.disconnect();
           this.#finish(id, { phase: 'failed', message: withAdvice(entered), recoveryOffered: true });
@@ -658,7 +672,13 @@ export class FlashService {
             this.#set({ phase: p.phase === 'failed' ? 'failed' : p.phase === 'done' ? 'exit' : p.phase, done: p.done, of: p.of, note: p.note ?? null });
           },
           // The last step before the first page: the mark says the flash was written (a restored card reads it).
-          backupsReady: async (backups) => { await this.#saveBackups(id, backups); await this.#d.marks.put({ ...mark, wrote: true }); },
+          // The last step before the first page: the mark, then the view, say the flash was written. From here a
+          // cancel is refused, so the view and the mark agree (a restored card reads the mark).
+          backupsReady: async (backups) => {
+            await this.#saveBackups(id, backups);
+            await this.#d.marks.put({ ...mark, wrote: true });
+            this.#set({ wrote: true });
+          },
           cancelled: () => this.#cancelled,
           beforeFirstWrite: () => this.#set({ wrote: true }),
         },
@@ -703,34 +723,6 @@ export class FlashService {
     this.#running = false;
     this.#saved = null;
     this.#set(patch);
-  }
-
-  /** The session's `flash` intent, then wait until its link closed (or it refused). Null on success, else why. */
-  #enterBootloader(): Promise<string | null> {
-    const session = this.#d.session;
-    const decision = session.request({ intent: 'flash' });
-    if (!decision.allowed) return Promise.resolve(`${decision.reason} ${decision.remedy}`);
-    return new Promise((resolve) => {
-      const check = (s: SessionSnapshot): boolean => {
-        if (s.notices.bootloaderEntered !== undefined && s.base === 'NOT_CONNECTED') {
-          resolve(null);
-          return true;
-        }
-        if (s.notices.bootRefused !== undefined) {
-          resolve(`The board was not put into its bootloader: ${s.notices.bootRefused}.`);
-          return true;
-        }
-        if (s.overlays.includes('LOST') || s.overlays.includes('FAULT')) {
-          resolve('The connection was lost before the board entered its bootloader.');
-          return true;
-        }
-        return false;
-      };
-      if (check(session.snapshot)) return;
-      const unsubscribe = session.subscribe((s) => {
-        if (check(s)) unsubscribe();
-      });
-    });
   }
 
   async #openLink(auth: FlashAuthorization, port: PortSelector): Promise<BootloaderLink | null> {
@@ -831,11 +823,7 @@ export class FlashService {
         }
       });
     });
-    const reported = this.#d.session.snapshot.identity?.fb ?? null;
-    if (view !== null) {
-      const expected = view.target.fb;
-      this.#set({ versionCheck: { expected, reported, ok: expected === null ? reported !== null : reported !== null && Math.round(reported * 100) === Math.round(expected * 100) } });
-    }
+    if (view !== null) this.#set({ versionCheck: versionCheck(view.target.fb, this.#d.session.snapshot.identity?.fb ?? null) });
     return { ok: true };
   }
 }

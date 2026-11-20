@@ -561,6 +561,31 @@ it.each([['backup', false], ['write', true]] as const)('the mark of an update lo
   expect((await r.marks.find(PORT))?.wrote).toBe(wrote);
 }, 60_000);
 
+// The wrote:true save is the last step before the first page: if it fails, nothing is written; a cancel that lands
+// right after it is refused-or-late, and the view reads as written, as the mark does after a reload.
+it.each(['save fails', 'cancel after the save'] as const)('the wrote:true mark: %s', async (what) => {
+  const r = rig(); await r.connect();
+  const put = r.marks.put;
+  r.marks.put = async (m) => {
+    if (m.wrote === true && what === 'save fails') throw new Error('storage failure');
+    await put(m);
+    if (m.wrote === true) r.host.flash.cancel();
+  };
+  const x = await sim('update');
+  await r.call({ v: 3, kind: 'flash', command: { op: 'begin', source: { kind: 'release', hv: 99, fb: x.fb, file: x.file }, hex: x.hex, sha256: x.sha256, settingsBackup: 'saved', baseline: {}, recovery: false } });
+  await r.until(() => r.backupsPost() !== undefined);
+  await r.call({ v: 3, kind: 'flash', command: { op: 'backupsSaved', sha256: (r.backupsPost() as FlashBackupsPost).backups.sha256 } });
+  await r.until(() => r.host.flash.view?.phase === 'failed' || r.host.flash.view?.phase === 'done');
+  if (what === 'save fails') {
+    expect(r.host.flash.view).toMatchObject({ phase: 'failed', wrote: false });
+    expect(r.board.xboot.pageWrites).toEqual([]);
+    expect((await r.marks.find(PORT))?.wrote).toBe(false);
+  } else {
+    expect(r.host.flash.view?.wrote).toBe(true);
+    expect((await r.marks.find(PORT))?.wrote ?? true).toBe(true);
+  }
+}, 60_000);
+
 /** When the flash view first reached `phase`, in virtual ms (-1: never). */
 function phaseTimes(r: Rig): Map<string, number> {
   const at = new Map<string, number>();

@@ -8,6 +8,7 @@ import { expect, it, vi } from 'vitest';
 import { X192A3 } from '@synthetos/flasher';
 import { VirtualClock } from '@synthetos/testkit';
 import { BOOTLOADER_CLOSE_MS, BOOTLOADER_OPEN_MS, BOOTLOADER_WRITE_MS, BootloaderLink } from '../src/bootloaderLink.ts';
+import { LinkDeadline } from '../src/linkDeadline.ts';
 import type { Transport } from '../src/transport.ts';
 
 const never = <T>(): Promise<T> => new Promise<T>(() => undefined);
@@ -52,7 +53,8 @@ it('a write that never finishes fails after its deadline, and nothing is written
   await link.openProbe(true);
   const check = await within(clock, link.checkBootloader(), BOOTLOADER_WRITE_MS + 500);
   expect(check).not.toBe('pending');
-  expect((check as { error?: unknown }).error).toBeDefined();
+  // A deadline, not an ordinary failure: the port is stuck and only unplugging frees it (Connect's advice says so).
+  expect((check as { error?: unknown }).error).toBeInstanceOf(LinkDeadline);
   expect(wire.writes.map((b) => [...b])).toEqual([[0x1b]]);
   await expect(link.write(Uint8Array.of(0x1b))).rejects.toThrow();
   expect(wire.writes).toHaveLength(1);
@@ -65,9 +67,17 @@ it('close returns after its deadline even when the write in progress and the por
   await link.openProbe(true);
   void link.write(Uint8Array.of(0x1b)).catch(() => undefined);
   const closed = await within(clock, link.close(), BOOTLOADER_WRITE_MS + BOOTLOADER_CLOSE_MS + 500);
-  expect(closed).toEqual({ value: undefined });
+  // False: the port did not close in time (stuck).
+  expect(closed).toEqual({ value: false });
   expect(wire.closes).toBe(1);
   expect(link.closed).toBe(true);
+});
+
+it('a close that finishes in time returns true', async () => {
+  const clock = new VirtualClock();
+  const link = new BootloaderLink(port({}), clock, X192A3);
+  await link.openProbe(true);
+  expect(await within(clock, link.close(), BOOTLOADER_CLOSE_MS + 500)).toEqual({ value: true });
 });
 
 it('an open that never finishes fails after its deadline and asks the port to close', async () => {

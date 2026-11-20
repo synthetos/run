@@ -39,10 +39,12 @@ it('after a failure that wrote to the flash: "No firmware running"', () => {
   expect(html).not.toContain('data-recovery-wrote="false"');
 });
 
-it('after a failure that wrote nothing: says nothing was written and the old firmware is still on the board', () => {
+it('after a failure that wrote nothing: says Run wrote nothing, and claims nothing about the firmware', () => {
   const html = renderToString(h(FirmwareTab, { view: failed(false) }));
   expect(html).toContain('data-region="flash-recovery"');
   expect(html).not.toContain('No firmware running');
   expect(html).toContain('Nothing written');
-  expect(html).toContain('Nothing was written to the board. Its old firmware is still there.');
+  // A board found in its bootloader may hold no firmware even though Run wrote nothing (safety review 2026-11-20).
+  expect(html).toContain('Run wrote nothing.');
+  expect(html).not.toContain('old firmware is still there');
 });

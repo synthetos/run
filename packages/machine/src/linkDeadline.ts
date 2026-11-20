@@ -14,8 +14,8 @@ import { DEFAULT_TIMINGS, LinkClosed, type FlasherClock } from '@synthetos/flash
 export const BOOTLOADER_WRITE_MS = DEFAULT_TIMINGS.blockWriteMs;
 
 /**
- * Opening the port. It runs inside xboot's entry window, which the flash run allows 10 s (`entryMs`, the same as
- * the firmware banner wait). An open that takes longer has missed the window anyway.
+ * Opening the port. It runs inside xboot's entry window, which the flash run allows 10 s (`entryMs`). An open that
+ * takes longer has missed the window anyway.
  */
 export const BOOTLOADER_OPEN_MS = 10_000;
 
@@ -25,9 +25,12 @@ export const BOOTLOADER_OPEN_MS = 10_000;
  */
 export const BOOTLOADER_CLOSE_MS = DEFAULT_TIMINGS.blockWriteMs;
 
-/** The port's close, waited for at most `BOOTLOADER_CLOSE_MS`; it goes on in the background after that. Never rejects. */
-export function closePort(port: { close(): Promise<void> }, clock: FlasherClock): Promise<void> {
-  return withDeadline(port.close(), BOOTLOADER_CLOSE_MS, clock, 'closing the port').catch(() => undefined);
+/**
+ * The port's close, waited for at most `BOOTLOADER_CLOSE_MS`; it goes on in the background after that. Never rejects.
+ * True when it closed in time; false when it passed the deadline (a stuck port) or failed.
+ */
+export function closePort(port: { close(): Promise<void> }, clock: FlasherClock): Promise<boolean> {
+  return withDeadline(port.close(), BOOTLOADER_CLOSE_MS, clock, 'closing the port').then(() => true, () => false);
 }
 
 /** A port call that passed its deadline. It is a `LinkClosed`: the link is treated as gone. */

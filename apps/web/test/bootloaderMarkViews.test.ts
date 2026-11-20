@@ -38,6 +38,15 @@ it('the setup wizard’s Connect card shows the same guidance and Try again', ()
   expect(expired).toContain('data-action="banner-retry"');
 });
 
+it.each([['the strip', true], ['the setup wizard card', false]] as const)('%s: W28, verbatim, above the Reset instruction, and Cancel', (_where, compact) => {
+  const html = strip(flash({ phase: 'waiting', seconds: 20 }), { step: 'opening' }, compact);
+  const dialog = html.slice(html.indexOf('data-region="banner-wait"'));
+  expect(dialog).toContain('data-safety="W28"');
+  expect(dialog).toContain('Keep spindle and VFD mains switched off.');
+  expect(dialog.indexOf('data-safety="W28"')).toBeLessThan(dialog.indexOf('Press the Reset button on the board now'));
+  expect(dialog).toContain('data-action="banner-cancel"');
+});
+
 it('while Connect listens: press Reset now (or power off and on with USB connected), with the countdown', () => {
   const html = strip(flash({ phase: 'waiting', seconds: 27 }), { step: 'opening' });
   expect(html).toContain('data-banner-wait="waiting"');
@@ -55,9 +64,38 @@ it('when the wait ran out: Try again replaces the refusal, which carries the sam
   expect(html).not.toContain('id="refused-title"');
 });
 
+const page = (f: FlashView): string => renderToString(h(FirmwareTab, { view: { message: { snapshot: { base: 'NOT_CONNECTED', identity: null, classification: null, values: {} }, flash: f, flasher: true } } as unknown as LiveView }));
+
+it.each([
+  ['a restored mark (the note carries the advice)', null],
+  ['a failed update in this tab (the message carries it)', ADVICE],
+] as const)('%s: "press Reset" is said once, and "try the update again" comes after it', (_name, message) => {
+  const html = page({ ...flash(null), message });
+  expect(html.split('press Reset on the board').length - 1).toBe(1);
+  expect(html.indexOf('You can also try the update again')).toBeGreaterThan(html.indexOf('press Reset on the board'));
+});
+
+it('a Recovery card where Run wrote nothing says only that', () => {
+  const html = page({ ...flash(null), wrote: false });
+  expect(html).toContain('Run wrote nothing.');
+  expect(html).not.toContain('old firmware is still there');
+});
+
+it('after the banner, a version that differs: "Not updated", with what the board reports', () => {
+  const html = page({ ...flash(null), phase: 'done', marked: false, recoveryOffered: false, message: null, versionCheck: { expected: 450.06, reported: 449.01, ok: false } });
+  expect(html).toContain('data-version-check="differs"');
+  expect(html).toContain('Not updated');
+  expect(html).toContain('The board reports 449.01 (expected 450.06).');
+});
+
+it('a note about another board’s mark replaces Recovery while this board is connected', () => {
+  const html = page({ ...flash(null), elsewhere: 'BOARD-A' });
+  expect(html).toContain('Board BOARD-A may still be in its bootloader. Connect that board and press Reset.');
+  expect(html).not.toContain('data-region="flash-recovery"');
+});
+
 it('Board → Firmware says the board is marked and that Connect, then Reset, clears it; no button forgets the mark', () => {
-  const f = flash(null);
-  const html = renderToString(h(FirmwareTab, { view: { message: { snapshot: { base: 'NOT_CONNECTED', identity: null, classification: null, values: {} }, flash: f, flasher: true } } as unknown as LiveView }));
+  const html = page({ ...flash(null), message: null });
   expect(html).toContain('data-region="bootloader-mark"');
   expect(html).toContain('To clear the mark: press Connect, then press Reset on the board when Run asks.');
   expect(html).not.toMatch(/Unplug USB and power|power-cycle|forget/i);

@@ -18,16 +18,16 @@ import { h, type ComponentChild } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import { bootloaderHardwareVersions } from '../../firmware/bootloaderHardware.ts';
 import { releaseRequest } from '../boardNavigation.ts';
-import { boardText, c38, w11, w28, w45, w46, w48, w49, w50 } from '@synthetos/safety';
+import { boardText, c38, w11, w45, w46, w48, w50 } from '@synthetos/safety';
 import { signalText } from '../../shell/signal.ts';
 import { uiLevel } from '../jobWorkflow.ts';
 import { reviewOpen } from '../settings/reviewState.ts';
 import { Icon } from '../icons.ts';
 import { trustOffered } from '../trustOffer.ts';
 import { connected, type FirmwareActions, type FirmwareHubView, type LiveView, type WorkspaceModel } from '../model.ts';
-import type { FlashView } from '../../machine-worker/flashService.ts';
 import { shownBoard } from './firmwareBoard.ts';
 import { BootloaderMarkNote } from './BootloaderMarkNote.ts';
+import { FlashDoneCard, FlashFailedCard, RecoveryCard, shownFlash } from './flashCards.ts';
 import { Dismissable } from '../notes/Dismissable.ts';
 import { FirmwareReleaseList } from './FirmwareReleaseList.ts';
 import { useReleasePick } from './releasePick.ts';
@@ -57,40 +57,6 @@ export function flashBlocked(view: LiveView | null): string | null {
   if (s.classification === null) return 'Wait until the board is identified.';
   if (s.classification.dialectId === null) return 'This board was not identified as a TinyG. Use recovery if it has no working firmware.';
   return null;
-}
-
-/** The view already says the board may be in its bootloader: its message (the advice), or the mark note. */
-function saysBootloader(flash: FlashView): boolean {
-  return flash.marked === true || (flash.message ?? '').includes('may still be in its bootloader');
-}
-
-/** A failed update that offers no recovery: what stopped it, then Dismiss. */
-function FlashFailedCard({ flash, actions }: { readonly flash: FlashView; readonly actions: WorkspaceModel['actions']['value'] }): ComponentChild {
-  const fine = flash.wrote ? 'Pages were written: use recovery.' : saysBootloader(flash) ? null : 'The board may still be in its bootloader.';
-  return h('section', { class: 'insp', 'data-region': 'flash-failed' },
-    h('header', null, h('h2', null, 'Update stopped')),
-    h('p', { role: 'alert' }, flash.message ?? 'The update stopped.'),
-    fine === null ? null : h('p', { class: 'fine' }, fine),
-    h('button', { type: 'button', class: 'small', 'data-action': 'flash-dismiss', onClick: () => void actions?.firmware?.dismiss() }, 'Dismiss'));
-}
-
-function RecoveryCard({ flash, actions }: { readonly flash: FlashView; readonly actions: WorkspaceModel['actions']['value'] }): ComponentChild {
-  const counting = flash.phase === 'recovery' && flash.countdown !== null;
-  // Only a run that wrote to the flash can have left the board without firmware.
-  const tag = flash.wrote ? h('span', { class: 'tag danger' }, 'No firmware running') : h('span', { class: 'tag warn', 'data-recovery-wrote': 'false' }, 'Nothing written');
-  return h(
-    'section',
-    { class: 'insp flash-recovery', 'data-region': 'flash-recovery' },
-    h('header', null, h('h2', null, 'Recovery'), tag),
-    flash.wrote ? null : h('p', null, 'Nothing was written to the board. Its old firmware is still there.'),
-    counting
-      ? h('p', { class: 'recovery-count', role: 'alert', 'data-safety': 'W49' }, w49({ seconds: flash.countdown ?? 0 }))
-      // Said once: the message (the advice) or the mark note above may already say it may be in its bootloader.
-      : h('p', null, saysBootloader(flash) ? 'You can also try the update again. Do not unplug it during the update.' : 'The board may still be in its bootloader. Try the update again. Do not unplug it during the update.'),
-    flash.message === null ? null : h('p', { role: 'alert' }, flash.message),
-    h('p', { class: 'flash-danger', 'data-safety': 'W28' }, ...signalText(w28())),
-    counting ? null : h('button', { type: 'button', class: 'primary wide', 'data-machine-control': 'flash', 'data-action': 'flash-recover', disabled: actions?.firmware === undefined, onClick: () => void actions?.firmware?.recover() }, 'Try the update again'),
-  );
 }
 
 function PostFlash({ view, hub }: { readonly view: LiveView; readonly hub: FirmwareHubView | null }): ComponentChild {
@@ -238,7 +204,7 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
   const on = view !== null && connected(view);
   const id = s?.identity ?? null;
   const blocked = flashBlocked(view);
-  const flash = m?.flash ?? null;
+  const flash = shownFlash(m?.flash);
   // During an update the session is closed: the board as last read, from the flash view (firmwareBoard.ts).
   const shown = shownBoard(on, id, flash, boardText);
   const running = flash !== null && flash.phase !== 'done' && flash.phase !== 'failed';
@@ -313,20 +279,12 @@ export function FirmwareTab({ model, view: viewProp }: { readonly model?: Worksp
           h('button', { type: 'button', disabled: hardwareChoice === '', onClick: () => void actions?.firmware?.bootloaderHardware(Number(hardwareChoice)).then(setMsg) }, 'Confirm hardware version'),
         ) : null,
       ) : null,
-      h(BootloaderMarkNote, { flash }), flash !== null && (flash.phase === 'recovery' || (flash.phase === 'failed' && flash.recoveryOffered)) ? h(RecoveryCard, { flash, actions }) : null,
+      h(BootloaderMarkNote, { flash: m?.flash ?? null }),
+      flash !== null && (flash.phase === 'recovery' || (flash.phase === 'failed' && flash.recoveryOffered)) ? h(RecoveryCard, { flash, actions }) : null,
       flash !== null && flash.phase === 'failed' && !flash.recoveryOffered && flash.bootloader === undefined
         ? h(FlashFailedCard, { flash, actions })
         : null,
-      flash !== null && flash.phase === 'done'
-        ? h(
-            'section',
-            { class: 'insp', 'data-region': 'flash-done' },
-            h('header', null, h('h2', null, 'Updated'), h('span', { class: `tag ${flash.versionCheck?.ok === true ? 'ok' : 'warn'}` }, flash.versionCheck === null ? 'Reconnecting' : flash.versionCheck.ok ? 'Version checked' : 'Version differs')),
-            h('p', { 'data-version-check': flash.versionCheck === null ? 'pending' : flash.versionCheck.ok ? 'ok' : 'differs' }, flash.versionCheck === null ? 'Waiting for the board to answer…' : `The board reports ${fbText(flash.versionCheck.reported)}${flash.versionCheck.expected === null ? '' : ` (expected ${fbText(flash.versionCheck.expected)})`}.`),
-            flash.result === null ? null : h('p', { class: 'fine' }, `${flash.result.written} pages written, ${flash.result.unchanged} already right, checksum 0x${flash.result.crc.toString(16).padStart(4, '0')}${flash.result.resyncs > 0 ? `, ${flash.result.resyncs} retries` : ''}.`),
-            flash.message === null ? null : h('p', { class: 'fine' }, flash.message, ' ', h('button', { type: 'button', class: 'small', 'data-action': 'flash-reconnect', onClick: () => void actions?.firmware?.reconnect().then(setMsg) }, 'Reconnect')),
-          )
-        : null,
+      flash !== null && flash.phase === 'done' ? h(FlashDoneCard, { flash, actions, onMessage: setMsg }) : null,
       view !== null ? h(PostFlash, { view, hub }) : null,
       view !== null && hub !== null ? h(TrustOffer, { view, hub }) : null,
       target === null && !running && (flash === null || flash.phase === 'done' || (flash.phase === 'failed' && !flash.recoveryOffered))
