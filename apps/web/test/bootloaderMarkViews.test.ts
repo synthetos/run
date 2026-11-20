@@ -20,13 +20,23 @@ function flash(bannerWait: BannerWaitView | null): FlashView {
   return { id: 7, phase: 'failed', done: 0, of: 385, note: null, source: 'release', target: { fb: 450.06, label: '450.06', sha256: 'a'.repeat(64) }, boardId: BOARD.id, board: BOARD, countdown: null, wrote: true, message: ADVICE, recoveryOffered: true, versionCheck: null, result: null, marked: true, bannerWait };
 }
 
-function strip(f: FlashView, entry: LiveView['entry']): string {
+function strip(f: FlashView, entry: LiveView['entry'], compact = true): string {
   const base = view(snap({ base: 'NOT_CONNECTED', identity: null, classification: null }));
   const m = createWorkspaceModel();
   m.live.value = { ...base, entry, message: { ...base.message, flash: f, flasher: true } } as LiveView;
   m.actions.value = { cancel: () => undefined, firmware: { reconnect: async () => null } } as unknown as LiveActions;
-  return renderToString(h(ConnectNotice, { model: m, compact: true }));
+  return renderToString(h(ConnectNotice, { model: m, compact }));
 }
+
+it('the setup wizard’s Connect card shows the same guidance and Try again', () => {
+  const waiting = strip(flash({ phase: 'waiting', seconds: 12 }), { step: 'opening' }, false);
+  expect(waiting).toContain('data-banner-host="card"');
+  expect(waiting).toContain('Press the Reset button on the board now');
+  expect(waiting).toContain('data-banner-wait-seconds="12"');
+  const expired = strip(flash({ phase: 'expired', seconds: 0 }), { step: 'refused', refusal: { kind: 'open-failed', message: ADVICE } }, false);
+  expect(expired).toContain('data-banner-host="card"');
+  expect(expired).toContain('data-action="banner-retry"');
+});
 
 it('while Connect listens: press Reset now (or power off and on with USB connected), with the countdown', () => {
   const html = strip(flash({ phase: 'waiting', seconds: 27 }), { step: 'opening' });

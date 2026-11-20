@@ -7,6 +7,8 @@ export interface BootloaderMark {
   readonly port: PortSelector;
   readonly boardId: string | null;
   readonly recovery: unknown;
+  /** Run wrote pages (committed before the first). Absent on older marks: treat as written, the safe reading. */
+  readonly wrote?: boolean;
 }
 export interface BootloaderMarks {
   find(port: PortSelector, boardId?: string): Promise<BootloaderMark | null>;

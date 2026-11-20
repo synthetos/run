@@ -10,7 +10,11 @@ import { PHASE_1_RELEASE } from '@synthetos/safety';
 import { FlashableBoard, SimEndpoint, VirtualClock } from '@synthetos/testkit';
 import { memoryBootloaderMarks } from '../src/machine-worker/bootloaderMark.ts';
 import { BANNER_WAIT_MS } from '../src/machine-worker/bannerWait.ts';
-import { BOOTLOADER_ADVICE } from '../src/machine-worker/flashService.ts';
+import { BOOTLOADER_ADVICE, type FlashView } from '../src/machine-worker/flashService.ts';
+import type { LiveView } from '../src/workspace/model.ts';
+import { FirmwareTab } from '../src/workspace/views/FirmwareViews.ts';
+import { h } from 'preact';
+import { renderToString } from 'preact-render-to-string';
 import { MachineWorkerHost } from '../src/machine-worker/host.ts';
 import type { MachineReply } from '../src/machine-worker/rpc.ts';
 import { SimTransport } from './simTransport.ts';
@@ -18,17 +22,18 @@ import { SimTransport } from './simTransport.ts';
 const PORT: PortSelector = Object.freeze({ usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0 });
 const BOARD = 'SIM-EN-0001';
 const OPEN = { v: 3, kind: 'open', port: PORT, boardId: null, previousSessionEnded: false };
-const SAVED_VIEW = { id: 1, phase: 'failed', done: 3, of: 10, note: null, source: 'release', target: { fb: 450.02, label: '450.02', sha256: 'x' }, boardId: BOARD, board: { id: BOARD, hv: 99, fb: 450.01, fv: 0.97 }, countdown: null, wrote: true, message: null, recoveryOffered: true, versionCheck: null, result: null };
+const SAVED_VIEW = { id: 1, phase: 'failed', done: 3, of: 10, note: null, source: 'release', target: { fb: 450.02, label: '450.02', sha256: 'x' }, boardId: BOARD, board: { id: BOARD, hv: 99, fb: 450.01, fv: 0.97 }, countdown: null, wrote: false, message: null, recoveryOffered: true, versionCheck: null, result: null };
 
 interface WireLine { readonly t: number; readonly dir: 'tx' | 'rx'; readonly hex: string }
 
-async function rig(markedId: string) {
+/** `wrote`: the fact the mark recorded (undefined: a mark saved before marks recorded it). */
+async function rig(markedId: string, wrote?: boolean) {
   const clock = new VirtualClock();
   const board = new FlashableBoard({ model: { bootMs: 50, eepromWriteMs: 0 }, linkBaud: 2_000_000 });
   const endpoint = new SimEndpoint({ clock, device: board, link: { baudRate: 2_000_000, latencyMs: 0.2, coalesceMs: 2 } });
   const source: TransportSource = { kind: 'fake', request: async () => new SimTransport(endpoint, clock, { open: 0, most: 0 }, 0) };
   const marks = memoryBootloaderMarks();
-  await marks.put({ nonce: 'failed-update', kind: 'failed', port: PORT, boardId: markedId, recovery: { begin: null, view: SAVED_VIEW } });
+  await marks.put({ nonce: 'failed-update', kind: 'failed', port: PORT, boardId: markedId, recovery: { begin: null, view: SAVED_VIEW }, ...(wrote === undefined ? {} : { wrote }) });
   const host = new MachineWorkerHost(source, clock, { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/130' }, null, PHASE_1_RELEASE, marks);
   const waits: unknown[] = [];
   host.flashListener = () => waits.push(host.flash.view?.bannerWait ?? null);
@@ -94,5 +99,26 @@ describe('Connect on a board marked after a failed update', () => {
     await r.succeeds({ v: 3, kind: 'flash', command: { op: 'reconnect' } });
     expect(await r.marks.find(PORT)).toBeNull();
     expect(r.writesBeforeBanner()).toEqual(['1b', '53']);
+  }, 60_000);
+});
+
+/**
+ * The restored Recovery card says whether the update wrote (safety text). The mark keeps the view from the start of
+ * the update, which says nothing was written; the mark's own `wrote` fact decides. Unknown (an older mark): written.
+ */
+describe('a restored mark says whether the update wrote', () => {
+  it.each([
+    ['wrote', true, true],
+    ['nothing written', false, false],
+    ['unknown (an older mark)', undefined, true],
+  ] as const)('%s', async (_name, fact, written) => {
+    const r = await rig(BOARD, fact);
+    expect(await r.call(OPEN)).toMatchObject({ ok: false });
+    expect(r.host.flash.view?.wrote).toBe(written);
+    const flash = { ...(r.host.flash.view as FlashView), recoveryOffered: true };
+    const html = renderToString(h(FirmwareTab, { view: { message: { snapshot: { base: 'NOT_CONNECTED', identity: null, classification: null, values: {} }, flash, flasher: true } } as unknown as LiveView }));
+    if (written) expect(html).toContain('No firmware running');
+    else expect(html).toContain('Nothing was written to the board. Its old firmware is still there.');
+    if (written) expect(html).not.toContain('Nothing written');
   }, 60_000);
 });

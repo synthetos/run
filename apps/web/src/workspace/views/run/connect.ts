@@ -40,6 +40,8 @@ export function ConnectNotice({ model, onView, compact = false }: { readonly mod
         h('div', { class: 'dialog', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'c1-title' }, h('div', { class: 'dialog-head' }, h('h2', { id: 'c1-title' }, 'Before you connect')), panel),
       )
       : null,
+    // The setup wizard's Connect card: the same guidance as the strip, over the wizard (the strip's is behind it).
+    h(BannerWaitDialog, { flash: view?.message?.flash ?? null, actions, where: 'card' }),
   );
 }
 
@@ -86,7 +88,7 @@ function compactConnect({ step, view, actions, panel }: { readonly step: string;
     step === 'c1' || step === 'refused' ? (step === 'refused' ? h(ConnectPanel, { state: { step: 'idle' }, advisoryBlocked: view?.advisoryBlocked ?? null, onConnect: () => actions?.connect(), onConfirm: () => undefined, onCancel: () => undefined, onDisconnect: () => undefined }) : null) : panel,
     // A marked board: what to do while Connect listens for its banner, and Try again (bannerWait.ts). It replaces the
     // refusal, whose text is the same advice.
-    h(BannerWaitDialog, { flash, actions }),
+    h(BannerWaitDialog, { flash, actions, where: 'strip' }),
     // A refusal is a modal below the strip (OD-16), not text squeezed into it.
     step === 'refused' && shownBannerWait(flash) === null
       ? h('div', { class: 'dialog-wrap confirm-modal', role: 'presentation', ref: belowStrip }, h('div', { class: 'dialog', role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': 'refused-title' }, h('div', { class: 'dialog-head' }, h('h2', { id: 'refused-title' }, refusedTitle(view?.entry ?? null))), panel))

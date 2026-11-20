@@ -544,3 +544,19 @@ it('open-page restore confirmation does not verify position for a later workspac
   expect(workspace.session.snapshot.overlays).not.toContain('UNKNOWN');
   expect(await callHost(workspace, { v: 3, kind: 'close' })).toMatchObject({ ok: true });
 });
+
+// The mark records whether the update wrote, committed before the first page (a restored Recovery card reads it).
+it.each([['backup', false], ['write', true]] as const)('the mark of an update lost in %s records wrote: %s', async (phase, wrote) => {
+  const r = rig(); await r.connect();
+  let lost = false;
+  r.host.flashListener = () => {
+    if (!lost && r.host.flash.view?.phase === phase) { lost = true; r.endpoint.disconnect('USB pulled'); }
+  };
+  const x = await sim('update');
+  await r.call({ v: 3, kind: 'flash', command: { op: 'begin', source: { kind: 'release', hv: 99, fb: x.fb, file: x.file }, hex: x.hex, sha256: x.sha256, settingsBackup: 'saved', baseline: {}, recovery: false } });
+  await r.until(() => r.backupsPost() !== undefined || r.host.flash.view?.phase === 'failed');
+  if (r.backupsPost()) await r.call({ v: 3, kind: 'flash', command: { op: 'backupsSaved', sha256: (r.backupsPost() as FlashBackupsPost).backups.sha256 } });
+  await r.until(() => r.host.flash.view?.phase === 'failed');
+  expect(lost).toBe(true);
+  expect((await r.marks.find(PORT))?.wrote).toBe(wrote);
+}, 60_000);

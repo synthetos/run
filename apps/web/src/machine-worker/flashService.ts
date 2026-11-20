@@ -482,7 +482,7 @@ export class FlashService {
           this.#board = null;
           this.#begin = null;
           this.#view = this.#bootloaderView(true);
-          mark = { nonce: crypto.randomUUID(), kind: 'detected', port, boardId: boardId ?? null, recovery: { begin: null, view: this.#view } };
+          mark = { nonce: crypto.randomUUID(), kind: 'detected', port, boardId: boardId ?? null, recovery: { begin: null, view: this.#view }, wrote: false };
           await this.#d.marks.put(mark);
         }
         this.#set({ recoveryOffered: this.#begin !== null, bootloader: { startAllowed: mark.kind === 'detected' }, message: 'The board is in its bootloader.' });
@@ -539,7 +539,7 @@ export class FlashService {
     this.#port = port;
     this.#begin = saved.begin !== null && this.#d.authorizeBegin(saved.begin) === null ? saved.begin : null;
     this.#board = saved.view.board;
-    this.#view = { ...saved.view, id: ++this.#id, phase: 'failed', recoveryOffered: this.#begin !== null, bootloader: { startAllowed: mark.kind === 'detected' }, message: BOOTLOADER_ADVICE, marked: true, bannerWait: null };
+    this.#view = { ...saved.view, id: ++this.#id, phase: 'failed', recoveryOffered: this.#begin !== null, bootloader: { startAllowed: mark.kind === 'detected' }, message: BOOTLOADER_ADVICE, marked: true, bannerWait: null, wrote: mark.wrote !== false };
     this.#d.onChange();
   }
 
@@ -629,7 +629,7 @@ export class FlashService {
     let link: BootloaderLink | null = null;
     this.#transcript = new EventLog(this.#d.clock.now());
     try {
-      const mark: BootloaderMark = { nonce: crypto.randomUUID(), port, boardId: this.#board?.id ?? null, recovery: { begin, view: this.#view } };
+      const mark: BootloaderMark = { nonce: crypto.randomUUID(), port, boardId: this.#board?.id ?? null, recovery: { begin, view: this.#view }, wrote: startsWritten(recovery, this.#view) };
       await this.#d.marks.put(mark);
       this.#set({ marked: true });
       if (!recovery) {
@@ -655,7 +655,8 @@ export class FlashService {
             if (p.phase === 'exit') link?.armFirmwareBanner();
             this.#set({ phase: p.phase === 'failed' ? 'failed' : p.phase === 'done' ? 'exit' : p.phase, done: p.done, of: p.of, note: p.note ?? null });
           },
-          backupsReady: (backups) => this.#saveBackups(id, backups),
+          // The last step before the first page: the mark says the flash was written (a restored card reads it).
+          backupsReady: async (backups) => { await this.#saveBackups(id, backups); await this.#d.marks.put({ ...mark, wrote: true }); },
           cancelled: () => this.#cancelled,
           beforeFirstWrite: () => this.#set({ wrote: true }),
         },

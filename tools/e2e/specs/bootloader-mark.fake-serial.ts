@@ -13,6 +13,8 @@ import { join, resolve } from 'node:path';
 import type { Page, Worker } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 import { machineWorker, request } from './machineWorker.ts';
+import { setupRecord } from './accountRecords.ts';
+import { open as openWizard, step } from './wizardPage.ts';
 
 const PORT = { usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0 } as const;
 const SHOTS = process.env['RUN_BOOTLOADER_MARK_SHOTS'];
@@ -41,14 +43,14 @@ async function serveSim(page: Page): Promise<void> {
   });
 }
 
-/** The persistent flashable board, set up before the first open. */
-async function flashableBoard(worker: Worker): Promise<void> {
-  await worker.evaluate(() => {
+/** The persistent flashable board, set up before the first open: running its firmware, or in xboot's power-on window. */
+async function flashableBoard(worker: Worker, start: 'app' | 'bootloader' = 'app'): Promise<void> {
+  await worker.evaluate((s) => {
     const g = globalThis as unknown as Record<string, { ports: unknown[]; flashable?: unknown } | undefined>;
     const reg = g['__RUN_FAKE_SERIAL__'] ?? { ports: [] };
     g['__RUN_FAKE_SERIAL__'] = reg;
-    reg.flashable = { eeprom: { __layout: 10002 }, id: 'SIM-FLASH-1' };
-  });
+    reg.flashable = { eeprom: { __layout: 10002 }, id: 'SIM-FLASH-1', start: s };
+  }, start);
 }
 
 /** The board inside the worker: a late banner on the next start (ms), or the Reset button. */
@@ -61,22 +63,25 @@ function boardDo(worker: Worker, what: 'reset' | number): Promise<void> {
   }, what);
 }
 
-/** Connect as the page does, without waiting for the reply (the banner wait outlasts `request`'s 5 s). */
-function openInBackground(worker: Worker): Promise<void> {
-  return worker.evaluate((port) => {
-    const g = globalThis as unknown as { __markOpen?: unknown };
-    g.__markOpen = 'pending';
+/** Sends a request without waiting for the reply (the banner wait outlasts `request`'s 5 s); `reply` reads it. */
+function inBackground(worker: Worker, message: unknown): Promise<void> {
+  return worker.evaluate((data) => {
+    const g = globalThis as unknown as { __markReply?: unknown };
+    g.__markReply = 'pending';
     const channel = new MessageChannel();
     channel.port1.onmessage = (event) => {
-      g.__markOpen = event.data;
+      g.__markReply = event.data;
       channel.port1.close();
     };
-    globalThis.dispatchEvent(new MessageEvent('message', { data: { v: 3, kind: 'open', port }, ports: [channel.port2] }));
-  }, PORT);
+    globalThis.dispatchEvent(new MessageEvent('message', { data, ports: [channel.port2] }));
+  }, message);
 }
 
+/** Connect as the page does, in the background. */
+const openInBackground = (worker: Worker): Promise<void> => inBackground(worker, { v: 3, kind: 'open', port: PORT });
+
 function openReply(worker: Worker): Promise<unknown> {
-  return worker.evaluate(() => (globalThis as unknown as { __markOpen?: unknown }).__markOpen);
+  return worker.evaluate(() => (globalThis as unknown as { __markReply?: unknown }).__markReply);
 }
 
 async function base(worker: Worker): Promise<string> {
@@ -148,5 +153,40 @@ test('a marked board: press Reset during the countdown; the wait runs out, Try a
   await expect(dialog).toHaveCount(0, { timeout: 20_000 });
   await expect.poll(() => base(worker), { timeout: 15_000 }).toMatch(/IDLE_UNHOMED|CONNECTED_UNKNOWN/);
   await expect(note).toHaveCount(0);
+  expect(await writesBeforeBanner(worker)).toEqual(['1b', '53']);
+});
+
+/**
+ * The setup wizard's Machine step (step 2) shows the same guidance over the wizard. The mark comes from a board found
+ * in its bootloader whose Start firmware got no banner in time (the firmware boots 10 s late): a failed mark.
+ */
+test('setup, Machine step: a marked board gets the countdown, Try again, and connects after Reset', async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const { worker } = await openWizard(page, [setupRecord({ step: 2, done: [1] })], 2);
+  await flashableBoard(worker, 'bootloader');
+  expect(await request(worker, { v: 3, kind: 'open', port: PORT })).toMatchObject({ ok: false });
+  await boardDo(worker, 10_000);
+  await inBackground(worker, { v: 3, kind: 'flash', command: { op: 'startFirmware' } });
+  await expect.poll(() => openReply(worker), { timeout: 20_000 }).toMatchObject({ ok: false });
+  // The late banner goes out to a closed port; later starts boot normally.
+  await page.waitForTimeout(7000);
+  await boardDo(worker, 0);
+
+  await openInBackground(worker);
+  const dialog = page.locator('[data-banner-host="card"] [data-region="banner-wait"]');
+  await expect(dialog).toHaveAttribute('data-banner-wait', 'waiting', { timeout: 10_000 });
+  await expect(dialog).toContainText('Press the Reset button on the board now (or switch the board’s power off and on, keeping USB connected).');
+  await expect(dialog.locator('[data-banner-wait-seconds]')).toHaveAttribute('data-banner-wait-seconds', /^(30|29|28|27|26|25)$/);
+  await shots(page, 'wizard-countdown');
+  await expect(dialog).toHaveAttribute('data-banner-wait', 'expired', { timeout: 40_000 });
+  await shots(page, 'wizard-expired');
+  await dialog.locator('[data-action="banner-retry"]').click();
+  await expect(dialog).toHaveAttribute('data-banner-wait', 'waiting', { timeout: 10_000 });
+  await page.waitForTimeout(2000);
+  await boardDo(worker, 'reset');
+  await expect(dialog).toHaveCount(0, { timeout: 20_000 });
+  await expect.poll(() => base(worker), { timeout: 15_000 }).toMatch(/IDLE_UNHOMED|CONNECTED_UNKNOWN/);
+  await expect(step(page, 2)).toBeVisible();
   expect(await writesBeforeBanner(worker)).toEqual(['1b', '53']);
 });

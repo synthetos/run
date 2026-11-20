@@ -47,13 +47,21 @@ function Expired({ flashId, actions }: { readonly flashId: number; readonly acti
       h('button', { type: 'button', class: 'button primary', 'data-action': 'banner-retry', disabled: actions?.firmware === undefined, onClick: retry }, 'Try again')));
 }
 
-/** The modal below the strip while Connect listens for a marked board's banner, or after the wait ran out. */
-export function BannerWaitDialog({ flash, actions }: { readonly flash: FlashView | null | undefined; readonly actions: LiveActions | null }): ComponentChild {
+interface DialogProps {
+  readonly flash: FlashView | null | undefined;
+  readonly actions: LiveActions | null;
+  /** The machine strip's Connect, or the setup wizard's Connect card (the wizard places its hosted dialogs). */
+  readonly where: 'strip' | 'card';
+}
+
+/** The modal while Connect listens for a marked board's banner, or after the wait ran out. */
+export function BannerWaitDialog({ flash, actions, where }: DialogProps): ComponentChild {
   const wait = shownBannerWait(flash);
   if (wait === null || flash === null || flash === undefined) return null;
   const waiting = wait.phase === 'waiting';
-  return h('div', { class: 'dialog-wrap confirm-modal', role: 'presentation', ref: belowStrip },
-    h('div', { class: 'dialog banner-wait', role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': 'banner-wait-title', 'data-region': 'banner-wait', 'data-banner-wait': wait.phase },
-      h('div', { class: 'dialog-head' }, h('h2', { id: 'banner-wait-title' }, waiting ? 'Press Reset on the board' : 'The board did not start')),
+  const title = `banner-wait-title-${where}`;
+  return h('div', { class: 'dialog-wrap confirm-modal', role: 'presentation', ref: belowStrip, 'data-banner-host': where },
+    h('div', { class: 'dialog banner-wait', role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': title, 'data-region': 'banner-wait', 'data-banner-wait': wait.phase },
+      h('div', { class: 'dialog-head' }, h('h2', { id: title }, waiting ? 'Press Reset on the board' : 'The board did not start')),
       waiting ? h(Waiting, { seconds: wait.seconds }) : h(Expired, { flashId: flash.id, actions })));
 }
