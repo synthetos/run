@@ -58,6 +58,8 @@ import {
 import { type FirmwareReleases } from '@synthetos/protocol';
 import { categoryOf, restoreChanges, type SettingValue } from '@synthetos/schema';
 import type { BootloaderMark, BootloaderMarks } from './bootloaderMark.ts';
+import { listenForBanner, type BannerWaitView } from './bannerWait.ts';
+import { requiredInputs } from './switchInputs.ts';
 import { entryDiagnosis } from './flashDiagnosis.ts';
 import { boardFacts, endsWritten, startsWritten } from './flashViewFacts.ts';
 
@@ -65,9 +67,13 @@ import { boardFacts, endsWritten, startsWritten } from './flashViewFacts.ts';
 export const BACKUP_SAVE_MS = 60_000;
 /** The recovery countdown: unplug and replug within this time. */
 export const RECOVERY_MS = 45_000;
-/** Maximum silent wait for a fresh firmware-ready banner after verified exit. */
+/** Maximum silent wait for a fresh firmware-ready banner after verified exit (Connect on a marked board: bannerWait.ts). */
 export const FIRMWARE_BANNER_MS = 10_000;
-export const BOOTLOADER_ADVICE = 'The board may still be in its bootloader. Sending normal commands now could damage it. Unplug USB and power, plug them back in, then try Connect or recovery.';
+/**
+ * The banner that clears the mark must arrive while Connect listens (bannerWait.ts), so this never says to
+ * power-cycle first: a TinyG prints its banner once, and a person who power-cycles before Connect loses it.
+ */
+export const BOOTLOADER_ADVICE = 'The board may still be in its bootloader. Normal commands could damage it. Press Connect, then press Reset on the board when Run asks.';
 /** Longest `.hex` text the page may pass. */
 export const MAX_HEX_TEXT = 2 * 1024 * 1024;
 
@@ -127,6 +133,10 @@ export interface FlashView {
   /** After the reconnect: what the board reports against what was flashed. */
   readonly versionCheck: { readonly expected: number | null; readonly reported: number | null; readonly ok: boolean } | null;
   readonly result: { readonly written: number; readonly unchanged: number; readonly resyncs: number; readonly crc: number } | null;
+  /** The board carries the failed-update mark (possibly in its bootloader): only a live banner from it clears it. */
+  readonly marked?: boolean;
+  /** Connect on a marked board: listening for the banner (press Reset now), or the wait ran out (Try again). */
+  readonly bannerWait?: BannerWaitView | null;
 }
 
 export type PostFlashPhase = 'awaitingRead' | 'restoreRequired' | 'switchCheck' | 'clear';
@@ -175,13 +185,6 @@ export interface FlashServiceDeps {
 }
 
 export type FlashReply = { readonly ok: true } | { readonly ok: false; readonly message: string };
-
-const AXIS_INPUTS: readonly { readonly axis: string; readonly min: number; readonly max: number }[] = [
-  { axis: 'x', min: 1, max: 2 },
-  { axis: 'y', min: 3, max: 4 },
-  { axis: 'z', min: 5, max: 6 },
-  { axis: 'a', min: 7, max: 8 },
-];
 
 function fail(message: string): FlashReply {
   return { ok: false, message };
@@ -386,7 +389,7 @@ export class FlashService {
     if (differences.length > 0) phase = 'restoreRequired';
     else if (switchesChanged) phase = 'switchCheck';
     else phase = 'clear';
-    const inputs = phase === 'switchCheck' ? this.#requiredInputs(board) : [];
+    const inputs = phase === 'switchCheck' ? requiredInputs(board) : [];
     if (phase === 'switchCheck' && p.phase !== 'switchCheck') this.#seen.clear();
     this.#post = { ...p, phase, differences, switchesChanged, inputs, restoreNotes: [...new Set(diff.skipped.filter(skip => skip.reason.startsWith('Not on 450.05:')).map(skip => skip.reason))] };
     this.#refreshInputs();
@@ -420,15 +423,6 @@ export class FlashService {
     if (this.#view === null) return;
     this.#view = { ...this.#view, ...patch };
     this.#d.onChange();
-  }
-
-  #requiredInputs(board: Readonly<Record<string, SettingValue>>): PostFlashView['inputs'] {
-    const out: { input: number; label: string; seenOpen: boolean; seenClosed: boolean }[] = [];
-    for (const a of AXIS_INPUTS) {
-      if (typeof board[`${a.axis}sn`] === 'number' && board[`${a.axis}sn`] !== 0) out.push({ input: a.min, label: `${a.axis.toUpperCase()} min (input ${a.min})`, seenOpen: false, seenClosed: false });
-      if (typeof board[`${a.axis}sx`] === 'number' && board[`${a.axis}sx`] !== 0) out.push({ input: a.max, label: `${a.axis.toUpperCase()} max (input ${a.max})`, seenOpen: false, seenClosed: false });
-    }
-    return out;
   }
 
   #refreshInputs(): void {
@@ -500,7 +494,7 @@ export class FlashService {
         if (await this.#d.marks.find(port, boardId)) throw new Error('The board was quarantined during the pre-check.');
         return await link.finishOrdinaryPrecheck();
       }
-      if (await link.waitForFirmwareBanner(FIRMWARE_BANNER_MS)) return await this.#handoff(link, mark, true);
+      if (await listenForBanner(link, this.#d.clock, (bannerWait) => this.#set({ bannerWait }))) return await this.#handoff(link, mark, true);
       await link.close();
       this.#set({ message: BOOTLOADER_ADVICE });
       return BOOTLOADER_ADVICE;
@@ -545,7 +539,7 @@ export class FlashService {
     this.#port = port;
     this.#begin = saved.begin !== null && this.#d.authorizeBegin(saved.begin) === null ? saved.begin : null;
     this.#board = saved.view.board;
-    this.#view = { ...saved.view, id: ++this.#id, phase: 'failed', recoveryOffered: this.#begin !== null, bootloader: { startAllowed: mark.kind === 'detected' }, message: BOOTLOADER_ADVICE };
+    this.#view = { ...saved.view, id: ++this.#id, phase: 'failed', recoveryOffered: this.#begin !== null, bootloader: { startAllowed: mark.kind === 'detected' }, message: BOOTLOADER_ADVICE, marked: true, bannerWait: null };
     this.#d.onChange();
   }
 
@@ -624,7 +618,7 @@ export class FlashService {
   async #handoff(link: BootloaderLink, mark: BootloaderMark, finishPrecheck = false): Promise<Transport> {
     // A banner from a different board never clears the recorded board's quarantine.
     // If no board id was known, the live ready banner on this port is the only available proof and clears that mark.
-    if (mark.boardId === null || link.firmwareBanner?.id === mark.boardId) await this.#d.marks.clear(mark);
+    if (mark.boardId === null || link.firmwareBanner?.id === mark.boardId) { await this.#d.marks.clear(mark); this.#set({ marked: false }); }
     return finishPrecheck ? link.finishReadyPrecheck() : link.applicationTransport();
   }
 
@@ -637,6 +631,7 @@ export class FlashService {
     try {
       const mark: BootloaderMark = { nonce: crypto.randomUUID(), port, boardId: this.#board?.id ?? null, recovery: { begin, view: this.#view } };
       await this.#d.marks.put(mark);
+      this.#set({ marked: true });
       if (!recovery) {
         const entered = await this.#enterBootloader();
         if (entered !== null) {

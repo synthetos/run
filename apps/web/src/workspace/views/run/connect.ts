@@ -6,6 +6,7 @@ import { DialogWrap } from '../../dialogs/DialogWrap.ts';
 import { connected, type LiveActions, type LiveView, type WorkspaceModel } from '../../model.ts';
 import { reportsNotice } from '../../reportsNotice.ts';
 import { belowStrip } from '../../ui.ts';
+import { BannerWaitDialog, shownBannerWait } from './bannerWait.ts';
 
 
 // ---------------------------------------------------------------- connect
@@ -78,12 +79,16 @@ function connectActions({ step, panel, isConnected, actions, onView }: { readonl
 }
 
 function compactConnect({ step, view, actions, panel }: { readonly step: string; readonly view: LiveView | null; readonly actions: LiveActions | null; readonly panel: ComponentChild }): ComponentChild {
+  const flash = view?.message?.flash ?? null;
   return h(
     'div',
     { class: 'connect-notice compact', 'data-region': 'connect' },
     step === 'c1' || step === 'refused' ? (step === 'refused' ? h(ConnectPanel, { state: { step: 'idle' }, advisoryBlocked: view?.advisoryBlocked ?? null, onConnect: () => actions?.connect(), onConfirm: () => undefined, onCancel: () => undefined, onDisconnect: () => undefined }) : null) : panel,
+    // A marked board: what to do while Connect listens for its banner, and Try again (bannerWait.ts). It replaces the
+    // refusal, whose text is the same advice.
+    h(BannerWaitDialog, { flash, actions }),
     // A refusal is a modal below the strip (OD-16), not text squeezed into it.
-    step === 'refused'
+    step === 'refused' && shownBannerWait(flash) === null
       ? h('div', { class: 'dialog-wrap confirm-modal', role: 'presentation', ref: belowStrip }, h('div', { class: 'dialog', role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': 'refused-title' }, h('div', { class: 'dialog-head' }, h('h2', { id: 'refused-title' }, refusedTitle(view?.entry ?? null))), panel))
       : null,
     step === 'c1'

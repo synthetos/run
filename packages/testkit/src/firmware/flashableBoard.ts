@@ -143,6 +143,7 @@ export class FlashableBoard implements SimDevice {
     this.#enterBootloader(false);
   }
 
+  /** Every later application start prints its banner `extraMs` late (a slow boot; 0 restores the normal boot). */
   setBannerDelay(extraMs: number): void {
     this.#bannerDelay = extraMs;
   }
@@ -228,6 +229,8 @@ export class FlashableBoard implements SimDevice {
     });
     this.#app = model;
     this.#note(`application ${build.fb} (layout ${build.layout})`);
+    // Before attach: the model schedules its boot banner when it starts.
+    if (this.#bannerDelay > 0) model.setBannerDelay(this.#bannerDelay);
     model.attach({
       clock: io.clock,
       transmit: (data) => {
@@ -235,7 +238,6 @@ export class FlashableBoard implements SimDevice {
       },
       event: (note) => io.event(note),
     });
-    if (this.#bannerDelay > 0) model.setBannerDelay(this.#bannerDelay);
   }
 
   /** The settings image as raw EEPROM bytes (what xboot's EEPROM read returns): JSON, then 0xFF. */

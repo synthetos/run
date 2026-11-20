@@ -68,8 +68,8 @@
       "complexity $/ClassDeclaration:FlashService#1/FunctionExpression:begin#1": 19,
       "complexity $/ClassDeclaration:FlashService#1/FunctionExpression:onSnapshot#1": 25,
       "complexity $/ClassDeclaration:FlashService#1/FunctionExpression:run#1": 27,
-      "max-lines $file": 698,
-      "max-methods $/ClassDeclaration:FlashService#1": 37
+      "max-lines $file": 689,
+      "max-methods $/ClassDeclaration:FlashService#1": 36
     },
     "apps/web/src/machine-worker/hostCore.ts": {
       "complexity $/ClassDeclaration:MachineWorkerCore#1/FunctionExpression:flashCommand#1": 18,

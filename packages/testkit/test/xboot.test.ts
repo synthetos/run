@@ -147,6 +147,19 @@ describe('the fake xboot: entry windows and the watchdog', () => {
     expect(board.state).toBe('app');
   });
 
+  it('the reset button: 4.8 s, then the banner; a banner delay holds back the banner of the next start', () => {
+    const { clock, board, endpoint } = rig();
+    let text = '';
+    endpoint.onHostData((c) => (text += new TextDecoder().decode(c)));
+    board.setBannerDelay(15_000);
+    board.resetBoard();
+    clock.advance(6000);
+    expect(board.state).toBe('app');
+    expect(text).not.toContain('SYSTEM READY');
+    clock.advance(15_000);
+    expect(text).toContain('SYSTEM READY');
+  });
+
   it('the watchdog resets a board left waiting in a command (here, half an address) into the short window', async () => {
     const { clock, board, endpoint, client } = rig({ start: 'bootloader' });
     await drive(clock, client.enter(2000));

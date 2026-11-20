@@ -8,8 +8,8 @@ import { withDeadline, type SessionClock } from '@synthetos/machine';
 import type { BootloaderMarks } from './bootloaderMark.ts';
 
 /**
- * A strict-durability commit takes milliseconds. 10 s is the longest connect-time wait the flash service already
- * has (the firmware banner, FIRMWARE_BANNER_MS); storage that is slower than that is treated as unavailable.
+ * A strict-durability commit takes milliseconds. 10 s is the post-update banner wait (FIRMWARE_BANNER_MS); storage
+ * that is slower than that is treated as unavailable.
  */
 export const MARK_MS = 10_000;
 
