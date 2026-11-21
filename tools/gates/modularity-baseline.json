@@ -95,7 +95,7 @@
       "max-params $/FunctionDeclaration:listRows#1": 5
     },
     "apps/web/src/preview/Preview3D.ts": {
-      "complexity $/FunctionDeclaration:Preview3D#1": 39,
+      "complexity $/FunctionDeclaration:Preview3D#1": 37,
       "max-lines-per-function $/FunctionDeclaration:Preview3D#1": 194,
       "max-nested-callbacks $/FunctionDeclaration:Preview3D#1/ArrowFunctionExpression:useEffect()[0]#4/ObjectExpression:loadDetail()[2]#1/ArrowFunctionExpression:painted#1/ArrowFunctionExpression:Promise()[0]#1/ArrowFunctionExpression:requestAnimationFrame()[0]#1/ArrowFunctionExpression:requestAnimationFrame()[0]#1": 4
     },

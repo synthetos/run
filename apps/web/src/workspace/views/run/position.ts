@@ -147,8 +147,8 @@ function positionColumnHeads({ advanced, actions, units }: { readonly advanced: 
     'div',
     { class: `dro-head${advanced || actions ? '' : ' sr-only'}`, role: 'row' },
     h('span', { role: 'columnheader' }, h('span', { class: 'sr-only' }, 'Axis')),
-    h('span', { role: 'columnheader' }, h('span', { class: advanced ? undefined : 'sr-only' }, units === null ? 'Work' : `Work, ${units}`)),
-    h('span', { role: 'columnheader' }, h('span', { class: advanced ? undefined : 'sr-only' }, 'Machine, mm')),
+    h('span', { role: 'columnheader' }, h('span', { class: advanced || actions ? undefined : 'sr-only' }, advanced ? (units === null ? 'Work' : `Work, ${units}`) : 'Work')),
+    h('span', { role: 'columnheader' }, h('span', { class: advanced || actions ? undefined : 'sr-only' }, advanced ? 'Machine, mm' : 'Machine')),
     actions ? h('span', { role: 'columnheader', class: 'dro-act-heads' }, h('span', { 'aria-hidden': 'true' }, 'Zero'), h('span', { 'aria-hidden': 'true' }, 'Go'), h('span', { class: 'sr-only' }, 'Actions')) : null
   );
 }

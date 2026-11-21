@@ -77,6 +77,17 @@ export function lightText(state: BudgetState | null): string | null {
   return state.light === 'software' ? 'Light preview: this computer has no 3D acceleration' : 'Light preview: 3D drawing is slow on this computer';
 }
 
+/** The progress and light chips, stacked in one corner so they never overprint each other or the notes. */
+function previewChips(progress: string | null, light: string | null, lightState: string): ComponentChild {
+  if (progress === null && light === null) return null;
+  return h(
+    'span',
+    { class: 'preview-chips' },
+    progress === null ? null : h('span', { class: 'preview-light-chip', role: 'status', 'data-preview': 'detail-progress' }, progress),
+    light === null ? null : h('span', { class: 'preview-light-chip', role: 'status', 'data-preview': 'light', 'data-light': lightState }, light)
+  );
+}
+
 export function Preview3D(props: Preview3DProps): ComponentChild {
   const canvas = useRef<HTMLCanvasElement>(null);
   const renderer = useRef<PreviewRenderer | null>(null);
@@ -282,5 +293,5 @@ export function Preview3D(props: Preview3DProps): ComponentChild {
     role: 'img',
     'aria-label': props.label ?? 'Toolpath preview, 3D. Drag or use the arrow keys to turn it, shift to pan, plus and minus to zoom, 0 to fit.',
     'data-preview': 'canvas',
-  }), progress === null ? null : h('span', { class: 'preview-light-chip', role: 'status', 'data-preview': 'detail-progress' }, progress), light === null ? null : h('span', { class: 'preview-light-chip', role: 'status', 'data-preview': 'light', 'data-light': budgetState?.light ?? '' }, light), hover === null ? null : h('span', { class: 'scene-pick-label', 'data-preview': 'pick-label', 'aria-hidden': 'true', style: { left: `${hover.x + 14}px`, top: `${hover.y + 14}px` } }, hover.text));
+  }), previewChips(progress, light, budgetState?.light ?? ''), hover === null ? null : h('span', { class: 'scene-pick-label', 'data-preview': 'pick-label', 'aria-hidden': 'true', style: { left: `${hover.x + 14}px`, top: `${hover.y + 14}px` } }, hover.text));
 }
