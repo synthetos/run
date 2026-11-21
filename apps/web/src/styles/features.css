@@ -6,6 +6,9 @@
  * Imported by the workspace entry only.
  */
 
+/* Local type token: the floor for body labels (uppercase micro headers stay at 11px). */
+:root { --fs-small: 12px; }
+
 /* ---------------------------------------------------------------- shared */
 .quiet-link { border-color: transparent !important; background: none !important; color: var(--blue); padding: 0 6px !important; }
 .quiet-link:hover:not(:disabled) { text-decoration: underline; text-underline-offset: 3px; }
@@ -101,6 +104,7 @@ a.button svg, .report-actions button svg { width: 15px; height: 15px; }
 /* ---------------------------------------------------------------- G-code line report */
 .preview-row { position: relative; }
 .preview-row-report { position: absolute; right: 6px; top: 2px; width: 22px; min-height: 18px; height: 18px; padding: 0; border-color: transparent; background: var(--sheet); color: var(--muted); opacity: 0; }
+.preview-row-report::before { content: ''; position: absolute; inset: -3px -1px; }
 .preview-row:hover .preview-row-report, .preview-row-report:focus-visible { opacity: 1; }
 .preview-row-report:hover:not(:disabled) { color: var(--blue); border-color: var(--rule); }
 
@@ -163,8 +167,8 @@ a.button svg, .report-actions button svg { width: 15px; height: 15px; }
 .cl-form { flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 8px 0 12px; border-top: 1px solid var(--rule); }
 .cl-prompt { font: 600 15px/1 var(--mono); color: var(--tan); }
 .cl-form input { flex: 1; min-width: 0; height: 30px; border: 1px solid var(--rule); border-radius: var(--r-sm); background: var(--sheet); padding: 0 10px; font: 12.5px var(--mono); color: var(--ink); }
-.cl-form input:focus { border-color: var(--blue); outline: none; box-shadow: 0 0 0 2px var(--blue-wash); }
-.cl-preview { flex: none; max-width: 38%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--muted); background: var(--raise); }
+.cl-form input:focus { border-color: var(--blue); box-shadow: 0 0 0 2px var(--blue-wash); }
+.cl-preview { flex: none; max-width: 38%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-small, 12px); color: var(--muted); background: var(--raise); }
 .cl-preview.kind-read { color: var(--blue); background: var(--blue-wash); }
 .cl-hint { flex: none; padding: 3px 12px 5px; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cl-hint code { font-size: 10.5px; }
@@ -249,7 +253,10 @@ a.button svg, .report-actions button svg { width: 15px; height: 15px; }
 .machines-view .my-machine { grid-template-columns: 120px minmax(0, 1fr) auto; gap: 12px; }
 .machines-view .my-machine > svg { width: 120px; height: 90px; }
 .machines-view .my-machine .card-actions { grid-column: 2 / -1; flex-wrap: wrap; }
-.machine-bed-fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.machine-bed-fields { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.machine-bed-fields .unit-input { display: inline-flex; width: auto; }
+.machine-bed-fields .unit-input input[type="number"] { width: 11ch; }
+.fit-select { width: auto; min-width: 12ch; max-width: 100%; }
 .machine-settings { margin-top: 16px; padding: 16px; border: 1px solid var(--rule); border-radius: var(--r); background: var(--sheet); }
 .machine-settings-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 14px; }
 .machine-settings-head > button { margin-left: auto; }
@@ -313,9 +320,9 @@ a.button svg, .report-actions button svg { width: 15px; height: 15px; }
 .file-row .file-icon svg { width: 18px; height: 18px; }
 .file-row .file-name { min-width: 0; }
 .file-row .file-name strong { display: block; font: 500 12.5px/1.3 var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.file-row .file-name small { font-size: 11px; color: var(--muted); }
+.file-row .file-name small { font-size: var(--fs-small, 12px); color: var(--muted); }
 .file-row .note-input { width: 100%; height: 28px; border: 1px solid var(--line-soft); border-radius: 3px; padding: 0 6px; font-size: 12px; background: transparent; color: var(--ink); }
-.file-row .note-input:focus { border-color: var(--blue); background: var(--sheet); outline: none; }
+.file-row .note-input:focus { border-color: var(--blue); background: var(--sheet); }
 .file-row select { height: 28px; border: 1px solid var(--rule); border-radius: 3px; background: var(--sheet); font-size: 12px; color: var(--ink); padding: 0 4px; width: 100%; }
 .file-row .row-actions { display: flex; gap: 4px; }
 .file-row[data-role="gcode"] .file-icon { color: var(--blue); }
@@ -505,7 +512,12 @@ a.button svg, .report-actions button svg { width: 15px; height: 15px; }
 .tool-modal .tool-figure { position: static; align-content: start; margin: 0; }
 .tool-modal .tool-figure-svg { max-height: 265px; }
 .tool-modal .field { margin-top: 0; }
-.tool-modal .field-grid, .tool-details-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; }
+.tool-modal .field-grid, .tool-details-grid { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.tool-modal .field-grid > .field:has(input:not([type="number"]), textarea) { flex: 1 1 100%; }
+.tool-modal .field .unit-input { display: inline-flex; width: auto; }
+.tool-modal .field input[type="number"] { width: 9ch; }
+.tool-modal .field .unit-input input[type="number"] { width: 11ch; }
+.tool-modal .field select { width: auto; min-width: 12ch; max-width: 100%; }
 .tool-modal .field input, .tool-modal .field select { height: 30px; }
 .tool-modal .field textarea { width: 100%; min-height: 64px; }
 .tool-modal .dialog-actions { align-items: center; margin-top: 12px; }

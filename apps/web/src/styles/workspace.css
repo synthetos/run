@@ -528,10 +528,10 @@ table { border-collapse: collapse; }
 .pot { fill: #97aab3; } .pot-in { fill: #d2dce0; }
 .leds rect { fill: #b5ceba; }
 .board-trace { fill: none; stroke: #2d5b6d; stroke-width: 2; }
-.board-hotspot { cursor: pointer; outline: none; }
+.board-hotspot { cursor: pointer; }
 .board-hotspot:hover rect.hit, .board-hotspot:focus-visible rect.hit, .board-hotspot[aria-pressed="true"] rect.hit { stroke: #96ccff; fill: #91c9ff22; }
 .board-hotspot text { pointer-events: none; }
-.viewer-foot { position: absolute; left: 12px; bottom: 9px; font-size: 11px; color: var(--muted); }
+.viewer-foot { position: absolute; left: 12px; bottom: 9px; font-size: var(--fs-small, 12px); color: var(--muted); }
 .raw-key { font: 11.5px var(--mono); color: var(--muted); margin-bottom: 10px; }
 .switch-diagram { width: 100%; height: 56px; color: var(--ink); background: var(--raise); border-radius: var(--r-sm); margin: 4px 0 10px; }
 .pin-dot { fill: var(--sheet); stroke: currentColor; }
@@ -1299,7 +1299,8 @@ button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--dan
 .board-tabs { min-width: 0; flex: 1 1 auto; justify-content: flex-end; }
 .board-tabs .tabs { max-width: 100%; }
 .board-view .view-head { gap: 20px; }
-.board-svg .pin-target { cursor: pointer; outline: none; }
+.board-hotspot:focus-visible rect.hit { stroke: var(--blue); stroke-width: 2; }
+.board-svg .pin-target { cursor: pointer; }
 .board-svg .pin-target rect.hit { fill: transparent; stroke: transparent; stroke-width: 1.5; }
 .board-svg .pin-target .ring { fill: none; stroke: transparent; stroke-width: 2.5; }
 .board-svg .pin-target:hover rect.hit, .board-svg .pin-target:focus-visible rect.hit { fill: color-mix(in srgb, var(--tan) 22%, transparent); stroke: color-mix(in srgb, var(--tan) 70%, transparent); }

@@ -21,7 +21,7 @@
 .analyze-strip-sub .help-line { display: block; }
 .analyze-chips { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 8px; margin: 8px 0 6px; padding: 0; }
 .analyze-chips li { border: 1px solid var(--rule); border-radius: 999px; padding: 3px 10px; font-size: 12.5px; background: var(--paper); }
-.analyze-source { display: block; color: var(--muted); font-size: 11px; font-weight: 400; }
+.analyze-source { display: block; color: var(--muted); font-size: var(--fs-small, 12px); font-weight: 400; }
 
 /* What to fix: equal cards on one grid. */
 .analyze-fix-list, .analyze-op-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); align-items: stretch; }
