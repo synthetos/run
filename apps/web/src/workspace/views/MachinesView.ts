@@ -231,7 +231,7 @@ function TinygMapping({ model }: { readonly model: WorkspaceModel | null }): Com
       ),
       h(
         'div',
-        { class: 'tool-table-wrap' },
+        { class: 'tool-table-wrap scrolls' },
         h(
           'table',
           { class: 'cfg-table map-table', 'data-region': 'tinyg-mapping' },

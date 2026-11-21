@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Tool } from '@synthetos/library';
 import { toolStore, TOOL_KINDS, type ToolEntry } from '../../library.ts';
 import { matchesCatalog } from '../../tools/catalog.ts';
+import { catalogFilterOptions, catalogSizeLabel } from '../../tools/catalogText.ts';
 import { toolUnits } from '../../tools/preferences.ts';
 import { type ToolUnit } from '../../tools/units.ts';
 import { ToolModal } from './ToolModal.ts';
@@ -48,11 +49,12 @@ export function CatalogChoices({ tools, query, size, maker, type, setQuery, setS
   onPick: (tool: Tool) => void; onPreview: (tool: Tool) => void; unit: ToolUnit; entries: readonly ToolEntry[];
 }): ComponentChild {
   const matches = tools.filter(t => matchesCatalog(t, query, size, maker, type));
+  const options = catalogFilterOptions(tools);
   return h('div', { class: 'list-panel' },
     h('div', { class: 'catalog-filters' },
       h('input', { type: 'search', 'aria-label': 'Search catalog', placeholder: 'Search name, size, flutes or part', value: query, onInput: (e: Event) => setQuery((e.currentTarget as HTMLInputElement).value) }),
-      h('label', null, 'Maker', h('div', { class: 'select-wrap' }, h('select', { 'aria-label': 'Maker', value: maker, onChange: (e: Event) => setMaker((e.currentTarget as HTMLSelectElement).value) }, h('option', { value: '' }, 'All makers'), h('option', { value: 'Onsrud' }, 'Onsrud')))),
-      h('div', { class: 'catalog-sizes', role: 'group', 'aria-label': 'Catalog size' }, ...[['', 'All sizes'], ['3.175', '1/8"'], ['6.35', '1/4"']].map(([value, label]) => h('button', { type: 'button', class: `chip${size === value ? ' selected' : ''}`, 'aria-pressed': size === value, onClick: () => setSize(value!) }, label))),
-      h('label', null, 'Type', h('div', { class: 'select-wrap' }, h('select', { 'aria-label': 'Type', value: type, onChange: (e: Event) => setType((e.currentTarget as HTMLSelectElement).value) }, h('option', { value: '' }, 'All types'), ...(['flat', 'ball', 'o-flute'] as const).map(t => h('option', { value: t }, TOOL_KINDS[t])))))),
+      h('label', null, 'Maker', h('div', { class: 'select-wrap' }, h('select', { 'aria-label': 'Maker', value: maker, onChange: (e: Event) => setMaker((e.currentTarget as HTMLSelectElement).value) }, h('option', { value: '' }, 'All makers'), ...options.makers.map(m => h('option', { value: m }, m))))),
+      h('div', { class: 'catalog-sizes', role: 'group', 'aria-label': 'Catalog size' }, ...[['', 'All sizes'], ...options.sizes.map(d => [String(d), catalogSizeLabel(d, unit)])].map(([value, label]) => h('button', { type: 'button', class: `chip${size === value ? ' selected' : ''}`, 'aria-pressed': size === value, onClick: () => setSize(value!) }, label))),
+      h('label', null, 'Type', h('div', { class: 'select-wrap' }, h('select', { 'aria-label': 'Type', value: type, onChange: (e: Event) => setType((e.currentTarget as HTMLSelectElement).value) }, h('option', { value: '' }, 'All types'), ...options.types.map(t => h('option', { value: t }, TOOL_KINDS[t])))))),
     matches.length === 0 ? h('p', null, 'No matching tools.') : h(CatalogTable, { tools: matches, entries, onPick, onPreview, unit }));
 }

@@ -10,14 +10,18 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(page.locator('#library-tab-tools')).toHaveText('My tools');
     await page.locator('#library-tab-catalog').click(); const catalog = page.locator('.catalog-view');
     await expect(catalog).toContainText('Shared catalog, maintained by Synthetos');
-    await catalog.getByRole('button', { name: '1/4"', exact: true }).click();
+    await catalog.getByRole('button', { name: '6.35 mm', exact: true }).click();
     await catalog.getByLabel('Maker', { exact: true }).selectOption('Onsrud');
-    await expect(catalog.locator('tbody tr')).toHaveCount(16);
-    await catalog.getByLabel('Type', { exact: true }).selectOption('ball'); await expect(catalog.locator('tbody tr')).toHaveCount(2);
+    await expect(catalog.locator('[data-catalog-count]')).toHaveText('16 tools');
+    await catalog.getByLabel('Type', { exact: true }).selectOption('ball'); await expect(catalog.locator('[data-catalog-count]')).toHaveText('2 tools'); await expect(catalog.locator('tbody tr')).toHaveCount(2);
     await catalog.getByLabel('Type', { exact: true }).selectOption('');
     await catalog.getByRole('button', { name: 'in', exact: true }).click();
     const dir = resolve('../../logs'); await mkdir(dir, { recursive: true });
-    expect(await catalog.locator('.tool-table-wrap').evaluate(el => el.scrollHeight > el.clientHeight)).toBe(true);
+    // Paged, not scrolled: no clipped row, a pager when more than one page.
+    expect(await catalog.locator('.tool-table-wrap').evaluate(el => el.scrollHeight <= el.clientHeight + 1)).toBe(true);
+    await expect(catalog.locator('.pager')).toHaveAttribute('data-pages', /^[2-9]/);
+    await catalog.locator('[data-action="catalog-page-next"]').click(); await expect(catalog.locator('.pager')).toContainText('Page 2');
+    await catalog.locator('[data-action="catalog-page-back"]').click();
     for (const index of [0, 1]) {
       const stripe = catalog.locator('tbody tr').nth(index);
       await page.mouse.move(0, 0);
@@ -111,7 +115,7 @@ test('offline catalog retry leaves My tools available and uses only its same-ori
   const catalog = page.locator('.catalog-view');
   await expect(catalog).toContainText('The catalog could not load. Check your connection and try again.');
   await page.unroute('**/api/catalog/tools'); await catalog.getByRole('button', { name: 'Retry' }).click();
-  await expect(catalog.locator('tbody tr')).toHaveCount(30);
+  await expect(catalog.locator('[data-catalog-count]')).toHaveText('30 tools');
   await page.locator('#library-tab-tools').click(); await page.locator('[data-action="add-tool"]').click();
   await expect(page.locator('.tools-view').getByRole('dialog')).toBeVisible();
   await page.locator('[data-action="cancel-tool"]').click();

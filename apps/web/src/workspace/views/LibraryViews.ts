@@ -263,7 +263,7 @@ export function MaterialsView(): ComponentChild {
         ),
         h(
           'div',
-          { tabindex: 0, class: 'tool-table-wrap' },
+          { tabindex: 0, class: 'tool-table-wrap scrolls' },
           h(
             'table',
             { class: 'mat-table' },

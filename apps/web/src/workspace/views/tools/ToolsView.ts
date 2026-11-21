@@ -18,14 +18,16 @@ export function ToolsView(): ComponentChild {
   useEffect(() => { if (focus !== null) { setFilter('all'); setSelected(focus); toolFocus.value = null; } }, [focus]);
   const current = tools.find(t => t.tool.id === selected) ?? null;
   const unit = toolUnits.value.value;
+  const visible = toolsByNumber(tools.filter(t => filter === 'all' || t.tool.type === filter));
   return h('div', { class: 'tools-view' },
     h('div', { class: 'view-head' }, h('div', { class: 'title-block' }, h('h1', null, 'Tool library')), h('div', { class: 'view-actions' }, h('button', { type: 'button', class: 'primary', 'data-action': 'add-tool', onClick: () => setAdding(true) }, 'Add a tool'))),
     h('div', { class: 'list-panel' }, h('div', { class: 'filter-row', role: 'group', 'aria-label': 'Filter tools' }, ...[['all', 'All'], ['flat', 'End mills'], ['ball', 'Ball nose'], ['v-bit', 'V-bits'], ['drill', 'Drills'], ['o-flute', 'O-flutes']].map(([id, label]) => h('button', { type: 'button', class: `chip${filter === id ? ' selected' : ''}`, 'aria-pressed': filter === id, onClick: () => setFilter(id ?? 'all') }, label)), h('span', { class: 'sync-line' }, librarySavedText(toolStore.saved.value))),
-      h('div', { class: 'tool-table-wrap' }, h('table', { class: 'tool-table' }, h('thead', null, h('tr', null, ...['Drawing', 'Tool', 'Diameter', 'Flutes', 'Material', 'Notes'].map(label => h('th', { scope: 'col' }, label)))),
-        h('tbody', null, toolsByNumber(tools.filter(t => filter === 'all' || t.tool.type === filter)).map(e => h('tr', { key: e.tool.id, tabindex: 0, 'aria-selected': selected === e.tool.id, 'data-tool-row': e.number, onClick: () => setSelected(e.tool.id), onKeyDown: (event: KeyboardEvent) => { if (event.key === 'Enter') setSelected(e.tool.id); } },
+      visible.length === 0 ? h('div', { class: 'empty-state' }, h('p', null, tools.length === 0 ? 'No tools yet.' : 'No tools of this kind.'), tools.length === 0 ? h('button', { type: 'button', class: 'primary', 'data-action': 'add-first-tool', onClick: () => setAdding(true) }, 'Add a tool') : null) :
+      h('div', { class: 'tool-table-wrap scrolls' }, h('table', { class: 'tool-table' }, h('thead', null, h('tr', null, ...['Drawing', 'Tool', 'Diameter', 'Flutes', 'Material', 'Notes'].map(label => h('th', { scope: 'col' }, label)))),
+        h('tbody', null, visible.map(e => h('tr', { key: e.tool.id, tabindex: 0, 'aria-selected': selected === e.tool.id, 'data-tool-row': e.number, onClick: () => setSelected(e.tool.id), onKeyDown: (event: KeyboardEvent) => { if (event.key === 'Enter') setSelected(e.tool.id); } },
           h('td', { class: 't-art' }, h(ToolDrawing, { tool: e.tool, thumb: true })),
-          h('td', null, h('button', { type: 'button', class: 'row-link', onClick: () => setSelected(e.tool.id) }, h('strong', null, `T${e.number} · ${toolDisplayName(e.tool)}`)), h('small', null, TOOL_KINDS[e.tool.type])),
-          h('td', { class: 'num' }, `${formatLength(e.tool.geometry.diameter, unit)} ${unit}`), h('td', null, String(e.tool.geometry.flutes)), h('td', null, `${toolMaterialLabel(e.tool.toolMaterial)}${e.tool.coating === 'uncoated' ? '' : ` · ${toolCoatingLabel(e.tool.coating)}`}`), h('td', { class: 'used' }, e.tool.notes || 'No notes'))))))),
+          h('td', null, h('button', { type: 'button', class: 'row-link', onClick: () => setSelected(e.tool.id) }, h('strong', null, `T${e.number} · ${toolDisplayName(e.tool, unit)}`)), h('small', null, TOOL_KINDS[e.tool.type])),
+          h('td', { class: 'num' }, `${formatLength(e.tool.geometry.diameter, unit)} ${unit}`), h('td', null, String(e.tool.geometry.flutes)), h('td', null, `${toolMaterialLabel(e.tool.toolMaterial)}${e.tool.coating === 'uncoated' ? '' : ` · ${toolCoatingLabel(e.tool.coating)}`}`), h('td', { class: 'used' }, e.tool.notes ?? ''))))))),
     adding || current !== null ? h(ToolModal, { key: current?.tool.id ?? 'new', entry: adding ? null : current, onClose: () => { setAdding(false); setSelected(null); } }) : null,
   );
 }

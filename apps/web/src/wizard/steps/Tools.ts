@@ -11,7 +11,7 @@ import { toolDisplayName } from '../../workspace/tools/displayName.ts';
 
 export const TOOLS_TITLE = 'Tools';
 export const TOOLS_LEAD = 'One tool is enough to run the demo.';
-export const TOOLS_TEXT = 'The catalog knows the Synthetos and common end mills. A new tool asks for diameter, flutes and length.';
+export const TOOLS_TEXT = 'Pick a bit from the Onsrud catalog, or enter its diameter, flutes and length.';
 
 /** The tool list when the catalog page opened, or null while it is closed; a tool added since closes it. */
 export const catalogFrom = signal<readonly ToolEntry[] | null>(null);

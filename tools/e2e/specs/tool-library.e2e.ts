@@ -22,7 +22,7 @@ test('tool drafts save atomically, cancel, fill gaps, convert units and delete i
   await expect(modal).toBeVisible(); await expect(view.locator('tr[data-tool-row="7"]')).toHaveCount(0);
   await diameter.fill('1/4'); await modal.locator('[data-action="save-tool"]').click();
   const row = view.locator('tr[data-tool-row="7"]');
-  await expect(row).toContainText('T7 · 6.35 mm end mill'); await expect(row).toContainText('0.25 in');
+  await expect(row).toContainText('T7 · 1/4" end mill'); await expect(row).toContainText('0.25 in');
   await row.focus(); await page.keyboard.press('Enter');
   await modal.locator('#tool-tab-details').click();
   await modal.locator('[data-tool-field="name"]').fill('Discard this');

@@ -24,6 +24,8 @@ it('fills the first gap, including in an unsorted table', () => expect(freeToolN
 it('empty and old generated names follow diameter; custom names stay', () => {
   const t = newTool(9); expect(readTool(t).ok).toBe(true); expect(toolDisplayName(t)).toBe('3.175 mm end mill');
   expect(toolDisplayName({ ...t, name: 'T9 tool', type: 'ball', geometry: { ...t.geometry, diameter: 6.35 } })).toBe('6.35 mm ball nose');
+  expect(toolDisplayName({ ...t, name: '', geometry: { ...t.geometry, diameter: 6.35 } }, 'in')).toBe('1/4" end mill');
+  expect(toolDisplayName({ ...t, name: '' }, 'mm')).toBe('3.175 mm end mill');
   expect(toolDisplayName({ ...t, name: 'My cutter' })).toBe('My cutter');
 });
 it('unsaved drafts do not create or alter a tool; save validates before writing', () => {

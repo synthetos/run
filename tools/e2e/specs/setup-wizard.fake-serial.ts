@@ -91,7 +91,7 @@ test('walks all seven steps with the fake board, saves the setup record as it go
   await catalog.locator('[data-catalog-part="52-280"] [data-action="catalog-add"]').click();
   await page.locator('.tool-modal [data-action="save-tool"]').click();
   await expect(catalog).toHaveCount(0);
-  await expect(page.locator('[data-wizard="tool"]')).toContainText('6.35 mm end mill');
+  await expect(page.locator('[data-wizard="tool"]')).toContainText('Up-cut spiral');
   await page.locator('[data-action="wizard-create-tool"]').click();
   await expect(page.locator('.tool-modal')).toBeVisible();
   await page.keyboard.press('Escape');

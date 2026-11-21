@@ -1,4 +1,4 @@
-import { CatalogTable } from '../src/workspace/views/tools/CatalogTable.ts';
+import { CatalogTable, CatalogRow } from '../src/workspace/views/tools/CatalogTable.ts';
 import { afterEach, describe, expect, it } from 'vitest';
 import { h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
@@ -8,9 +8,10 @@ const ONSRUD_CATALOG: readonly Tool[] = DATA;
 import { toolStore } from '../src/workspace/library.ts';
 import { SEED_TOOLS } from '../src/workspace/librarySeed.ts';
 import { catalogDraft, matchesCatalog, catalogDescription, catalogCutLength } from '../src/workspace/tools/catalog.ts';
+import { catalogMaterialNote, catalogKindName, catalogFilterOptions, catalogSizeLabel } from '../src/workspace/tools/catalogText.ts';
 import { saveToolDraft } from '../src/workspace/tools/saveTool.ts';
 import { CuttingSource, ToolCuttingTab } from '../src/workspace/views/tools/ToolRecordsTabs.ts';
-import { root, one, all } from './tree.ts';
+import { root, rootUntil, one, all } from './tree.ts';
 import { CatalogChoices, ToolCatalog } from '../src/workspace/views/tools/ToolCatalog.ts';
 afterEach(() => toolStore.set(SEED_TOOLS));
 const template = ONSRUD_CATALOG[0]!;
@@ -18,7 +19,7 @@ describe('catalog drafts', () => {
   it('detaches a template and only saves on Add', () => {
     const before = toolStore.value.value;
     const draft = catalogDraft(template, before);
-    expect(draft.number).toBe(7); expect(draft.tool.name).toBe('');
+    expect(draft.number).toBe(7); expect(draft.tool.name).toBe('Up-cut spiral');
     expect(draft.tool.geometry).toEqual(template.geometry); expect(draft.tool.geometry).not.toBe(template.geometry);
     expect(toolStore.value.value).toBe(before);
     expect(saveToolDraft(null, draft.tool, draft.number)).toBeNull();
@@ -58,12 +59,12 @@ describe('cutting citations', () => {
 it('catalog controls filter, select and show no matches', () => {
   let query = ''; let size = ''; let selected = ''; let maker = ''; let type = '';
   const props = { tools: ONSRUD_CATALOG, query, size, maker, type, entries: [], setMaker: (s: string) => { maker = s; }, setType: (s: string) => { type = s; }, unit: 'mm' as const, setQuery: (s: string) => { query = s; }, setSize: (s: string) => { size = s; }, onPreview: () => undefined, onPick: (t: typeof template) => { selected = t.id; } };
-  const el = root(h(CatalogChoices, props));
+  const el = rootUntil(h(CatalogChoices, props), [CatalogTable]);
   (one(el, e => e.tag === 'input').props['onInput'] as (e: unknown) => void)({ currentTarget: { value: '52' } });
   (one(el, e => e.props['aria-label'] === 'Maker').props['onChange'] as (e: unknown) => void)({ currentTarget: { value: 'Onsrud' } });
   (all(el, e => e.tag === 'button')[2]!.props['onClick'] as () => void)();
   (one(el, e => e.props['aria-label'] === 'Type').props['onChange'] as (e: unknown) => void)({ currentTarget: { value: 'flat' } });
-  (all(el, e => e.tag === 'button')[3]!.props['onClick'] as () => void)();
+  (one(el, e => e.tag === 'CatalogTable').props['onPick'] as (t: typeof template) => void)(template);
   expect(maker).toBe('Onsrud'); expect(type).toBe('flat'); expect(query).toBe('52'); expect(size).toBe('6.35'); expect(selected).toBe(template.id);
   expect(renderToString(h(CatalogChoices, { ...props, query: 'absent' }))).toContain('No matching tools.');
 });
@@ -89,7 +90,37 @@ it('catalog rows identify existing maker/part matches and keep unsafe sources in
 
 it('formats exact inch fractions and keeps other cut lengths decimal', () => {
   for (const [inches, expected] of [[0.875, '7/8"'], [0.75, '3/4"'], [0.5, '1/2"'], [1.5, '1 1/2"'], [2, '2"'], [0.123, '0.123 in']] as const) expect(catalogCutLength(inches * 25.4, 'in')).toBe(expected);
-  expect(catalogCutLength(22.225, 'mm')).toBe('22.225 mm');
+  expect(catalogCutLength(22.225, 'mm')).toBe('22.2 mm');
+});
+describe('catalog text helpers', () => {
+  it('names the kind of material a bit is for, or nothing', () => {
+    const note = (description: string) => catalogMaterialNote({ description });
+    expect(note('O-flute upcut spiral, 1 flute (hard plastic version)')).toBe('hard plastic');
+    expect(note('O-flute upcut spiral, 1 flute (soft plastic version)')).toBe('soft plastic');
+    expect(note('O-flute upcut spiral (aluminum)')).toBe('aluminum');
+    expect(note('Upcut spiral')).toBe('');
+    expect(note('Upcut spiral ("')).toBe('');
+  });
+  it('builds the name from the description without size or parentheses', () => {
+    expect(catalogKindName({ description: 'Downcut spiral (aluminum)' })).toBe('Down-cut spiral');
+    expect(catalogKindName({ description: 'O-flute upcut spiral, 1 flute (hard plastic version)' })).toBe('O-flute up-cut spiral, 1 flute');
+  });
+  it('searches the words as shown: up-cut, upcut, up cut and aluminium', () => {
+    const o = { ...template, description: 'O-flute upcut spiral (aluminum)' };
+    for (const q of ['up-cut', 'upcut', 'up cut', 'O-flute', 'aluminium', 'aluminum', 'Up-Cut Spiral']) expect(matchesCatalog(o, q, '')).toBe(true);
+    expect(matchesCatalog(o, 'down-cut', '')).toBe(false);
+  });
+  it('derives maker, size and type options from the loaded catalog', () => {
+    const options = catalogFilterOptions([template, { ...template, manufacturer: 'Other', type: 'ball', geometry: { ...template.geometry, diameter: 12.7 } }]);
+    expect(options.makers).toEqual(['Onsrud', 'Other']);
+    expect(options.sizes).toEqual([6.35, 12.7]);
+    expect(options.types).toEqual(['flat', 'ball']);
+    expect(catalogSizeLabel(12.7, 'in')).toBe('1/2"'); expect(catalogSizeLabel(6.35, 'mm')).toBe('6.35 mm');
+  });
+  it('shows the material note in a For column, and a count of tools', () => {
+    const html = renderToString(h(CatalogTable, { tools: [{ ...template, description: 'O-flute upcut spiral (hard plastic version)' }], entries: [], unit: 'mm', onPreview: () => undefined, onPick: () => undefined }));
+    expect(html).toContain('>For</th>'); expect(html).toContain('>hard plastic</td>'); expect(html).toContain('1 tool<');
+  });
 });
 it('keeps full tool descriptions but shortens O-flute table labels', () => {
   const tool = { ...template, description: 'O-flute upcut spiral, 1 flute (hard plastic version)' };
@@ -111,7 +142,7 @@ describe('catalog search without a part number (owner 147)', () => {
     expect(find('')).toHaveLength(ONSRUD_CATALOG.length);
     expect(find('   ')).toHaveLength(ONSRUD_CATALOG.length);
     const props = { tools: ONSRUD_CATALOG, query: '', size: '', maker: '', type: '', entries: [], unit: 'mm' as const, setQuery: () => undefined, setSize: () => undefined, setMaker: () => undefined, setType: () => undefined, onPreview: () => undefined, onPick: () => undefined };
-    expect(all(root(h(CatalogChoices, props)), (e) => e.props['data-catalog-part'] !== undefined)).toHaveLength(ONSRUD_CATALOG.length);
+    expect(renderToString(h(CatalogChoices, props)).match(/data-catalog-part=/g)).toHaveLength(ONSRUD_CATALOG.length);
   });
   it('the diameter matches as millimetres or as an inch fraction', () => {
     const quarter = ONSRUD_CATALOG.filter((t) => t.geometry.diameter === 6.35);
@@ -140,13 +171,13 @@ describe('catalog search without a part number (owner 147)', () => {
   });
   it('the search box says what it searches', () => {
     const props = { tools: ONSRUD_CATALOG, query: '', size: '', maker: '', type: '', entries: [], unit: 'mm' as const, setQuery: () => undefined, setSize: () => undefined, setMaker: () => undefined, setType: () => undefined, onPreview: () => undefined, onPick: () => undefined };
-    expect(one(root(h(CatalogChoices, props)), (e) => e.tag === 'input').props['placeholder']).toBe('Search name, size, flutes or part');
+    expect(one(rootUntil(h(CatalogChoices, props), [CatalogTable]), (e) => e.tag === 'input').props['placeholder']).toBe('Search name, size, flutes or part');
   });
 });
 
 it('catalog rows preview by click, Enter or Space, but leave links and buttons alone', () => {
   const seen: string[] = [];
-  const tree = root(h(CatalogTable, { tools: [template], entries: [], unit: 'mm', onPick: () => seen.push('add'), onPreview: () => seen.push('preview') }));
+  const tree = root(h(CatalogRow, { tool: template, entries: [], unit: 'mm', onPick: () => seen.push('add'), onPreview: () => seen.push('preview') }));
   const row = one(tree, e => e.props['data-action'] === 'catalog-preview');
   expect(row.props['tabindex']).toBe(0);
   const el = { focus: () => undefined, closest: () => null };
