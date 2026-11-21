@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { settingsDefsFor } from '@synthetos/schema';
-import { homingSummary, inputConsequences, inputRows } from '../src/workspace/views/board/inputsModel.ts';
+import { homingSummary, inputConsequences, inputRows, pendingConsequences } from '../src/workspace/views/board/inputsModel.ts';
 
 const d449 = settingsDefsFor('tinyg-449-stock')!;
 const d450 = settingsDefsFor('tinyg-en')!;
@@ -46,6 +46,19 @@ describe('inputConsequences', () => {
 
   it('nothing to say when nothing changes for the worse', () => {
     expect(inputConsequences(d450, s, s)).toEqual([]);
+  });
+});
+
+describe('pendingConsequences', () => {
+  it('is empty for a steady board, even with an axis that has no homing switch', () => {
+    const steady = { ...s, yam: 1, ysn: 0 };
+    expect(inputConsequences(d450, steady, steady)).toHaveLength(1);
+    expect(pendingConsequences(d450, steady, steady)).toEqual([]);
+  });
+
+  it('counts a consequence the pending change adds', () => {
+    const board = { ...s, yam: 1 };
+    expect(pendingConsequences(d450, board, { ...board, ysn: 0 })).toEqual(['Y has no homing switch. Home all skips Y.']);
   });
 });
 

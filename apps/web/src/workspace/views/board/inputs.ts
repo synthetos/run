@@ -17,7 +17,7 @@ import { Dismissable } from '../../notes/Dismissable.ts';
 import { defsFor } from '../../settings/defs.ts';
 import { plannedDrafts } from '../../settings/editGate.ts';
 import { SettingControl } from '../../settings/SettingControl.ts';
-import { homingSummary, inputConsequences, inputRows, type InputRow } from './inputsModel.ts';
+import { homingSummary, inputRows, pendingConsequences, type InputRow } from './inputsModel.ts';
 import { Empty, type Settings } from './shared.ts';
 import { SubTabs, subTabChoice, type SubTab } from './subTabs.ts';
 
@@ -78,19 +78,19 @@ function inputAxes(defs: SettingsFile): string[] {
 }
 
 function HomingSection({ defs, settings, planned, pending }: { readonly defs: SettingsFile; readonly settings: Settings; readonly planned: Settings; readonly pending: boolean }): ComponentChild {
-  const lines = inputConsequences(defs, settings, planned);
+  const lines = pendingConsequences(defs, settings, planned);
+  const forAxis = (axis: string): readonly string[] => lines.filter((l) => l.startsWith(`${axis.toUpperCase()} `));
+  const rest = lines.filter((l) => !inputAxes(defs).some((a) => l.startsWith(`${a.toUpperCase()} `)));
   return h(
     'section',
     { class: 'cfg-section board-card', 'data-region': 'homing-summary' },
     h('div', { class: 'sec-head' }, h('h3', { class: 'tan-label' }, pending ? 'Homing, with the pending changes' : 'Homing')),
-    h(
-      'div',
-      { class: 'chips' },
-      homingSummary(defs, planned, inputAxes(defs)).map((x) =>
-        h('a', { key: x.axis, class: 'chip', href: `#board-axis-${x.axis}-homing`, 'data-axis-link': x.axis, title: 'Homing speeds and backoffs are on Axes', onClick: () => { subTabChoice.axes.value = x.axis; boardTab.value = 'axes'; } }, x.text),
-      ),
+    homingSummary(defs, planned, inputAxes(defs)).map((x) =>
+      h('div', { key: x.axis, class: 'homing-row', 'data-region': 'homing-row' },
+        h('a', { class: 'chip', href: `#board-axis-${x.axis}-homing`, 'data-axis-link': x.axis, title: 'Homing speeds and backoffs are on Axes', onClick: () => { subTabChoice.axes.value = x.axis; boardTab.value = 'axes'; } }, x.text),
+        forAxis(x.axis).map((l) => h('span', { key: l, class: 'note', 'data-region': 'input-consequences' }, l))),
     ),
-    lines.length === 0 ? null : h('div', { class: 'consequences', 'data-region': 'input-consequences' }, lines.map((l) => h('p', { key: l, class: 'note' }, l))),
+    rest.length === 0 ? null : h('div', { class: 'consequences', 'data-region': 'input-consequences' }, rest.map((l) => h('p', { key: l, class: 'note' }, l))),
   );
 }
 
@@ -113,7 +113,7 @@ export function InputsTab({ view, states }: { readonly view: LiveView | null; re
   const drafts = plannedDrafts(view);
   const rows = inputRows(defs, settings, drafts, states);
   const planned = { ...settings, ...drafts };
-  const checks = inputConsequences(defs, settings, planned).length;
+  const checks = pendingConsequences(defs, settings, planned).length;
   // Two views, so neither scrolls (owner walk 2026-11-19): the switches, then homing with the checks of the changes.
   const tabs: readonly SubTab[] = [{ id: 'switches', label: 'Switches' }, { id: 'homing', label: 'Homing', ...(checks === 0 ? {} : { badge: String(checks) }) }];
   const part = (id: string): ComponentChild => (id === 'homing'

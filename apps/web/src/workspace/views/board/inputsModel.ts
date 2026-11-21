@@ -108,3 +108,9 @@ function probeLines(defs: SettingsFile, planned: Settings): string[] {
 export function inputConsequences(defs: SettingsFile, board: Settings, planned: Settings): readonly string[] {
   return [...limitLines(defs, board, planned), ...homingLines(defs, planned), ...probeLines(defs, planned)];
 }
+
+/** Only the consequences a pending change adds: the lines the board as it stands already has are left out. */
+export function pendingConsequences(defs: SettingsFile, board: Settings, planned: Settings): readonly string[] {
+  const steady = new Set(inputConsequences(defs, board, board));
+  return inputConsequences(defs, board, planned).filter((l) => !steady.has(l));
+}

@@ -144,6 +144,7 @@
 .settings-tab .settings-desc { margin: 2px 0 0; flex: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chip.on { background: var(--blue-wash); border-color: var(--blue); color: var(--blue-dk); }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.homing-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 6px 0; }
 .chip { font-size: 12.5px; padding: 4px 10px; border-radius: 14px; border: 1px solid var(--rule); background: var(--sheet); color: var(--ink); text-decoration: none; }
 .chip:hover { border-color: var(--blue); background: var(--blue-wash); }
 .consequences { display: grid; gap: 6px; margin-top: 10px; }
