@@ -54,6 +54,12 @@ Commits are on `maker-review`. Hashes are short.
 
 Tonight's walkthrough found no regression, so there is no extra fix commit.
 
+Follow-up (browser-test fixes):
+- MR-13: the viewer chips sit bottom-right again, stacked, so the file prompt card is above them.
+- MR-14: tool-editor number fields were full width after MR-34 (text inputs matched the full-row rule). Now sized to content, so every tool tab fits 1280x720. Hints kept. MR-14-after screenshots retaken.
+- MR-34: cutting-row form fields sized to content (Apply is back inside the pane). The dead three-column rule is removed.
+- Wizard catalog spec (147) now checks the full count, a pager and at least 5 rows with no inner scroll, and the catalog name from MR-25 ("Up-cut spiral").
+
 Partly done (not finished):
 - MR-14: field reorder skipped (Type, Diameter, Flutes, Number). Tool tests focus the Number field.
 - MR-26: Materials list and Machine catalogue grid still scroll inside their own panels.

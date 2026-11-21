@@ -176,7 +176,13 @@ for (const theme of ['light', 'dark'] as const) {
       expect(barBottom).toBeGreaterThan(0);
       expect(await catalog.boundingBox()).toEqual({ x: 0, y: barBottom, width, height: height - barBottom });
       await expectW1Visible(page);
-      expect(await catalog.locator('tbody tr').count()).toBeGreaterThan(10);
+      // A browsable list with no typing: the full count, a pager when there is more than one page, and a first page of at least 5 rows.
+      const total = Number(await catalog.locator('[data-catalog-count]').getAttribute('data-catalog-count'));
+      await expect(catalog.locator('[data-catalog-count]')).toHaveText(`${total} tools`);
+      const rows = await catalog.locator('tbody tr').count();
+      expect(rows).toBeGreaterThanOrEqual(5);
+      if (total > rows) await expect(catalog.locator('.pager:not(.single)')).toBeVisible();
+      expect(await catalog.evaluate(el => el.scrollHeight <= el.clientHeight)).toBe(true);
       await expect(catalog.getByLabel('Search catalog')).toHaveValue('');
       await expect(page.locator('[data-action="wizard-catalog-back"]')).toBeFocused();
       // The frame under the page is inert (review minor 11).
@@ -190,7 +196,7 @@ for (const theme of ['light', 'dark'] as const) {
       expect(box !== null && box.x >= 0 && box.y >= 0 && box.x + box.width <= width && box.y + box.height <= height).toBe(true);
       await modal.locator('[data-action="save-tool"]').click();
       await expect(catalog).toHaveCount(0);
-      await expect(wizard(page).locator('[data-wizard="tool"]')).toContainText('6.35 mm');
+      await expect(wizard(page).locator('[data-wizard="tool"]')).toContainText('T7 · Up-cut spiral'); // MR-25: catalog tools carry their catalog name, not the size fallback
       await expect(page.locator('[data-wizard-step="5"]')).toBeVisible();
       // Focus is back on the button that opened the page, in a live frame (review minor 11).
       await expect(page.locator('.wizard-dialog')).not.toHaveAttribute('inert', '');

@@ -513,10 +513,10 @@ a.button svg, .report-actions button svg { width: 15px; height: 15px; }
 .tool-modal .tool-figure-svg { max-height: 265px; }
 .tool-modal .field { margin-top: 0; }
 .tool-modal .field-grid, .tool-details-grid { display: flex; flex-wrap: wrap; gap: 8px 20px; }
-.tool-modal .field-grid > .field:has(input:not([type="number"]), textarea) { flex: 1 1 100%; }
+.tool-modal .field-grid > .field:has(> input:not([type="number"]), > textarea) { flex: 1 1 100%; }
 .tool-modal .field .unit-input { display: inline-flex; width: auto; }
 .tool-modal .field input[type="number"] { width: 9ch; }
-.tool-modal .field .unit-input input[type="number"] { width: 11ch; }
+.tool-modal .field .unit-input input { width: 11ch; }
 .tool-modal .field select { width: auto; min-width: 12ch; max-width: 100%; }
 .tool-modal .field input, .tool-modal .field select { height: 30px; }
 .tool-modal .field textarea { width: 100%; min-height: 64px; }
@@ -534,8 +534,9 @@ a.button svg, .report-actions button svg { width: 15px; height: 15px; }
 .cutting-table-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
 .cutting-table-footer .tool-pages { margin-left: auto; display: flex; align-items: center; gap: 6px; }
 .cutting-row-form .field-grid > .field { margin-bottom: 0; }
-.tool-modal .cutting-row-form .field-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
-@media (max-width: 760px) { .tool-modal .cutting-row-form .field-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.tool-modal .cutting-row-form .field-grid { align-items: start; gap: 6px 16px; }
+.tool-modal .cutting-row-form .field-grid > .field:has(> input) { flex: 0 0 auto; }
+.tool-modal .cutting-row-form .field input { width: 13ch; }
 .tool-modal .cutting-note { display: block; margin-top: 4px; font-family: var(--sans); }
 
 .cutting-row-form > .cutting-row-actions { margin-bottom: 8px; }
