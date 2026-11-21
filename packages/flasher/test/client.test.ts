@@ -3,8 +3,9 @@
  * client-against-fake-xboot suite is packages/testkit/test/xboot.test.ts).
  */
 import { describe, expect, it } from 'vitest';
-import { ByteBuffer, LinkClosed, LinkTimeout, X192A3, XbootClient, XbootError, toXbootError, type ByteLink, type FlasherClock } from '../src/index.ts';
+import { ByteBuffer, LinkClosed, LinkTimeout, X192A3, XbootClient, XbootError, crc16, toXbootError, type ByteLink, type FlasherClock } from '../src/index.ts';
 import { CommandError } from '../src/targets/xboot-xmega/avr109.ts';
+import { readBackups } from '../src/targets/xboot-xmega/backup.ts';
 
 /** A manual clock: timers fire only when the test advances time. */
 export class ManualClock implements FlasherClock {
@@ -62,8 +63,8 @@ class ScriptLink implements ByteLink {
   read(n: number, timeoutMs: number): Promise<Uint8Array> {
     return this.buffer.read(n, timeoutMs);
   }
-  discardInput(): void {
-    this.buffer.discard();
+  discardInput(): Uint8Array {
+    return this.buffer.discard();
   }
 }
 
@@ -156,7 +157,9 @@ describe('XbootClient', () => {
     const clock = new ManualClock();
     const link = new ScriptLink(clock, goodXboot);
     const c = new XbootClient(link, clock, X192A3);
-    expect(await c.enter(1000)).toBe(1);
+    const entered = c.enter(1000);
+    await clock.advance(200);
+    expect(await entered).toBe(1);
     expect([...(link.frames[0] as Uint8Array)]).toEqual([0x1b]);
     expect([...(link.frames[1] as Uint8Array)]).toEqual([0x53]);
     const id = await c.identify();
@@ -190,14 +193,14 @@ describe('XbootClient', () => {
     }
   });
 
-  it('maps a refusal (?) and a wrong ack byte; refuses unaligned or boot-section page writes before sending', async () => {
+  it('maps a refusal (?) and a wrong ack byte (out of step); refuses unaligned or boot-section page writes before sending', async () => {
     const clock = new ManualClock();
     const refusing = new ScriptLink(clock, (f) => (f[0] === 0x42 ? [0x3f] : goodXboot(f)));
     await expect(new XbootClient(refusing, clock, X192A3).writePage(0, new Uint8Array(512))).rejects.toMatchObject({ code: 'refused' });
     const odd = new ScriptLink(clock, (f) => (f[0] === 0x45 ? [0x00] : goodXboot(f)));
-    await expect(new XbootClient(odd, clock, X192A3).exit()).rejects.toMatchObject({ code: 'unexpected' });
+    await expect(new XbootClient(odd, clock, X192A3).exit()).rejects.toMatchObject({ code: 'desync' });
     const pinging = new ScriptLink(clock, (f) => (f[0] === 0x61 ? [0x00] : goodXboot(f)));
-    await expect(new XbootClient(pinging, clock, X192A3).ping()).rejects.toMatchObject({ code: 'unexpected' });
+    await expect(new XbootClient(pinging, clock, X192A3).ping()).rejects.toMatchObject({ code: 'desync' });
     const quiet = new ScriptLink(clock, goodXboot);
     const c = new XbootClient(quiet, clock, X192A3);
     await expect(c.writePage(0x100, new Uint8Array(512))).rejects.toMatchObject({ code: 'unexpected' });
@@ -264,11 +267,22 @@ describe('XbootClient', () => {
     const link = new ScriptLink(clock, goodXboot);
     const c = new XbootClient(link, clock, X192A3, { watchdogMs: 1000 });
     const p = c.resync(2000);
-    await clock.advance(1100);
+    await clock.advance(1300);
     await p;
     expect(link.frames.map((f) => f[0])).toEqual([0x1b, 0x53]);
   });
+});
 
+/** goodXboot, plus a `?` 100 ms after each `S`: a reply to an earlier entry try, held back by the USB bridge. */
+function lateQuestion(clock: ManualClock, link: () => ScriptLink): (f: Uint8Array) => readonly number[] | null {
+  const late = (): void => link().buffer.push(Uint8Array.of(0x3f));
+  return (f) => {
+    if (f[0] === 0x53) clock.setTimeout(late, 100);
+    return goodXboot(f);
+  };
+}
+
+describe('XbootError', () => {
   it('turns link and command failures into XbootError', () => {
     expect(toXbootError(new LinkTimeout(2, new Uint8Array(0))).code).toBe('timeout');
     expect(toXbootError(new LinkClosed()).code).toBe('closed');
@@ -277,5 +291,83 @@ describe('XbootClient', () => {
     expect(toXbootError(new Error('boom')).message).toBe('boom');
     const e = new XbootError('refused', 'no');
     expect(toXbootError(e)).toBe(e);
+  });
+});
+
+describe('replies in step (quiet.ts, backup.ts)', () => {
+  const run = async <T>(clock: ManualClock, p: Promise<T>, ms = 3000): Promise<T> => {
+    const settled = p.then(
+      (value) => ({ value }),
+      (error: unknown) => ({ error }),
+    );
+    await clock.advance(ms);
+    const r = await settled;
+    if ('error' in r) throw r.error;
+    return r.value;
+  };
+
+  it('a byte waiting before a command stops it unsent, names the bytes, and nothing but a new entry may follow', async () => {
+    const clock = new ManualClock();
+    const link = new ScriptLink(clock, goodXboot);
+    const c = new XbootClient(link, clock, X192A3);
+    link.buffer.push(Uint8Array.of(0x0d, 0x3f));
+    await expect(c.setFlashAddress(0)).rejects.toMatchObject({ code: 'desync', message: expect.stringContaining('(0d 3f)') as string });
+    expect(link.frames).toEqual([]);
+    await expect(c.ping()).rejects.toMatchObject({ code: 'desync' });
+    expect(link.frames).toEqual([]);
+    await run(clock, c.enter(1000));
+    await c.ping();
+    expect(link.frames.map((f) => f[0])).toEqual([0x1b, 0x53, 0x61]);
+  });
+
+  it('after a timeout nothing is sent until a new entry', async () => {
+    const clock = new ManualClock();
+    let silent = true;
+    const link = new ScriptLink(clock, (f) => (silent ? null : goodXboot(f)));
+    const c = new XbootClient(link, clock, X192A3);
+    await expect(run(clock, c.ping())).rejects.toMatchObject({ code: 'timeout' });
+    silent = false;
+    await expect(c.ping()).rejects.toMatchObject({ code: 'desync' });
+    expect(link.frames.length).toBe(1);
+  });
+
+  it('entry drains late replies until the line is quiet, and stops when it never goes quiet', async () => {
+    const clock = new ManualClock();
+    const link: ScriptLink = new ScriptLink(clock, lateQuestion(clock, () => link));
+    const c = new XbootClient(link, clock, X192A3);
+    expect(await run(clock, c.enter(1000))).toBe(1);
+    expect(link.buffer.available).toBe(0);
+    const noisy = new ScriptLink(clock, (f) => goodXboot(f));
+    const chatter = (): void => {
+      noisy.buffer.push(Uint8Array.of(0x00));
+      clock.setTimeout(chatter, 50);
+    };
+    const n = new XbootClient(noisy, clock, X192A3);
+    chatter();
+    await expect(run(clock, n.enter(1000))).rejects.toMatchObject({ code: 'desync' });
+    noisy.buffer.end();
+    await expect(run(clock, new XbootClient(noisy, clock, X192A3, { entryReplyMs: 10 }).enter(100))).rejects.toMatchObject({ code: 'closed' });
+  });
+
+  it('a backup is proved before it is trusted: two EEPROM reads agree, the flash CRC is the chip own', async () => {
+    const clock = new ManualClock();
+    const once = <T>(step: () => Promise<T>): Promise<T> => step();
+    const blocks = (f: Uint8Array): number[] => Array.from({ length: ((f[1] as number) << 8) | (f[2] as number) }, () => 0xff);
+    const crc = crc16(new Uint8Array(X192A3.appBytes).fill(0xff));
+    const proving = (f: Uint8Array): readonly number[] | null => (f[0] === 0x67 ? blocks(f) : f[0] === 0x68 ? [crc >> 8, crc & 0xff] : goodXboot(f));
+    const ok = await readBackups(new XbootClient(new ScriptLink(clock, proving), clock, X192A3), once, () => undefined);
+    expect(ok.crc).toBe(crc);
+    let reads = 0;
+    const drifting = (f: Uint8Array): readonly number[] | null => (f[0] === 0x67 && f[3] === 0x45 && ++reads === 5 ? [0x00, ...blocks(f).slice(1)] : proving(f));
+    await expect(readBackups(new XbootClient(new ScriptLink(clock, drifting), clock, X192A3), once, () => undefined)).rejects.toMatchObject({ code: 'desync', message: expect.stringContaining('EEPROM') as string });
+    await expect(readBackups(new XbootClient(new ScriptLink(clock, goodXboot), clock, X192A3), once, () => undefined)).rejects.toMatchObject({ code: 'desync', message: expect.stringContaining('checksum') as string });
+  });
+
+  it('ByteBuffer.discard returns what it dropped', () => {
+    const b = new ByteBuffer(new ManualClock());
+    b.push(Uint8Array.of(1, 2));
+    b.push(Uint8Array.of(3));
+    expect([...b.discard()]).toEqual([1, 2, 3]);
+    expect(b.discard().length).toBe(0);
   });
 });

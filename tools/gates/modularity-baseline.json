@@ -519,14 +519,13 @@
       "max-classes-per-file $file": 2
     },
     "packages/flasher/src/targets/xboot-xmega/client.ts": {
-      "max-classes-per-file $file": 2,
       "max-methods $/ClassDeclaration:XbootClient#1": 16
     },
     "packages/flasher/src/targets/xboot-xmega/flashRun.ts": {
       "complexity $/FunctionDeclaration:runFlash#1": 25,
       "max-classes-per-file $file": 2,
       "max-depth $/FunctionDeclaration:runFlash#1/ArrowFunctionExpression:attempt#1": 5,
-      "max-lines-per-function $/FunctionDeclaration:runFlash#1": 110,
+      "max-lines-per-function $/FunctionDeclaration:runFlash#1": 108,
       "max-params $/FunctionDeclaration:recoverEntry#1": 5,
       "max-params $/FunctionDeclaration:verifyPages#1": 6
     },
@@ -539,7 +538,7 @@
     },
     "packages/flasher/test/client.test.ts": {
       "max-classes-per-file $file": 2,
-      "max-lines-per-function $/ArrowFunctionExpression:describe('XbootClient')[1]#1": 120
+      "max-lines-per-function $/ArrowFunctionExpression:describe('XbootClient')[1]#1": 113
     },
     "packages/flasher/test/ihex.test.ts": {
       "max-lines-per-function $/ArrowFunctionExpression:describe('parseIntelHex')[1]#1": 91
@@ -1154,7 +1153,7 @@
     },
     "packages/testkit/test/xboot.test.ts": {
       "max-lines-per-function $/ArrowFunctionExpression:describe('the fake xboot: every command, as the source answers it')[1]#1": 86,
-      "max-lines-per-function $/ArrowFunctionExpression:describe('the flash run against the fake xboot')[1]#1": 155,
+      "max-lines-per-function $/ArrowFunctionExpression:describe('the flash run against the fake xboot')[1]#1": 146,
       "max-nested-callbacks $/ArrowFunctionExpression:describe('the flash run against the fake xboot')[1]#1/ArrowFunctionExpression:it('an interrupted write (USB pulled mid-flash) leaves no application; after a replug, ESC in the 4.8 s window recovers it')[1]#1/ArrowFunctionExpression:recoverEntry()[4]#1/ArrowFunctionExpression:Promise()[0]#1": 4,
       "max-nested-callbacks $/ArrowFunctionExpression:describe('the flash run against the fake xboot')[1]#1/ArrowFunctionExpression:it('recovery gives up after its deadline when nothing answers')[1]#1/ArrowFunctionExpression:recoverEntry()[4]#1/ArrowFunctionExpression:Promise()[0]#1": 4
     },
