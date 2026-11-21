@@ -206,7 +206,7 @@ test('recovery: USB pulled mid-flash leaves no application; unplug and replug du
   await expect(card).toContainText('No firmware running');
   await page.locator('[data-action="flash-recover"]').click();
   await expect(page.locator('[data-safety="W49"]')).toBeVisible({ timeout: 20_000 });
-  await expect(page.locator('[data-safety="W49"]')).toContainText('Unplug the USB cable and plug it back in now.');
+  await expect(page.locator('[data-safety="W49"]')).toContainText("Press Reset on the board now, or switch the board's power off and on.");
   await expect(card).toContainText('No firmware running');
   await shot(page, 'recovery-countdown');
   await boardDo(worker, 'replug');

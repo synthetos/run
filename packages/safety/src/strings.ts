@@ -483,7 +483,7 @@ export function w48(): string {
 
 /** W49: recovery, the board has no application (firmware update, 2026-11-03, H80). */
 export function w49(p: { readonly seconds: number }): string {
-  return `Unplug the USB cable and plug it back in now. Run is waiting for the bootloader: ${count('seconds', p.seconds)} s.`;
+  return `Press Reset on the board now, or switch the board's power off and on. Run is waiting for the bootloader: ${count('seconds', p.seconds)} s.`;
 }
 
 /** W50: the old-firmware gate (firmware update, 2026-11-03). */

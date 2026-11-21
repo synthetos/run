@@ -1601,7 +1601,7 @@ Presentation amendment (owner, 2026-11-03): routine explanatory text, including 
 - **W46 (the switch check after an update; H82):** "WARNING — Check your limit switches. The update changed the switch settings. Press and release each limit switch: Run unlocks jobs and jogging only after it has seen every one change."
 - **W47 (unsigned custom firmware; H85):** "WARNING — This is unsigned custom firmware. Run has not checked what it does. Run backs up the board's settings and its current firmware first, and the board stays read-only after the update unless you trust this build on this board." *Placement amended 2026-11-03 (OD-9, owner): W47 is shown at the moment of the decision, in the flash confirmation beside C37 (T-S126), not as a permanent banner on the Firmware & Backups hub (Board → Firmware since 2026-11-09, owner). Text unchanged.*
 - **W48 (machine strip, a trusted custom build; H87):** "Custom firmware (trusted by you)"
-- **W49 (recovery countdown; H80):** "Unplug the USB cable and plug it back in now. Run is waiting for the bootloader: N s."
+- **W49 (recovery countdown; H80):** "Press Reset on the board now, or switch the board's power off and on. Run is waiting for the bootloader: N s."
 - **W50 (old-firmware gate):** "This board runs firmware <fb>, older than the minimum <minimum> for its hardware. You can view it and back it up; update it to use jobs, jogging and settings changes."
 - **W51 (Pause during a probe; Probe Z, H90):** "Pause won't pause a probe: it ends it in an alarm. To stop, use Stop job. In an emergency, use your E-stop."
 - **W52 (a dropped lead; Probe Z, H90):** "If the lead comes off now, the board can't tell. Z keeps going to the depth limit. Keep your E-stop in reach."
