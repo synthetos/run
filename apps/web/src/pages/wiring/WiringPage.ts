@@ -5,6 +5,7 @@ import { ARDUINO_DUE_GSHIELD, emptyDiagram, type Diagram, type Dialect, type Pap
 import type { BuildInfo } from '../../build-info/buildInfo.ts';
 import { StaticPage } from '../StaticPage.ts';
 import { WiringEditor } from '../../wiring/WiringEditor.ts';
+import { releaseProduct } from '../../firmware/releaseTitle.ts';
 
 /** Boards with connector data (TB-05a overlays), then the diagram-only Due + gShield. */
 export const WIRING_BOARDS: readonly WiringBoard[] = [...BOARD_DEFINITIONS.filter((b) => (b.connectors ?? []).length > 0), ARDUINO_DUE_GSHIELD];
@@ -31,13 +32,12 @@ function Workbench({ onExport }: { readonly onExport?: ExportHandler | undefined
             h(
               'select',
               { id: 'wiring-firmware', value: firmware, onChange: (e: Event) => setFirmware((e.currentTarget as HTMLSelectElement).value as 'tinyg-en' | 'tinyg-440') },
-              h('option', { value: 'tinyg-en' }, 'TinyG edge-next (450.01)'),
-              h('option', { value: 'tinyg-440' }, 'TinyG 440.21'),
+              h('option', { value: 'tinyg-en' }, releaseProduct({ dialect: 'tinyg-en', fb: 450 })),
+              h('option', { value: 'tinyg-440' }, releaseProduct({ dialect: 'tinyg-440', fb: 440 })),
             ),
           )
         : null,
     ),
-    h('p', { class: 'wiring-board-note' }, 'TinyG v6 and v7 have no connector data yet, so they have no diagram.'),
     h(WiringEditor, { key: board.id, board, dialect, initial: emptyDiagram(board.id), onExport }),
   );
 }

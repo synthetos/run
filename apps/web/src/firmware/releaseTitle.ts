@@ -13,7 +13,12 @@ const PRODUCT: Readonly<Record<string, string>> = Object.freeze({
   'g2core-edge': 'g2core edge',
 });
 
-export function releaseTitle(release: Pick<FirmwareRelease, 'dialect' | 'fb'>): string {
+/** The product and major build only, "TinyG edge-next 450" (no minor version). */
+export function releaseProduct(release: Pick<FirmwareRelease, 'dialect' | 'fb'>): string {
   const product = Object.hasOwn(PRODUCT, release.dialect) ? PRODUCT[release.dialect] : 'Firmware';
-  return `${product} ${Math.trunc(release.fb)} · ${release.fb.toFixed(2)}`;
+  return `${product} ${Math.trunc(release.fb)}`;
+}
+
+export function releaseTitle(release: Pick<FirmwareRelease, 'dialect' | 'fb'>): string {
+  return `${releaseProduct(release)} · ${release.fb.toFixed(2)}`;
 }

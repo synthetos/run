@@ -96,7 +96,7 @@ export function WiringEditorView(p: ViewProps): ComponentChild {
         h('button', { type: 'button', 'data-action': 'add-part', onClick: () => (dispatch({ type: 'addPart', kind: form.kind, label: form.label }), setForm({ label: '' })) }, 'Add part'),
       ),
       d.parts.length === 0
-        ? h('p', null, 'No parts yet.')
+        ? h('p', null, 'Pick a component, name it, then press Add part.')
         : h(
             'ul',
             { class: 'wiring-parts' },
