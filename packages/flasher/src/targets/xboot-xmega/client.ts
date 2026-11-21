@@ -32,10 +32,22 @@
  *   enters again through the 4.8 s window. UNVERIFIED on hardware (B-FL-WDT):
  *   the timings are xboot's configured values, not measurements.
  * - **Never `e`.** The client has no erase (avr109.ts).
+ * - **Replies in step.** AVR109 has no framing; a reply belongs to its
+ *   command only by byte count. After the entry the line is drained until
+ *   quiet (replies to earlier ESC/`S` tries); before every command it must
+ *   hold nothing (quiet.ts); every reply is read at its exact length and
+ *   checked. A byte nobody asked for, or a wrong acknowledgement, is a
+ *   `desync`: a hard stop, and after any failed reply nothing is sent but a
+ *   new entry (`resync`).
  */
-import { CommandError, REPLY, encodeCommand, replyLength, type Command } from './avr109.ts';
-import { LinkClosed, LinkTimeout, type ByteLink, type FlasherClock } from '../../core/link.ts';
+import { REPLY, encodeCommand, replyLength, type Command } from './avr109.ts';
+import type { ByteLink, FlasherClock } from '../../core/link.ts';
+import { XbootError, hex, toXbootError } from './errors.ts';
 import type { Part } from './part.ts';
+import { assertQuiet, drainUntilQuiet } from './quiet.ts';
+
+export { XbootError, toXbootError } from './errors.ts';
+export type { XbootErrorCode } from './errors.ts';
 
 export interface ClientTimings {
   /** Reply deadline for a short command. */
@@ -54,6 +66,10 @@ export interface ClientTimings {
   readonly watchdogMs: number;
   /** Keep-alive period while waiting on the page. */
   readonly keepAliveMs: number;
+  /** After the entry: silence that ends the drain of late replies (quiet.ts). */
+  readonly quietMs: number;
+  /** After the entry: the drain gives up (desync) when the line is still busy after this long. */
+  readonly quietMaxMs: number;
 }
 
 export const DEFAULT_TIMINGS: ClientTimings = Object.freeze({
@@ -65,18 +81,9 @@ export const DEFAULT_TIMINGS: ClientTimings = Object.freeze({
   entryIntervalMs: 50,
   watchdogMs: 1300,
   keepAliveMs: 250,
+  quietMs: 150,
+  quietMaxMs: 450,
 });
-
-export type XbootErrorCode = 'refused' | 'unexpected' | 'wrong-part' | 'wrong-bootloader' | 'block-size' | 'no-entry' | 'timeout' | 'closed';
-
-export class XbootError extends Error {
-  override readonly name = 'XbootError';
-  readonly code: XbootErrorCode;
-  constructor(code: XbootErrorCode, message: string) {
-    super(message);
-    this.code = code;
-  }
-}
 
 export interface Identity {
   readonly programId: string;
@@ -86,7 +93,6 @@ export interface Identity {
 }
 
 const ascii = (bytes: Uint8Array): string => String.fromCharCode(...bytes);
-const hex = (bytes: Uint8Array): string => [...bytes].map((b) => b.toString(16).padStart(2, '0')).join(' ');
 
 export function sleep(clock: FlasherClock, ms: number): Promise<void> {
   return new Promise((resolve) => clock.setTimeout(resolve, ms));
@@ -98,6 +104,9 @@ export class XbootClient {
   readonly #part: Part;
   readonly #t: ClientTimings;
   #busy = false;
+  /** A reply failed or came out of step: nothing is sent until a new entry succeeds. */
+  #unsynced = false;
+  #entering = false;
   /** Commands sent (tests and the transcript). */
   sent = 0;
 
@@ -116,17 +125,24 @@ export class XbootClient {
     return this.#part;
   }
 
-  /** Send one command and read its whole reply. Exactly one command is in flight at any time. */
+  /**
+   * Send one command and read its whole reply, at its exact length. Exactly one command is in flight at any
+   * time; the line must hold nothing before it is sent (quiet.ts). After any failure, only a new entry may talk.
+   */
   async command(command: Command, timeoutMs: number): Promise<Uint8Array> {
     if (this.#busy) throw new XbootError('unexpected', 'one command at a time');
+    if (this.#unsynced && !this.#entering) throw new XbootError('desync', 'a reply failed or came out of step: nothing is sent before a new bootloader entry');
     this.#busy = true;
     try {
       const frame = encodeCommand(command);
+      assertQuiet(this.#link, `\`${String.fromCharCode(frame[0] as number)}\``);
       await this.#link.write(frame);
       this.sent++;
       return await this.#link.read(replyLength(command), timeoutMs);
     } catch (error) {
-      throw toXbootError(error);
+      const e = toXbootError(error);
+      if (e.code !== 'unexpected') this.#unsynced = true;
+      throw e;
     } finally {
       this.#busy = false;
     }
@@ -135,33 +151,44 @@ export class XbootClient {
   async #expectAck(command: Command, timeoutMs: number, what: string): Promise<void> {
     const reply = await this.command(command, timeoutMs);
     if (reply[0] === REPLY.ack) return;
+    this.#unsynced = true;
     if (reply[0] === REPLY.error) throw new XbootError('refused', `xboot refused ${what}`);
-    throw new XbootError('unexpected', `xboot answered ${what} with 0x${hex(reply)}`);
+    throw new XbootError('desync', `xboot answered ${what} with 0x${hex(reply)}, not an acknowledgement: the replies are out of step, so nothing more is sent`);
   }
 
   /**
    * Enter the bootloader from its entry window: ESC, then `S`, until it
    * answers `XBoot++` or `deadlineMs` passes. Stale bytes (the end of the
-   * firmware's last reply, a banner) are discarded before each try.
+   * firmware's last reply, a banner) are discarded before each try; after
+   * the entry, late replies to earlier tries are drained until the line is
+   * quiet (quiet.ts).
    */
   async enter(deadlineMs: number): Promise<number> {
     const start = this.#clock.now();
     let tries = 0;
-    while (this.#clock.now() - start < deadlineMs) {
-      if (this.#link.closed) throw new XbootError('closed', 'the link closed during bootloader entry');
-      tries++;
-      this.#link.discardInput();
-      try {
-        await this.#link.write(encodeCommand({ op: 'sync' }));
-        const id = await this.command({ op: 'programId' }, this.#t.entryReplyMs);
-        if (ascii(id) === this.#part.programId) return tries;
-      } catch (error) {
-        const e = toXbootError(error);
-        if (e.code === 'closed') throw e;
+    let entered = false;
+    this.#unsynced = true;
+    this.#entering = true;
+    try {
+      while (!entered && this.#clock.now() - start < deadlineMs) {
+        if (this.#link.closed) throw new XbootError('closed', 'the link closed during bootloader entry');
+        tries++;
+        this.#link.discardInput();
+        try {
+          await this.#link.write(encodeCommand({ op: 'sync' }));
+          entered = ascii(await this.command({ op: 'programId' }, this.#t.entryReplyMs)) === this.#part.programId;
+        } catch (error) {
+          if (toXbootError(error).code === 'closed') throw toXbootError(error);
+        }
+        if (!entered) await sleep(this.#clock, this.#t.entryIntervalMs);
       }
-      await sleep(this.#clock, this.#t.entryIntervalMs);
+    } finally {
+      this.#entering = false;
     }
-    throw new XbootError('no-entry', `the bootloader did not answer within ${Math.round(deadlineMs / 1000)} s`);
+    if (!entered) throw new XbootError('no-entry', `the bootloader did not answer within ${Math.round(deadlineMs / 1000)} s`);
+    await drainUntilQuiet(this.#link, this.#clock, this.#t.quietMs, this.#t.quietMaxMs);
+    this.#unsynced = false;
+    return tries;
   }
 
   /** `S`, `V`, `s`, `b`, `a`: who answers, and is it the part and bootloader this image is for? */
@@ -241,7 +268,9 @@ export class XbootClient {
   /** One keep-alive (`a`, answered `Y`). */
   async ping(): Promise<void> {
     const r = await this.command({ op: 'autoIncrement' }, this.#t.replyMs);
-    if (r[0] !== REPLY.yes) throw new XbootError('unexpected', `the keep-alive was answered with 0x${hex(r)}`);
+    if (r[0] === REPLY.yes) return;
+    this.#unsynced = true;
+    throw new XbootError('desync', `the keep-alive was answered with 0x${hex(r)}, not Y: the replies are out of step, so nothing more is sent`);
   }
 
   /**
@@ -280,13 +309,4 @@ export class XbootClient {
     await sleep(this.#clock, this.#t.watchdogMs);
     await this.enter(windowMs);
   }
-}
-
-/** Link and command failures as `XbootError`. */
-export function toXbootError(error: unknown): XbootError {
-  if (error instanceof XbootError) return error;
-  if (error instanceof LinkTimeout) return new XbootError('timeout', error.message);
-  if (error instanceof LinkClosed) return new XbootError('closed', error.message);
-  if (error instanceof CommandError) return new XbootError('unexpected', error.message);
-  return new XbootError('closed', error instanceof Error ? error.message : String(error));
 }

@@ -20,8 +20,11 @@ export interface ByteLink {
   write(frame: Uint8Array): Promise<void>;
   /** Exactly `n` bytes, or a `LinkTimeout` after `timeoutMs`, or a `LinkClosed` when the link goes. */
   read(n: number, timeoutMs: number): Promise<Uint8Array>;
-  /** Drop every byte received and not yet read (leftovers before a sync). */
-  discardInput(): void;
+  /**
+   * Drop every byte received and not yet read, and return them: leftovers before a sync, or bytes nobody asked
+   * for (empty on a clean line).
+   */
+  discardInput(): Uint8Array;
   /** True once the link closed or dropped. */
   readonly closed: boolean;
 }
@@ -99,9 +102,11 @@ export class ByteBuffer {
     return this.#size;
   }
 
-  discard(): void {
+  /** Drops every byte not yet read and returns them. */
+  discard(): Uint8Array {
+    const dropped = this.#take(this.#size);
     this.#chunks = [];
-    this.#size = 0;
+    return dropped;
   }
 
   #wake(): void {

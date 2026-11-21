@@ -7,8 +7,9 @@
  *    `{"boot":1}`, or the 4.8 s window in recovery).
  * 2. `identify`: program id, version, chip signature (the part check: the
  *    image is for the x192a3, and so is the chip), block size.
- * 3. `backup`: the raw EEPROM (2 KB) and the whole application section
- *    (192 KB, the firmware image backup). Then `backupsReady` is called with
+ * 3. `backup`: the raw EEPROM (2 KB, read twice and compared) and the whole
+ *    application section (192 KB, the firmware image backup, checked against
+ *    xboot's own CRC; backup.ts). Then `backupsReady` is called with
  *    both, and NOTHING is written until it resolves: the page stores them
  *    (and the settings backup taken before the bootloader) first. The link
  *    is kept awake meanwhile. If it rejects, the run leaves the bootloader
@@ -20,15 +21,18 @@
  * 7. `crc`: xboot's CRC of the whole section must equal the image's.
  * 8. `exit`: `E`; the board starts the new firmware.
  *
- * A lost or damaged reply is retried after a resync (client.ts), at most
+ * A lost reply (a timeout) is retried after a resync (client.ts), at most
  * `retries` times per step and `maxResyncs` times per run; a write is
  * idempotent (xboot erases the page first), a read is repeated. A refusal
- * (`?`), the wrong chip or bootloader, or a link that closed ends the run at
- * once. Cancel is honoured only before step 4.
+ * (`?`), a reply out of step (`desync`: a byte nobody asked for, a wrong
+ * acknowledgement, a backup that does not prove), the wrong chip or
+ * bootloader, or a link that closed ends the run at once, and nothing more
+ * is sent. Cancel is honoured only before step 4.
  *
  * The run never sends `e` (avr109.ts) and never addresses the boot section
  * (plan.ts, FrameGuard).
  */
+import { readBackups, type Backups } from './backup.ts';
 import { XbootClient, XbootError, sleep, type Identity } from './client.ts';
 import { crc16 } from './crc16.ts';
 import type { FlashPlan, PageWrite } from './plan.ts';
@@ -43,12 +47,7 @@ export interface FlashProgress {
   readonly note?: string;
 }
 
-export interface FlashBackups {
-  readonly eeprom: Uint8Array;
-  /** The whole application section as read from the board. */
-  readonly flash: Uint8Array;
-  readonly crc: number;
-}
+export type FlashBackups = Backups;
 
 export interface FlashHooks {
   readonly onProgress: (progress: FlashProgress) => void;
@@ -141,9 +140,8 @@ export async function runFlash(client: XbootClient, plan: FlashPlan, hooks: Flas
     identity = await attempt(() => client.identify());
 
     progress({ phase: 'backup', done: 0, of: part.eepromBytes + part.appBytes });
-    const eeprom = await attempt(() => client.readEeprom(0, part.eepromBytes));
-    const flash = await attempt(() => client.readFlash(0, part.appBytes, (done) => hooks.onProgress({ phase: 'backup', done: part.eepromBytes + done, of: part.eepromBytes + part.appBytes })));
-    backups = Object.freeze({ eeprom, flash, crc: crc16(flash) });
+    // Both backups are proved (backup.ts): a shifted read is never handed on.
+    backups = await readBackups(client, attempt, (done) => hooks.onProgress({ phase: 'backup', done, of: part.eepromBytes + part.appBytes }));
     if (hooks.cancelled?.() === true) throw new Cancelled();
     progress({ phase: 'saving', done: 0, of: 1 });
     try {

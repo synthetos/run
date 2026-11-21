@@ -333,8 +333,9 @@ export class BootloaderLink implements ByteLink {
     return this.#buffer.read(n, timeoutMs);
   }
 
-  discardInput(): void {
-    this.#buffer.discard();
+  /** Drops the bytes received and not yet read, and returns them (the flasher stops on any it did not ask for). */
+  discardInput(): Uint8Array {
+    return this.#buffer.discard();
   }
 
   /** Close the port. A write in progress finishes first. False when the port did not close in time (stuck). */

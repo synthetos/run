@@ -7,106 +7,9 @@
  * reset window. Chip erase is never sent.
  */
 import { describe, expect, it } from 'vitest';
-import {
-  ByteBuffer,
-  FrameGuard,
-  X192A3,
-  XbootClient,
-  crc16,
-  parseIntelHex,
-  planFlash,
-  recoverEntry,
-  runFlash,
-  type ByteLink,
-  type FlashOutcome,
-  type FlashProgress,
-} from '@synthetos/flasher';
-import { FlashableBoard, SimEndpoint, VirtualClock, readSimBuild, simCrc16, simHex, simImage, type FlashableBoardOptions } from '../src/index.ts';
-
-/** The host end of the simulated link as a ByteLink, with the flasher's frame guard in front, as the machine package does. */
-class SimByteLink implements ByteLink {
-  readonly buffer: ByteBuffer;
-  readonly guard = new FrameGuard(X192A3);
-  readonly frames: Uint8Array[] = [];
-  closed = false;
-  readonly #endpoint: SimEndpoint;
-  constructor(endpoint: SimEndpoint, clock: VirtualClock) {
-    this.#endpoint = endpoint;
-    this.buffer = new ByteBuffer(clock);
-    endpoint.onHostData((c) => this.buffer.push(c));
-    endpoint.onDisconnect(() => {
-      this.closed = true;
-      this.buffer.end();
-    });
-  }
-  write(frame: Uint8Array): Promise<void> {
-    if (this.closed) return Promise.reject(new Error('closed'));
-    const v = this.guard.check(frame);
-    if (!v.ok) return Promise.reject(new Error(`guard: ${v.reason}`));
-    this.frames.push(frame.slice());
-    this.#endpoint.hostWrite(frame);
-    return Promise.resolve();
-  }
-  read(n: number, timeoutMs: number): Promise<Uint8Array> {
-    return this.buffer.read(n, timeoutMs);
-  }
-  discardInput(): void {
-    this.buffer.discard();
-  }
-}
-
-async function microtasks(): Promise<void> {
-  for (let i = 0; i < 60; i++) await Promise.resolve();
-}
-
-/** Run `p` to completion, advancing virtual time from timer to timer. */
-async function drive<T>(clock: VirtualClock, p: Promise<T>, maxMs = 900_000): Promise<T> {
-  let done = false;
-  let value: T | undefined;
-  let error: unknown;
-  let failed = false;
-  p.then(
-    (v) => {
-      done = true;
-      value = v;
-    },
-    (e: unknown) => {
-      done = true;
-      failed = true;
-      error = e;
-    },
-  );
-  const end = clock.now() + maxMs;
-  for (;;) {
-    await microtasks();
-    if (done) break;
-    const next = clock.nextAt();
-    if (next === undefined || next > end) throw new Error(`stalled at ${clock.now()} ms`);
-    clock.advanceTo(next);
-  }
-  if (failed) throw error;
-  return value as T;
-}
-
-function rig(options: FlashableBoardOptions = {}) {
-  const clock = new VirtualClock();
-  const board = new FlashableBoard({ model: { bootMs: 50 }, linkBaud: 2_000_000, ...options });
-  const endpoint = new SimEndpoint({ clock, device: board, link: { baudRate: 2_000_000, latencyMs: 0.2, coalesceMs: 2 } });
-  const link = new SimByteLink(endpoint, clock);
-  const client = new XbootClient(link, clock, X192A3);
-  return { clock, board, endpoint, link, client };
-}
-
-/** Bytes the host wrote, as one string of printable characters (for the app's `{"boot":1}`). */
-function sendLine(endpoint: SimEndpoint, line: string): void {
-  endpoint.hostWrite(new TextEncoder().encode(`${line}\n`));
-}
-
-function plan(name: Parameters<typeof simImage>[0]) {
-  const parsed = parseIntelHex(simHex(simImage(name)), X192A3);
-  if (!parsed.ok) throw new Error(parsed.error.message);
-  return parsed.image;
-}
+import { X192A3, XbootClient, crc16, parseIntelHex, planFlash, recoverEntry, runFlash } from '@synthetos/flasher';
+import { readSimBuild, simCrc16, simHex, simImage } from '../src/index.ts';
+import { SimByteLink, drive, flash, plan, rig, sendLine } from './xbootRig.ts';
 
 describe('simulated firmware images', () => {
   it('carry their build; a damaged image has none; HEX round-trips through the flasher parser', () => {
@@ -283,16 +186,6 @@ describe('the fake xboot: every command, as the source answers it', () => {
 });
 
 describe('the flash run against the fake xboot', () => {
-  async function flash(r: ReturnType<typeof rig>, name: Parameters<typeof simImage>[0], hooks: Partial<Parameters<typeof runFlash>[2]> = {}): Promise<{ outcome: FlashOutcome; progress: FlashProgress[] }> {
-    const progress: FlashProgress[] = [];
-    const image = plan(name);
-    const outcome = await drive(
-      r.clock,
-      runFlash(r.client, planFlash(image, null), { onProgress: (p) => progress.push(p), backupsReady: () => Promise.resolve(), ...hooks }, { entryMs: 5000 }),
-    );
-    return { outcome, progress };
-  }
-
   it('updates the board: backups first, stub page 0, pages N..1, verify, real page 0, CRC, exit; the new build starts; never `e`', async () => {
     const r = rig();
     const before = r.board.memory.slice(0, 0x30000);
