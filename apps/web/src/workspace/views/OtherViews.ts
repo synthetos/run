@@ -12,7 +12,6 @@ import { openReport } from '../../report/state.ts';
 import { connected, type WorkspaceModel } from '../model.ts';
 import { liveNow } from '../liveNow.ts';
 import { stopJobSafetyText } from '../stopJobText.ts';
-import { Dismissable } from '../notes/Dismissable.ts';
 import { AccountPanel } from '../../live/AccountPanel.ts';
 import { accountState, signOut } from '../../live/account.ts';
 import { setupView } from '../cloud/setupSync.ts';
@@ -50,20 +49,26 @@ export function PreferencesView({ build, model = null }: { readonly build: Build
     head('Preferences', ''),
     h(
       'div',
-      { tabindex: 0, class: 'scroll-region' },
-      h(AccountPanel, { state: accountState.value, live, onSignOut: () => void signOut(() => liveNow(model)) }),
-      h(SetupPanel, null),
+      { tabindex: 0, class: 'scroll-region prefs-grid' },
+      h(
+        'div',
+        { class: 'prefs-col' },
+        h(AccountPanel, { state: accountState.value, live, onSignOut: () => void signOut(() => liveNow(model)) }),
+        h(SetupPanel, null),
+      ),
+      h(
+        'div',
+        { class: 'prefs-col' },
       h(
         'div',
         { class: 'panel' },
         h('div', { class: 'panel-head' }, h('h2', null, 'Theme')),
-        h(Dismissable, { id: 'preferences/theme-hint', label: 'the theme note', inNotes: false }, h('p', { class: 'fine' }, 'Follows your system until you choose.')),
         h('button', { type: 'button', class: 'small', 'data-theme-toggle': '', 'aria-label': 'Toggle day/night mode' }, 'Switch light or dark'),
       ),
       h(
         'div',
         { class: 'panel' },
-        h('div', { class: 'panel-head' }, h('h2', null, 'Kept in this browser')),
+        h('div', { class: 'panel-head' }, h('h2', null, 'Your data')),
         h(
           'dl',
           { class: 'facts' },
@@ -72,9 +77,9 @@ export function PreferencesView({ build, model = null }: { readonly build: Build
           h('div', null, h('dt', null, 'My materials'), h('dd', null, String(myMaterialStore.value.value.length))),
           h('div', null, h('dt', null, 'Storage'), h('dd', null, saved ? 'Available' : 'Blocked: changes last for this page only')),
         ),
-        h(Dismissable, { id: 'preferences/storage', label: 'the storage note', inNotes: false }, h('p', { class: 'fine' }, 'Stored on this device. Safety records are never synced.')),
       ),
       h('div', { class: 'panel' }, h('div', { class: 'panel-head' }, h('h2', null, 'Version')), h('p', { class: 'mono' }, versionLabel(build))),
+      ),
     ),
   );
 }

@@ -57,15 +57,10 @@ test('a × on informational notices outside the Job view, remembered per notice;
   await boardTab(page, 'inputs');
   await expect(page.locator('[data-notice="board/inputs-pullups"]')).toBeVisible();
   await rail(page, 'settings');
-  await page.locator('[data-notice="preferences/theme-hint"] [data-action="dismiss-notice-x"]').click();
-  await expect(page.locator('[data-notice="preferences/theme-hint"]')).toHaveCount(0);
-  await expect(page.locator('[data-notice="preferences/storage"]')).toBeVisible();
+  await expect(page.locator('[data-notice^="preferences/"]')).toHaveCount(0);
 
-  // A reload: the dismissed ones stay hidden, the others still show.
+  // A reload: the dismissed one stays hidden, the other still shows.
   await connect(page);
-  await rail(page, 'settings');
-  await expect(page.locator('[data-notice="preferences/theme-hint"]')).toHaveCount(0);
-  await expect(page.locator('[data-notice="preferences/storage"]')).toBeVisible();
   await rail(page, 'board');
   await boardTab(page, 'inputs');
   await expect(page.locator('[data-notice="board/inputs-pullups"]')).toBeVisible();

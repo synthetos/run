@@ -5,6 +5,11 @@
  * A redesign pass restyles this later.
  */
 .board-view { position: relative; }
+
+/* Preferences: two columns so it fits 1280x800 (Account and Setup left; Theme, Your data and Version right). */
+.prefs-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; align-content: start; align-items: start; }
+.prefs-col { display: flex; flex-direction: column; min-width: 0; }
+@media (max-width: 760px) { .prefs-grid { grid-template-columns: minmax(0, 1fr); } }
 button.danger { background: var(--danger); border-color: var(--danger); color: var(--sheet); }
 button.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 85%, var(--ink)); border-color: color-mix(in srgb, var(--danger) 85%, var(--ink)); }
 button.danger:disabled { background: color-mix(in srgb, var(--danger) 18%, var(--sheet)); border-color: transparent; color: color-mix(in srgb, var(--danger) 60%, var(--ink)); }
