@@ -5,6 +5,7 @@
 import { h, type ComponentChild } from 'preact';
 import type { Estimate } from '@synthetos/advisor';
 import { ContextHelp } from '../../../shell/ContextHelp.ts';
+import { boardTab, viewRequest } from '../../boardNavigation.ts';
 import type { MotionView } from '../../analysisState.ts';
 import { chips, headline, helpLines, subLine } from './headlineText.ts';
 
@@ -19,11 +20,16 @@ export interface HeadlineProps {
   readonly modelled?: boolean;
   /** True when some machine settings were read (live or saved). */
   readonly reading?: boolean;
+  /** Plain names of the planner settings still missing. */
+  readonly missing?: readonly string[];
 }
 
-export function HeadlineStrip({ view, connected, estimate = null, settingsLabel = null, modelled = false, reading = false }: HeadlineProps): ComponentChild {
+/** Opens Board → All settings (navigation only; nothing is sent). */
+const openBoardSettings = (): void => { boardTab.value = 'settings'; viewRequest.value = 'board'; };
+
+export function HeadlineStrip({ view, connected, estimate = null, settingsLabel = null, modelled = false, reading = false, missing = [] }: HeadlineProps): ComponentChild {
   const r = view.report;
-  const sub = subLine({ estimate, modelled, connected, reading });
+  const sub = subLine({ estimate, modelled, connected, reading, missing });
   return h(
     'section',
     { class: 'panel analyze-strip', 'data-analyze': 'summary', 'aria-labelledby': 'analyze-time' },
@@ -33,6 +39,8 @@ export function HeadlineStrip({ view, connected, estimate = null, settingsLabel 
       { class: 'analyze-strip-sub' },
       h('span', { 'data-analyze': sub.kind }, sub.text),
       ' ',
+      sub.kind === 'settings' ? h('button', { type: 'button', class: 'link', 'data-action': 'open-board-settings', onClick: openBoardSettings }, 'Open Board settings') : null,
+      sub.kind === 'settings' ? ' ' : null,
       h(ContextHelp, { id: 'analyze-time-help', label: 'How this time is found', below: true }, helpLines(view, estimate, settingsLabel).map((line) => h('span', { class: 'help-line', key: line, 'data-analyze': 'help-line' }, line))),
     ),
     h('ul', { class: 'analyze-chips' }, chips(view).map((c) => h('li', { key: c.fact, 'data-fact': c.fact }, c.text))),

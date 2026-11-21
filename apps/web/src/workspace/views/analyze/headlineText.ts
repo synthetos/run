@@ -25,15 +25,21 @@ export interface SubState {
   readonly connected: boolean;
   /** Some machine settings were read (live or saved). */
   readonly reading: boolean;
+  /** Plain names of the planner settings still missing (at most three are shown). */
+  readonly missing?: readonly string[];
 }
 
+const MAX_NAMED = 3;
+const missingText = (missing: readonly string[]): string =>
+  missing.length === 0 ? 'Some machine settings are missing.' : `Missing: ${missing.slice(0, MAX_NAMED).join(', ')}${missing.length > MAX_NAMED ? ' and more' : ''}.`;
+
 /** The one line under the time. */
-export function subLine({ estimate, modelled, connected, reading }: SubState): { readonly kind: SubKind; readonly text: string } {
+export function subLine({ estimate, modelled, connected, reading, missing = [] }: SubState): { readonly kind: SubKind; readonly text: string } {
   if (estimate?.ok === true) return { kind: 'estimate', text: 'From your machine’s settings.' };
   if (estimate?.ok === false) return { kind: 'no-estimate', text: `No closer time: ${estimate.reason}.` };
   if (modelled) return { kind: 'pending', text: 'Working out a closer time…' };
   if (!connected) return { kind: 'connect', text: 'Connect to get a closer time.' };
-  return reading ? { kind: 'settings', text: 'Some machine settings are missing.' } : { kind: 'reading', text: 'Reading your machine’s settings…' };
+  return reading ? { kind: 'settings', text: missingText(missing) } : { kind: 'reading', text: 'Reading your machine’s settings…' };
 }
 
 /** Any rapid travel (a G0 to where the tool already is moves nothing). */

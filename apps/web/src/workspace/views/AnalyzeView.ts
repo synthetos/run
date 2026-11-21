@@ -13,7 +13,7 @@ import { useEffect } from 'preact/hooks';
 import { advisorOperations, advisorRows, advisorStock } from '../advisorState.ts';
 import { boardReading, lastReadLabel } from '../analysisInputs.ts';
 import { estimateFor, inputSources, motionView, programReport, rememberReading, requestEstimate } from '../analysisState.ts';
-import { plannerProfile } from '../plannerInputs.ts';
+import { missingPlannerSettings, plannerProfile } from '../plannerInputs.ts';
 import { currentFile } from '../fileBridge.ts';
 import { uiLevel } from '../jobWorkflow.ts';
 import { connected, type WorkspaceModel } from '../model.ts';
@@ -55,7 +55,7 @@ export function AnalyzeView({ model = null }: { readonly model?: WorkspaceModel 
         : h(
             'div',
             { class: 'analyze-page' },
-            h(HeadlineStrip, { view, connected: live !== null && connected(live), estimate, settingsLabel, modelled: profile !== null, reading: reading !== null }),
+            h(HeadlineStrip, { view, connected: live !== null && connected(live), estimate, settingsLabel, modelled: profile !== null, reading: reading !== null, missing: missingPlannerSettings(reading) }),
             h(FixList, { blocks, report: view.report, cam: file?.preview?.cam ?? null, estimate, advanced }),
             h(OperationsCard, { blocks, rows: advisorRows.value, stock: advisorStock.value, problem: advisorOperations.value.problem, advanced }),
             advanced ? h(DetailsCard, { view }) : null,
