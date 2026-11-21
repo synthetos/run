@@ -14,8 +14,10 @@ import { resolveFlashSource, flashSourceLabel, type FlashSourceRequest } from '.
  *    saved the settings backup first.
  * 2. **Enter the bootloader** through the machine session's `flash` intent:
  *    the idle gate, `{"boot":1}`, the session closes its link.
- *    Recovery (a board with no application) skips this: the user unplugs and
- *    replugs USB while run sends ESC (a countdown).
+ *    Recovery first looks at the port (entryLinks.ts): a bootloader that
+ *    answers is used, a firmware that answers goes in through `{"boot":1}`;
+ *    only a silent board gets the countdown, while the person presses Reset
+ *    (or switches the board's power off and on) and run sends ESC and S.
  * 3. **Open the same port in bootloader role**, once the session's link has
  *    closed: the transport source is asked for the port the user confirmed at
  *    Connect (the same selector; never a new choice) and `BootloaderLink`
@@ -45,14 +47,9 @@ import {
   X192A3,
   XbootClient,
   authorizeFlash,
-  crc16,
   planFlash,
-  recoverEntry,
   runFlash,
-  sha256Hex,
-  toIntelHex,
   type FlashAuthorization,
-  type FlashBackups,
   type FlashOutcome,
 } from '@synthetos/flasher';
 import { type FirmwareReleases } from '@synthetos/protocol';
@@ -66,11 +63,11 @@ import { checkedTransport } from './checkedTransport.ts';
 import { enterBootloader } from './enterBootloader.ts';
 import { entryDiagnosis } from './flashDiagnosis.ts';
 import { boardFacts, bootloaderView, endsWritten, startsWritten } from './flashViewFacts.ts';
+import { SESSION_SETTLE_MS, openFlashLink, recoveryEntry, sessionSettled, type EntryDeps } from './entryLinks.ts';
+import { avr109Check, firmwareAnswers, settleProbedMark } from './markProbe.ts';
+import { BackupsWait, type FlashBackupsMessage } from './backupsWait.ts';
 
-/** How long the page has to store the backups before the run gives up (nothing written). */
-export const BACKUP_SAVE_MS = 60_000;
-/** The recovery countdown: unplug and replug within this time. */
-export const RECOVERY_MS = 45_000;
+export { BACKUP_SAVE_MS, type FlashBackupsMessage } from './backupsWait.ts';
 /**
  * The silent wait for a fresh firmware-ready banner after the exit, and after Start firmware (Connect on a marked
  * board: BANNER_WAIT_MS in bannerWait.ts). 30 s: the first boot after an update can be slow. When the EEPROM layout
@@ -160,19 +157,6 @@ export interface PostFlashView {
   readonly restoreNotes?: readonly string[];
 }
 
-/** The backups the page must store before anything is written. Posted once per run. */
-export interface FlashBackupsMessage {
-  readonly id: number;
-  readonly boardId: string | null;
-  readonly fb: number | null;
-  readonly fv: number | null;
-  readonly eeprom: Uint8Array;
-  /** The whole application section as Intel HEX (the firmware image backup). */
-  readonly hex: string;
-  readonly sha256: string;
-  readonly crc: number;
-}
-
 export interface FlashServiceDeps {
   readonly marks: BootloaderMarks;
   readonly session: SessionExecutor;
@@ -204,7 +188,7 @@ export class FlashService {
   #begin: FlashBegin | null = null;
   #port: PortSelector | null = null;
   #board: { id: string | null; hv: number | null; fb: number | null; fv: number | null } | null = null;
-  #saved: { resolve: () => void; reject: (e: Error) => void; sha256: string } | null = null;
+  readonly #saved: BackupsWait;
   #cancelled = false;
   #running = false;
   #waitingLink: BootloaderLink | null = null;
@@ -212,14 +196,19 @@ export class FlashService {
   #keepalive: Promise<void> = Promise.resolve();
   #post: (PostFlashView & { readonly baseline: Readonly<Record<string, number | string>> }) | null = null;
   #seen: SeenInputs = new Map();
-  /** Ends Connect's banner wait now (Cancel), while it listens. */
+  /** Ends a wait now (Cancel, Disconnect): Connect's banner wait, or recovery's wait for the bootloader. */
   #stopWait: (() => void) | null = null;
+  /** Settles when the guarded Connect or the run in progress has ended (Disconnect waits for it). */
+  #settled: Promise<unknown> = Promise.resolve();
+  /** A marked board whose firmware answered Connect's probe: the board id the session reads decides its mark. */
+  #probed: BootloaderMark | null = null;
   #installed = new Map<string, { sha256: string; fb: number | null }>();
   /** The bootloader link's bytes for the last run, from the moment it asked for the bootloader. */
   #transcript: EventLog | null = null;
 
   constructor(deps: FlashServiceDeps) {
     this.#d = deps;
+    this.#saved = new BackupsWait(deps.clock, deps.postBackups);
     deps.session.subscribe((s) => this.#onSnapshot(s));
   }
 
@@ -338,25 +327,30 @@ export class FlashService {
       result: null,
     };
     this.#d.onChange();
-    void this.#run(id, b.recovery);
+    this.#settled = this.#run(id, b.recovery);
     return { ok: true };
   }
 
   /** The page stored the backups: `sha256` is the image backup's, as the page stored it. */
   backupsSaved(sha256: string): FlashReply {
-    const w = this.#saved;
-    if (w === null) return fail('No backups are waiting to be saved.');
-    if (sha256 !== w.sha256) {
-      w.reject(new Error('the stored image backup is not the one read from the board'));
-      this.#saved = null;
-      return fail('The stored image backup does not match what was read from the board.');
-    }
-    this.#saved = null;
-    w.resolve();
-    return { ok: true };
+    const refused = this.#saved.confirm(sha256);
+    return refused === null ? { ok: true } : fail(refused);
   }
 
-  /** Cancel: Connect's banner wait at any time (the mark stays); an update only before the first page is written. */
+  /**
+   * Disconnect: 'free' when the flash service does not hold the port. While Run only waits (for a banner, or for the
+   * bootloader in recovery) the wait ends first ('stopped'): the port and the lock are released and the mark stays.
+   * 'busy' while an update runs that is not just waiting (it is never stopped there).
+   */
+  async freeForDisconnect(): Promise<'free' | 'stopped' | 'busy'> {
+    if (!this.#running) return 'free';
+    if (this.#stopWait === null) return 'busy';
+    this.#stopWait();
+    await this.#settled;
+    return 'stopped';
+  }
+
+  /** Cancel: a wait at any time (the mark stays); an update only before the first page is written. */
   cancel(): FlashReply {
     if (this.#stopWait !== null) {
       this.#stopWait();
@@ -365,8 +359,7 @@ export class FlashService {
     if (!this.#running) return fail('Nothing to cancel.');
     if (this.#view?.wrote === true) return fail('Writing has started: it cannot be cancelled. Let it finish.');
     this.#cancelled = true;
-    this.#saved?.reject(new Error('cancelled'));
-    this.#saved = null;
+    this.#saved.drop(new Error('cancelled'));
     return { ok: true };
   }
 
@@ -452,6 +445,7 @@ export class FlashService {
       this.#port = s.portSelector;
       this.#board = boardFacts(s);
     }
+    this.#settleProbe(s);
     // After a marked Connect whose update may have written: what the board reports, once it identified.
     const check = versionCheckDue(this.#view, s);
     if (check !== null) this.#set({ versionCheck: check });
@@ -463,12 +457,36 @@ export class FlashService {
     }
   }
 
-  /** Every connection checks ESC/S before normal traffic. Failed-flash records still require a live banner. */
+  /**
+   * After a Connect whose firmware answered the probe: once the session read the board id, the mark clears when it
+   * is that board's; another board keeps it and the view becomes the note about the marked board (as for a banner).
+   */
+  #settleProbe(s: SessionSnapshot): void {
+    const mark = this.#probed;
+    if (mark === null || s.base === 'NOT_CONNECTED' || s.identity === null) return;
+    this.#probed = null;
+    void settleProbedMark(this.#d.marks, mark, s.identity.id).then(
+      (cleared) => {
+        this.#view = viewAfterBanner(this.#view, mark, cleared);
+        this.#begin = null;
+        this.#d.onChange();
+      },
+      () => this.#set({ message: 'Run could not clear the board safety record. Connect again to retry.' }),
+    );
+  }
+
+  /**
+   * Every connection checks ESC/S before normal traffic. A marked board then gets the one line end (markProbe.ts):
+   * a firmware that answers is connected; otherwise only a live banner proves it.
+   */
   async guardConnect(port: PortSelector, inner: Transport, boardId?: string): Promise<Transport | string> {
     if (this.#running) return 'A firmware update is using the port.';
     let link: BootloaderLink | null = null;
     let marked = false;
     this.#running = true;
+    this.#probed = null;
+    let settle = (): void => undefined;
+    this.#settled = new Promise<void>((resolve) => { settle = resolve; });
     try {
       const mark = await this.#d.marks.find(port, boardId);
       marked = mark !== null;
@@ -477,7 +495,7 @@ export class FlashService {
       this.#transcript = new EventLog(this.#d.clock.now());
       link = new BootloaderLink(mark === null ? checkedTransport(port, inner, this.#d.marks, boardId) : inner, this.#d.clock, X192A3, this.#transcript);
       await link.openProbe(mark === null || mark.kind === 'detected');
-      if (await link.checkBootloader()) {
+      if (await avr109Check(link, marked)) {
         const found = await this.#foundBootloader(link, mark, port, boardId);
         link = null;
         return found;
@@ -485,6 +503,11 @@ export class FlashService {
       if (mark === null) {
         if (await this.#d.marks.find(port, boardId)) throw new Error('The board was quarantined during the pre-check.');
         return await link.finishOrdinaryPrecheck();
+      }
+      if (await firmwareAnswers(link)) {
+        // The firmware runs (markProbe.ts). The board id the session reads settles the mark (#onSnapshot).
+        this.#probed = mark;
+        return link.applicationTransport();
       }
       const stop = new Promise<void>((resolve) => { this.#stopWait = resolve; });
       const outcome = await listenForBanner(link, this.#d.clock, (bannerWait) => this.#set({ bannerWait }), stop);
@@ -504,6 +527,7 @@ export class FlashService {
     } finally {
       this.#stopWait = null;
       this.#running = false;
+      settle();
       this.#d.onChange();
     }
   }
@@ -648,19 +672,12 @@ export class FlashService {
       const mark: BootloaderMark = { nonce: crypto.randomUUID(), port, boardId: this.#board?.id ?? null, recovery: { begin, view: this.#view }, wrote: startsWritten(recovery, this.#view) };
       await this.#d.marks.put(mark);
       this.#set({ marked: true });
-      if (!recovery) {
-        const entered = await enterBootloader(this.#d.session);
-        if (entered !== null) {
-          await this.#d.session.disconnect();
-          this.#finish(id, { phase: 'failed', message: withAdvice(entered), recoveryOffered: true });
-          return;
-        }
-      }
-      link = recovery ? await this.#recoveryLink(id, auth, port) : await this.#openLink(auth, port);
-      if (link === null) {
-        this.#finish(id, { phase: 'failed', message: withAdvice(recovery ? `The bootloader did not answer. ${this.#diagnosis()}` : 'The port could not be opened in bootloader role.'), recoveryOffered: true });
+      const entry = await this.#entryLink(id, auth, port, recovery);
+      if (typeof entry === 'string') {
+        this.#finish(id, { phase: 'failed', message: withAdvice(entry), recoveryOffered: true });
         return;
       }
+      link = entry.link;
       const client = new XbootClient(link, this.#d.clock, X192A3);
       const plan = planFlash(auth.image, null);
       const outcome: FlashOutcome = await runFlash(
@@ -675,14 +692,14 @@ export class FlashService {
           // The last step before the first page: the mark, then the view, say the flash was written. From here a
           // cancel is refused, so the view and the mark agree (a restored card reads the mark).
           backupsReady: async (backups) => {
-            await this.#saveBackups(id, backups);
+            await this.#saved.save(id, this.#board, backups);
             await this.#d.marks.put({ ...mark, wrote: true });
             this.#set({ wrote: true });
           },
           cancelled: () => this.#cancelled,
           beforeFirstWrite: () => this.#set({ wrote: true }),
         },
-        { entryMs: recovery ? 4000 : 10_000 },
+        { entryMs: entry.viaBoot ? 10_000 : 4000 },
       );
       if (!outcome.ok) {
         await link.close();
@@ -721,83 +738,47 @@ export class FlashService {
   #finish(id: number, patch: Partial<FlashView>): void {
     if (this.#view?.id !== id) return;
     this.#running = false;
-    this.#saved = null;
+    this.#saved.drop();
     this.#set(patch);
   }
 
-  async #openLink(auth: FlashAuthorization, port: PortSelector): Promise<BootloaderLink | null> {
-    // The FTDI bridge stays on the bus while the board resets: the same port, asked for by the same selector, once the
-    // session's link has closed it (a port that is still closing cannot be opened again).
-    await this.#d.session.portReleased();
-    await sleep(this.#d.clock, 300);
-    const inner = await this.#d.source.request(port).catch(() => null);
-    if (inner === null) return null;
-    const link = new BootloaderLink(inner, this.#d.clock, X192A3, this.#transcript);
-    const token = auth.capability();
-    if (token === null) return null;
-    await link.open(token);
-    return link;
-  }
-
-  /** Recovery: keep the port open and send ESC until the bootloader answers; reopen it after the user replugs. */
-  async #recoveryLink(id: number, auth: FlashAuthorization, port: PortSelector): Promise<BootloaderLink | null> {
-    const waiting = await this.#takeBootloader();
-    if (waiting !== null) {
-      try { waiting.authorizeUpdate(auth.capability() ?? undefined); return waiting; }
-      catch { await waiting.close(); }
-    }
-    const clock = this.#d.clock;
-    const start = clock.now();
-    while (clock.now() - start < RECOVERY_MS && this.#view?.id === id && !this.#cancelled) {
-      const left = RECOVERY_MS - (clock.now() - start);
-      let link: BootloaderLink | null = null;
-      try {
-        link = await this.#openLink(auth, port);
-      } catch {
-        link = null;
-      }
-      if (link === null) {
-        this.#set({ countdown: Math.ceil(left / 1000), note: 'Waiting for the board to come back on USB…' });
-        await sleep(clock, 500);
-        continue;
-      }
-      const client = new XbootClient(link, clock, X192A3);
-      try {
-        await recoverEntry(client, () => clock.now(), left, (seconds) => this.#set({ countdown: seconds }), (ms) => sleep(clock, ms));
-        this.#set({ countdown: null, note: 'The bootloader answered.' });
-        return link;
-      } catch {
-        await link.close().catch(() => undefined);
-        await sleep(clock, 300);
-      }
-    }
-    return null;
-  }
-
-  async #saveBackups(id: number, backups: FlashBackups): Promise<void> {
-    const hex = toIntelHex(backups.flash, X192A3);
-    const sha256 = await sha256Hex(hex);
-    const board = this.#board;
-    const message: FlashBackupsMessage = { id, boardId: board?.id ?? null, fb: board?.fb ?? null, fv: board?.fv ?? null, eeprom: backups.eeprom, hex, sha256, crc: crc16(backups.flash) };
-    return new Promise<void>((resolve, reject) => {
-      const timer = this.#d.clock.setTimeout(() => {
-        if (this.#saved?.sha256 !== sha256) return;
-        this.#saved = null;
-        reject(new Error('the page did not confirm that it stored the backups'));
-      }, BACKUP_SAVE_MS);
-      this.#saved = {
-        sha256,
-        resolve: () => {
-          this.#d.clock.clearTimeout(timer);
-          resolve();
+  /**
+   * Steps 2 and 3: the board into its bootloader and the port open in bootloader role, or why not. `viaBoot`: entered
+   * through `{"boot":1}` (xboot's long window). Recovery looks first (entryLinks.ts); while it only waits, Cancel and
+   * Disconnect end the wait.
+   */
+  async #entryLink(id: number, auth: FlashAuthorization, port: PortSelector, recovery: boolean): Promise<{ readonly link: BootloaderLink; readonly viaBoot: boolean } | string> {
+    const d: EntryDeps = { session: this.#d.session, source: this.#d.source, clock: this.#d.clock, transcript: this.#transcript };
+    if (recovery) {
+      let held: BootloaderLink | null = null;
+      this.#stopWait = () => { this.#cancelled = true; void held?.close(); };
+      const found = await recoveryEntry(d, auth, port, {
+        waiting: () => this.#takeBootloader(),
+        firmware: async (transport) => {
+          this.#stopWait = null;
+          // The board to recover, read before the session connects (a connected session updates #board).
+          const before = this.#board;
+          const want = before?.id ?? null;
+          const reply = await this.#connect(port, transport);
+          await sessionSettled(this.#d.session, this.#d.clock, SESSION_SETTLE_MS);
+          this.#set({ phase: 'entering', countdown: null, note: null, versionCheck: null });
+          const got = this.#d.session.snapshot.identity?.id ?? null;
+          if (reply.ok && (want === null || got === want)) return null;
+          await this.#d.session.disconnect();
+          this.#board = before;
+          return reply.ok ? `This is board ${got ?? 'unknown'}, not board ${want ?? 'unknown'}. Nothing was written. Connect board ${want ?? 'unknown'} to recover it.` : reply.message;
         },
-        reject: (e) => {
-          this.#d.clock.clearTimeout(timer);
-          reject(e);
-        },
-      };
-      this.#d.postBackups(message);
-    });
+        wait: { alive: () => this.#view?.id === id && !this.#cancelled, show: (patch) => this.#set(patch), holding: (link) => { held = link; } },
+      }).finally(() => { this.#stopWait = null; });
+      if (found !== 'firmware') return typeof found === 'string' ? found : { link: found, viaBoot: false };
+    }
+    const entered = await enterBootloader(this.#d.session);
+    if (entered !== null) {
+      await this.#d.session.disconnect();
+      return entered;
+    }
+    const link = await openFlashLink(d, auth, port);
+    return link === null ? 'The port could not be opened in bootloader role.' : { link, viaBoot: true };
   }
 
   async #connect(port: PortSelector, verified?: Transport): Promise<FlashReply> {
@@ -826,8 +807,4 @@ export class FlashService {
     if (view !== null) this.#set({ versionCheck: versionCheck(view.target.fb, this.#d.session.snapshot.identity?.fb ?? null) });
     return { ok: true };
   }
-}
-
-function sleep(clock: SessionClock, ms: number): Promise<void> {
-  return new Promise((resolve) => clock.setTimeout(resolve, ms));
 }

@@ -105,6 +105,14 @@ it('Board → Firmware says the board is marked and that Connect, then Reset, cl
   expect(html).toContain('data-safety="W28"');
 });
 
+it('the recovery countdown offers Cancel (Run only waits there) and keeps W28; no Try again while it counts', () => {
+  const f: FlashView = { ...flash(null), phase: 'recovery', countdown: 31, message: null };
+  const html = renderToString(h(FirmwareTab, { view: { message: { snapshot: { base: 'NOT_CONNECTED', identity: null, classification: null, values: {} }, flash: f, flasher: true } } as unknown as LiveView }));
+  expect(html).toContain('data-action="flash-cancel"');
+  expect(html).toContain('data-safety="W28"');
+  expect(html).not.toContain('data-action="flash-recover"');
+});
+
 it.each([
   ['the Recovery card', true],
   ['the Update stopped card', false],

@@ -33,6 +33,8 @@
 import { ByteBuffer, FrameGuard, LinkClosed, consumeBootloaderCapability, type BootloaderCapability, type ByteLink, type FlasherClock, type Part } from '@synthetos/flasher';
 import { classifyLine, type Banner } from '@synthetos/protocol';
 import { PrecheckReply } from './precheckReply.ts';
+import { ApplicationAnswer } from './applicationAnswer.ts';
+import { ApplicationQueue } from './applicationQueue.ts';
 import type { EventLog } from './eventLog.ts';
 import { TRANSPORT_BUFFER_SIZE, decideOpen } from './openPolicy.ts';
 import type { Transport, TransportOpenOptions } from './transport.ts';
@@ -75,14 +77,15 @@ export class BootloaderLink implements ByteLink {
   #exitOnce = false;
   #reply: PrecheckReply | null = null;
   readonly #replySignal: ByteBuffer;
+  /** The application probe's answer while it listens (null after; undefined before it ran). */
+  #answer: ApplicationAnswer | null | undefined = undefined;
+  readonly #answerSignal: ByteBuffer;
   #bannerArmed = false;
   #banner: Banner | null = null;
   #bannerLine = '';
   readonly #bannerSignal: ByteBuffer;
   #handed = false;
-  #appChunks: Uint8Array[] = [];
-  #appBytes = 0;
-  #wakeApp: (() => void) | null = null;
+  readonly #app = new ApplicationQueue(() => this.#end('application handoff buffer overflow'));
   #disconnect: (() => void) | null = null;
   #tail: Promise<void> = Promise.resolve();
   /** A short transcript (bounded). */
@@ -98,6 +101,7 @@ export class BootloaderLink implements ByteLink {
     this.#buffer = new ByteBuffer(clock);
     this.#bannerSignal = new ByteBuffer(clock);
     this.#replySignal = new ByteBuffer(clock);
+    this.#answerSignal = new ByteBuffer(clock);
     inner.onDisconnect(() => this.#end('the USB link dropped'));
   }
 
@@ -180,7 +184,7 @@ export class BootloaderLink implements ByteLink {
       while (this.#clock.now() < until) {
         const byte = await this.read(1, until - this.#clock.now());
         tail = (tail + String.fromCharCode(byte[0] as number)).slice(-this.#part.programId.length);
-        if (tail === this.#part.programId) { this.#signature = true; this.#appChunks = []; this.#appBytes = 0; break; }
+        if (tail === this.#part.programId) { this.#signature = true; this.#app.clear(); break; }
       }
     } catch (error) {
       if (this.closed || this.#writeFailed) throw error;
@@ -197,10 +201,39 @@ export class BootloaderLink implements ByteLink {
     try { await withDeadline(this.#inner.writeLine(Uint8Array.of(10)), BOOTLOADER_WRITE_MS, this.#clock, 'the pre-check line end'); }
     catch (error) { this.#writeFailed = true; throw error; }
     try { await this.#replySignal.read(1, 200); } catch { /* Silence belongs to the ordinary probe. */ }
-    this.#applicationBytes(this.#reply.finish());
+    this.#app.push(this.#reply.finish());
     this.#reply = null;
     this.#ordinaryReady = true;
     return this.applicationTransport();
+  }
+
+  /**
+   * A marked probe whose AVR109 check got no signature: one line end, the only byte added to ESC and S (xboot: not a
+   * command, answered `?`; its entry window ignores it). True when a TinyG answered (applicationAnswer.ts): the
+   * firmware runs, and the port may be handed over as after an ordinary pre-check (one error reply dropped, the rest
+   * kept). False otherwise: the quarantine stands and nothing more may be written. Once per link. On a link opened
+   * for a board found in its bootloader (ordinary, for Start firmware) the answer is held here too while it listens.
+   */
+  async probeApplication(timeoutMs: number): Promise<boolean> {
+    const allowed = this.#probeOnly && this.#prechecked && !this.#signature && this.#answer === undefined && !this.#handed;
+    if (!allowed || this.closed || this.#writeFailed) throw new BootloaderLinkError('the application probe is forbidden');
+    const answer = new ApplicationAnswer();
+    const passing = this.#ordinary;
+    this.#answer = answer;
+    this.#ordinary = false;
+    this.#record('tx', Uint8Array.of(10));
+    try { await withDeadline(this.#inner.writeLine(Uint8Array.of(10)), BOOTLOADER_WRITE_MS, this.#clock, 'the application probe line end'); }
+    catch (error) { this.#writeFailed = true; throw error; }
+    await this.#answerSignal.read(1, timeoutMs).catch(() => undefined);
+    this.#answer = null;
+    this.#ordinary = passing || answer.proven;
+    if (!answer.proven) return false;
+    this.#ordinaryReady = true;
+    // A banner during the probe: its own path already keeps the bytes from the banner on.
+    if (this.#banner !== null) return true;
+    const reply = new PrecheckReply();
+    this.#app.push(Uint8Array.from([...reply.push(answer.bytes()), ...reply.finish()]));
+    return true;
   }
 
   /** Continue on this identified port only after the normal image/hardware authorization issued a fresh capability. */
@@ -211,15 +244,17 @@ export class BootloaderLink implements ByteLink {
     this.#ordinary = false;
     this.#bannerArmed = false;
     this.#banner = null;
-    this.#appChunks = [];
-    this.#appBytes = 0;
+    this.#app.clear();
   }
 
   /** A quarantined probe may finish its bare S only after the fresh ready banner proved firmware. */
   async finishReadyPrecheck(): Promise<Transport> {
     if (this.#banner === null || this.#signature) throw new BootloaderLinkError('a fresh firmware banner is required');
     this.#ordinary = true;
-    return this.finishOrdinaryPrecheck();
+    if (this.#answer === undefined) return this.finishOrdinaryPrecheck();
+    // The application probe already ended the bare S with its line end: nothing more is written.
+    this.#ordinaryReady = true;
+    return this.applicationTransport();
   }
 
   /** Explicit user action, only after this unmarked probe identified XBoot++. Never available to quarantine probes. */
@@ -237,8 +272,7 @@ export class BootloaderLink implements ByteLink {
     this.#banner = null;
     this.#bannerLine = '';
     this.#bannerSignal.discard();
-    this.#appChunks = [];
-    this.#appBytes = 0;
+    this.#app.clear();
   }
 
   get firmwareBanner(): Banner | null { return this.#banner; }
@@ -264,30 +298,15 @@ export class BootloaderLink implements ByteLink {
         if (!opened || this.closed || this.#writeFailed) throw new LinkClosed('application link is closed');
         try { await this.#inner.writeLine(bytes); } catch (error) { this.#writeFailed = true; throw error; }
       },
-      readable: { [Symbol.asyncIterator]: () => ({ next: async (): Promise<IteratorResult<Uint8Array>> => {
-        while (!this.closed) {
-          const chunk = this.#appChunks.shift();
-          if (chunk !== undefined) { this.#appBytes -= chunk.length; return { done: false, value: chunk }; }
-          await new Promise<void>(resolve => { this.#wakeApp = resolve; });
-        }
-        return { done: true, value: undefined };
-      } }) },
+      readable: { [Symbol.asyncIterator]: () => ({ next: () => this.#app.next(() => this.closed) }) },
       close: async () => { await this.close(); },
       onDisconnect: callback => { this.#disconnect = callback; },
     };
   }
 
-  #applicationBytes(bytes: Uint8Array): void {
-    this.#appBytes += bytes.length;
-    if (this.#appBytes > 65536) { this.#end('application handoff buffer overflow'); return; }
-    if (bytes.length > 0) this.#appChunks.push(bytes.slice());
-    this.#wakeApp?.();
-    this.#wakeApp = null;
-  }
-
   #observeBanner(chunk: Uint8Array): void {
     if (!this.#bannerArmed) return;
-    if (this.#banner !== null) { if (!this.#ordinary) this.#applicationBytes(chunk); return; }
+    if (this.#banner !== null) { if (!this.#ordinary) this.#app.push(chunk); return; }
     for (let i = 0; i < chunk.length; i++) {
       const byte = chunk[i];
       if (byte === 10 || byte === 13) {
@@ -297,8 +316,8 @@ export class BootloaderLink implements ByteLink {
         if (frame.kind === 'Banner' && frame.ready !== false && frame.fb !== undefined && frame.fv !== undefined) {
           this.#banner = frame;
           if (!this.#ordinary) {
-            this.#applicationBytes(new TextEncoder().encode(line + '\n'));
-            this.#applicationBytes(chunk.slice(i + 1));
+            this.#app.push(new TextEncoder().encode(line + '\n'));
+            this.#app.push(chunk.slice(i + 1));
           }
           this.#bannerSignal.push(Uint8Array.of(1));
           return;
@@ -334,8 +353,8 @@ export class BootloaderLink implements ByteLink {
     this.#buffer.end(new LinkClosed(why));
     this.#bannerSignal.end(new LinkClosed(why));
     this.#replySignal.end(new LinkClosed(why));
-    this.#wakeApp?.();
-    this.#wakeApp = null;
+    this.#answerSignal.end(new LinkClosed(why));
+    this.#app.wake();
     this.#disconnect?.();
   }
 
@@ -353,10 +372,12 @@ export class BootloaderLink implements ByteLink {
         if (this.#state === 'closed') break;
         this.#record('rx', chunk);
         if (this.#ordinary) {
-          this.#applicationBytes(this.#reply === null ? chunk : this.#reply.push(chunk));
+          this.#app.push(this.#reply === null ? chunk : this.#reply.push(chunk));
           if (this.#reply?.done === true) this.#replySignal.push(Uint8Array.of(1));
         }
         this.#observeBanner(chunk);
+        this.#answer?.push(chunk);
+        if (this.#answer?.proven === true) this.#answerSignal.push(Uint8Array.of(1));
         if (!this.#handed) this.#buffer.push(chunk);
       }
     } catch {

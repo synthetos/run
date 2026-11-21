@@ -87,6 +87,11 @@ export class FlashableBoard implements SimDevice {
   #state: BoardState = 'dead';
   #app: TinyGEdgeNextModel | null = null;
   #bannerDelay = 0;
+  /**
+   * Test control: set true, the running application stops reading the host (a hung firmware). It answers nothing, not
+   * even a line end, until the next reset or power cycle starts it again (which sets this back to false).
+   */
+  applicationFrozen = false;
 
   constructor(options: FlashableBoardOptions = {}) {
     this.#options = options;
@@ -123,7 +128,7 @@ export class FlashableBoard implements SimDevice {
   }
 
   receive(byte: number, overrun: boolean): void {
-    if (this.#state === 'app') this.#app?.receive(byte, overrun);
+    if (this.#state === 'app') { if (!this.applicationFrozen) this.#app?.receive(byte, overrun); }
     else if (this.#state === 'bootloader' && this.#options.line?.bridgeHoldsHostBytesInBootloader !== true) this.xboot.receive(byte);
   }
 
@@ -172,6 +177,7 @@ export class FlashableBoard implements SimDevice {
   #enterBootloader(softwareReset: boolean): void {
     const io = this.#io as DeviceIo;
     this.#app = null;
+    this.applicationFrozen = false;
     this.#state = 'bootloader';
     this.#syncEepromBytes();
     this.#note(softwareReset ? 'bootloader (software reset, 60 s window)' : 'bootloader (reset, short window)');

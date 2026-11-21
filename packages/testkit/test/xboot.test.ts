@@ -160,6 +160,24 @@ describe('the fake xboot: entry windows and the watchdog', () => {
     expect(text).toContain('SYSTEM READY');
   });
 
+  it('a frozen application hears nothing until the reset button, which starts it again with its banner', () => {
+    const { clock, board, endpoint } = rig();
+    let text = '';
+    endpoint.onHostData((c) => (text += new TextDecoder().decode(c)));
+    clock.advance(500);
+    board.applicationFrozen = true;
+    endpoint.hostWrite(new TextEncoder().encode('\x1bS\n{"id":null}\n'));
+    clock.advance(2000);
+    expect(text).toBe('');
+    board.resetBoard();
+    clock.advance(6000);
+    expect(text).toContain('SYSTEM READY');
+    text = '';
+    endpoint.hostWrite(new TextEncoder().encode('\x1bS\n'));
+    clock.advance(500);
+    expect(text).toContain('"f":[');
+  });
+
   it('the watchdog resets a board left waiting in a command (here, half an address) into the short window', async () => {
     const { clock, board, endpoint, client } = rig({ start: 'bootloader' });
     await drive(clock, client.enter(2000));

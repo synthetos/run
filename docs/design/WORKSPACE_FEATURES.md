@@ -308,10 +308,14 @@ verify → reconnect → version check → offer to restore.
 - Normal entry: open the port at 115200 8N1, send `{"boot":1}` plus newline;
   the board resets into xboot and waits 60 s; discard leftovers, send ESC,
   flash over AVR109 block mode with CRC (part x192a3). No DTR/RTS.
-- Recovery: with no running application, the user unplugs and replugs USB (or
-  resets) while Run sends ESC repeatedly within the short LED-blink window. The
-  panel shows "Unplug the USB cable and plug it back in now" with a countdown.
-  The bootloader survives a failed flash, so a retry always works.
+- Recovery: Run first checks the port. A bootloader that answers is used; a
+  firmware that answers a line end is running, so the update goes in through
+  `{"boot":1}`. Only with no answer does the user press Reset on the board (or
+  switch its power off and on) while Run sends ESC and S continuously, so the
+  short LED-blink window (about 3 s on a v8) is caught whenever it comes.
+  Replugging USB does not reset a TinyG v8 (the USB bridge is USB-powered, the
+  processor is not). The panel shows a countdown with Cancel. The bootloader
+  survives a failed flash, so a retry always works.
 - Before writing, Run also takes a raw EEPROM read over AVR109 and stores it
   with the backup as a second recovery copy. The token-by-token JSON backup
   stays the primary copy used for restore.

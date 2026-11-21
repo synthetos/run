@@ -349,7 +349,8 @@ describe('the firmware update in the worker', () => {
     await r.marks.put({ ...original, boardId });
     expect(await r.call({ v: 3, kind: 'flash', command: { op: 'reconnect' } })).toMatchObject({ ok: false });
     expect(await r.marks.find(PORT)).not.toBeNull();
-    expect((await flashLines(r)).filter(line => line.dir === 'tx').map(line => line.hex)).toEqual(['1b', '53']);
+    // The board is still booting (it hears nothing): the AVR109 check and the one line end go unanswered.
+    expect((await flashLines(r)).filter(line => line.dir === 'tx').map(line => line.hex)).toEqual(['1b', '53', '0a']);
     await r.until(() => false, 5000);
     expect(await r.call({ v: 3, kind: 'flash', command: { op: 'reconnect' } })).toMatchObject({ ok: true });
     if (identity === 'different') expect(await r.marks.find(PORT)).toMatchObject({ nonce: original.nonce, boardId: 'ANOTHER-BOARD' });

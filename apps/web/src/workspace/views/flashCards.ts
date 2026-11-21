@@ -45,6 +45,8 @@ export function RecoveryCard({ flash, actions }: { readonly flash: FlashView; re
     flash.message === null ? null : h('p', { role: 'alert' }, flash.message),
     counting ? h('p', { class: 'recovery-count', role: 'alert', 'data-safety': 'W49' }, w49({ seconds: flash.countdown ?? 0 })) : h('p', null, retry),
     h('p', { class: 'flash-danger', 'data-safety': 'W28' }, ...signalText(w28())),
+    // Run only waits here (ESC and S, nothing written): Cancel ends the wait and frees the port; the mark stays.
+    counting ? h('button', { type: 'button', class: 'small', 'data-action': 'flash-cancel', disabled: actions?.firmware === undefined, onClick: () => void actions?.firmware?.cancel() }, 'Cancel') : null,
     counting ? null : h('button', { type: 'button', class: 'primary wide', 'data-machine-control': 'flash', 'data-action': 'flash-recover', disabled: actions?.firmware === undefined, onClick: () => void actions?.firmware?.recover() }, 'Try the update again'));
 }
 

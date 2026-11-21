@@ -66,14 +66,14 @@
     },
     "apps/web/src/machine-worker/flashService.ts": {
       "complexity $/ClassDeclaration:FlashService#1/FunctionExpression:begin#1": 19,
-      "complexity $/ClassDeclaration:FlashService#1/FunctionExpression:run#1": 27,
-      "max-lines $file": 671,
+      "complexity $/ClassDeclaration:FlashService#1/FunctionExpression:run#1": 23,
+      "max-lines $file": 634,
       "max-methods $/ClassDeclaration:FlashService#1": 35
     },
     "apps/web/src/machine-worker/hostCore.ts": {
       "complexity $/ClassDeclaration:MachineWorkerCore#1/FunctionExpression:flashCommand#1": 18,
-      "complexity $/ClassDeclaration:MachineWorkerCore#1/FunctionExpression:handle#1": 65,
-      "max-lines-per-function $/ClassDeclaration:MachineWorkerCore#1/FunctionExpression:handle#1": 120,
+      "complexity $/ClassDeclaration:MachineWorkerCore#1/FunctionExpression:handle#1": 61,
+      "max-lines-per-function $/ClassDeclaration:MachineWorkerCore#1/FunctionExpression:handle#1": 110,
       "max-params $/ClassDeclaration:MachineWorkerCore#1/FunctionExpression:constructor#1": 7
     },
     "apps/web/src/machine-worker/rpc.ts": {

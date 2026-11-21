@@ -235,18 +235,8 @@ export class MachineWorkerCore {
           return refusal('open', outcome.code, outcome.reason);
         } finally { this.#opening = false; }
       }
-      case 'close': {
-        if (this.#flash.busy) return refusal('close', 'unavailable', 'A firmware update is using the port. Let it finish.');
-        const closing = this.#session.disconnect();
-        ++this.#preparationId;
-        await this.#flash.closeBootloader();
-        this.#prepared = null;
-        const abandoned = this.#approved;
-        this.#approved = null;
-        if (this.#opening) await abandoned?.transport.close();
-        const decision = await closing;
-        return decision.allowed ? Object.freeze({ v: RPC_VERSION, ok: true, kind: 'close' }) : denied('close', decision);
-      }
+      case 'close':
+        return this.#close();
       case 'intent': {
         const decision = this.#role.intent(this.#session, request.intent);
         return decision.allowed ? Object.freeze({ v: RPC_VERSION, ok: true, kind: 'intent' }) : denied('intent', decision);
@@ -294,6 +284,25 @@ export class MachineWorkerCore {
         });
       default: return refusal('status', 'denied', 'This page only updates firmware.');
     }
+  }
+
+  /**
+   * Disconnect. While the flash service only waits (for a banner, or for the bootloader in recovery) the wait ends
+   * first, the port and the lock are released and the mark stays; no session was connected, so that is the whole
+   * Disconnect. During an update that writes it is refused.
+   */
+  async #close(): Promise<MachineReply> {
+    const flash = await this.#flash.freeForDisconnect();
+    if (flash === 'busy') return refusal('close', 'unavailable', 'A firmware update is using the port. Let it finish.');
+    const closing = this.#session.disconnect();
+    ++this.#preparationId;
+    await this.#flash.closeBootloader();
+    this.#prepared = null;
+    const abandoned = this.#approved;
+    this.#approved = null;
+    if (this.#opening) await abandoned?.transport.close();
+    const decision = await closing;
+    return decision.allowed || flash === 'stopped' ? Object.freeze({ v: RPC_VERSION, ok: true, kind: 'close' }) : denied('close', decision);
   }
 
   /** Verifies the signed manifest now (its validity window uses this clock) and hands it to the session. */

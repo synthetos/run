@@ -236,10 +236,13 @@ async function verifyPages(
 
 /**
  * Recovery entry (SAFETY H80): the board has no running application, so
- * `{"boot":1}` cannot be sent. The user unplugs and replugs USB (or presses
- * reset) while run sends ESC and `S` repeatedly; xboot then waits about 4.8 s
- * for ESC (XB src/xboot.c:236-246). Resolves once xboot answers, or rejects
- * with `no-entry` after `deadlineMs`. `onTick` reports the seconds left.
+ * `{"boot":1}` cannot be sent. The user presses Reset (or switches the
+ * board's power off and on) while run sends ESC and `S` repeatedly; xboot
+ * then waits a few seconds for ESC (about 3 s on a TinyG v8, longer on newer
+ * builds; XB src/xboot.c:236-246). Replugging USB does not reset a v8: its
+ * USB bridge is powered by USB, the processor is not. Resolves once xboot
+ * answers, or rejects with `no-entry` after `deadlineMs`. `onTick` reports
+ * the seconds left.
  */
 export async function recoverEntry(client: XbootClient, clockNow: () => number, deadlineMs: number, onTick: (secondsLeft: number) => void, pause: (ms: number) => Promise<void>): Promise<void> {
   const start = clockNow();
@@ -258,7 +261,7 @@ export async function recoverEntry(client: XbootClient, clockNow: () => number, 
     }
     await pause(10);
   }
-  throw new XbootError('no-entry', 'The bootloader did not answer. Unplug the USB cable and plug it back in, then try again.');
+  throw new XbootError('no-entry', 'The bootloader did not answer. Press Reset on the board, or switch its power off and on, then try again.');
 }
 
 export { sleep };

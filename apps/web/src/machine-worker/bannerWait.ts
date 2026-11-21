@@ -9,7 +9,8 @@ import type { SessionClock } from '@synthetos/machine';
 
 /**
  * 30 s. A person reads the guidance, finds the Reset button (or the power switch) and presses it: about 10-15 s.
- * The board then spends xboot's 4.8 s reset window before the firmware prints its banner. 30 s covers both with
+ * The board then spends xboot's reset window (about 3 s on a v8, longer on newer xboot builds) before the firmware
+ * prints its banner. 30 s covers both with
  * margin, and is short enough that the port and the machine lock are not held for long when nobody acts. Try again
  * starts another wait.
  */

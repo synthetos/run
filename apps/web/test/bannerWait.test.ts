@@ -1,14 +1,11 @@
 /**
  * Connect on a board marked after a failed update (owner report 2026-11-20, TinyG v8 3Y2462-WWR). A TinyG prints its
  * banner once, at power-up or reset. Connect listens long enough for a person to press Reset while it waits, shows
- * the countdown, and clears the mark only on a live banner from the marked board. Before that banner nothing but the
- * AVR109 check (ESC, S) is written.
+ * the countdown, and clears the mark only on a live banner from the marked board. The firmware here is frozen: it
+ * answers nothing, so the one line end after the AVR109 check proves nothing (markProbe.test.ts has a firmware that
+ * answers). Before that banner nothing but ESC, S and that line end is written.
  */
 import { describe, expect, it } from 'vitest';
-import type { PortSelector, TransportSource } from '@synthetos/machine';
-import { PHASE_1_RELEASE } from '@synthetos/safety';
-import { FlashableBoard, SimEndpoint, VirtualClock } from '@synthetos/testkit';
-import { memoryBootloaderMarks } from '../src/machine-worker/bootloaderMark.ts';
 import { BANNER_WAIT_MS } from '../src/machine-worker/bannerWait.ts';
 import { BOOTLOADER_ADVICE } from '../src/machine-worker/bootloaderAdvice.ts';
 import type { FlashView } from '../src/machine-worker/flashService.ts';
@@ -16,62 +13,15 @@ import type { LiveView } from '../src/workspace/model.ts';
 import { FirmwareTab } from '../src/workspace/views/FirmwareViews.ts';
 import { h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
-import { MachineWorkerHost } from '../src/machine-worker/host.ts';
 import type { MachineReply } from '../src/machine-worker/rpc.ts';
-import { SimTransport } from './simTransport.ts';
-
-const PORT: PortSelector = Object.freeze({ usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0 });
-const BOARD = 'SIM-EN-0001';
-const OPEN = { v: 3, kind: 'open', port: PORT, boardId: null, previousSessionEnded: false };
-const SAVED_VIEW = { id: 1, phase: 'failed', done: 3, of: 10, note: null, source: 'release', target: { fb: 450.02, label: '450.02', sha256: 'x' }, boardId: BOARD, board: { id: BOARD, hv: 99, fb: 450.01, fv: 0.97 }, countdown: null, wrote: false, message: null, recoveryOffered: true, versionCheck: null, result: null };
-
-interface WireLine { readonly t: number; readonly dir: 'tx' | 'rx'; readonly hex: string }
+import { BOARD, OPEN, PORT, markedBoard } from './markedBoard.ts';
 
 /** `wrote`: the fact the mark recorded (undefined: a mark saved before marks recorded it). */
-async function rig(markedId: string, wrote?: boolean) {
-  const clock = new VirtualClock();
-  const board = new FlashableBoard({ model: { bootMs: 50, eepromWriteMs: 0 }, linkBaud: 2_000_000 });
-  const endpoint = new SimEndpoint({ clock, device: board, link: { baudRate: 2_000_000, latencyMs: 0.2, coalesceMs: 2 } });
-  const source: TransportSource = { kind: 'fake', request: async () => new SimTransport(endpoint, clock, { open: 0, most: 0 }, 0) };
-  const marks = memoryBootloaderMarks();
-  await marks.put({ nonce: 'failed-update', kind: 'failed', port: PORT, boardId: markedId, recovery: { begin: null, view: SAVED_VIEW }, ...(wrote === undefined ? {} : { wrote }) });
-  const host = new MachineWorkerHost(source, clock, { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/130' }, null, PHASE_1_RELEASE, marks);
-  const waits: unknown[] = [];
-  host.flashListener = () => waits.push(host.flash.view?.bannerWait ?? null);
-  /** Runs virtual time until the reply arrives (or the limit). */
-  const call = async (request: unknown, limitMs = 120_000): Promise<MachineReply | 'pending'> => {
-    let reply: MachineReply | 'pending' = 'pending';
-    void host.handle(request).then((r) => (reply = r));
-    const end = clock.now() + limitMs;
-    while (reply === 'pending' && clock.now() < end) {
-      for (let i = 0; i < 40; i++) await Promise.resolve();
-      if (reply !== 'pending') break;
-      clock.advanceTo(Math.min(clock.nextAt() ?? end, end));
-    }
-    return reply;
-  };
-  const succeeds = async (request: unknown): Promise<void> => {
-    const reply = await call(request);
-    expect(reply, JSON.stringify(reply)).toMatchObject({ ok: true });
-  };
-  /** The flash transcript's writes up to the first banner received. */
-  const writesBeforeBanner = (): string[] => {
-    const lines = (host.flash.flashTranscript()?.jsonl ?? '').trim().split('\n').map((l) => JSON.parse(l) as WireLine);
-    let text = '';
-    const bannerAt = lines.find((l) => l.dir === 'rx' && (text += Buffer.from(l.hex, 'hex').toString('latin1')).includes('"fb":'))?.t ?? Infinity;
-    return lines.filter((l) => l.dir === 'tx' && l.t <= bannerAt).map((l) => l.hex);
-  };
-  /** Runs virtual time until `done()` (or the limit). */
-  const until = async (done: () => boolean, limitMs = 30_000): Promise<boolean> => {
-    const end = clock.now() + limitMs;
-    while (!done() && clock.now() < end) {
-      for (let i = 0; i < 40; i++) await Promise.resolve();
-      if (!done()) clock.advanceTo(Math.min(clock.nextAt() ?? end, end));
-    }
-    return done();
-  };
-  return { clock, board, marks, host, waits, call, succeeds, until, writesBeforeBanner };
+function rig(markedId: string, wrote?: boolean) {
+  return markedBoard({ markedId, frozen: true, ...(wrote === undefined ? {} : { wrote }) });
 }
+
+const PROBE = ['1b', '53', '0a'];
 
 /** Board → Firmware for this flash view, on a connected board. */
 function firmwarePage(flash: FlashView | null): string {
@@ -87,8 +37,8 @@ describe('Connect on a board marked after a failed update', () => {
     expect(await r.marks.find(PORT)).toBeNull();
     expect(r.waits).toContainEqual({ phase: 'waiting', seconds: BANNER_WAIT_MS / 1000 });
     expect(r.waits).toContainEqual({ phase: 'waiting', seconds: 20 });
-    // Nothing normal before the banner: only the AVR109 check.
-    expect(r.writesBeforeBanner()).toEqual(['1b', '53']);
+    // Nothing normal before the banner: only the AVR109 check and the one line end.
+    expect(r.writesBeforeBanner()).toEqual(PROBE);
     // Firmware runs: no Recovery, no mark note. The update may have written (an older mark: unknown), so the version
     // check runs once the board identifies: it still reports 450.01, not the 450.02 the update was writing.
     expect(await r.until(() => r.host.flash.view?.versionCheck !== null && r.host.flash.view?.versionCheck !== undefined)).toBe(true);
@@ -115,24 +65,26 @@ describe('Connect on a board marked after a failed update', () => {
     r.clock.setTimeout(() => r.board.resetBoard(), 12_000);
     await r.succeeds(OPEN);
     expect(await r.marks.find(PORT)).toMatchObject({ nonce: 'failed-update', boardId: 'ANOTHER-BOARD' });
-    expect(r.writesBeforeBanner()).toEqual(['1b', '53']);
+    expect(r.writesBeforeBanner()).toEqual(PROBE);
     // This board proved it is another board: no prompt and no Recovery for it; a note about the marked board.
     expect(r.host.flash.view).toMatchObject({ elsewhere: 'ANOTHER-BOARD', bannerWait: null });
     const page = firmwarePage(r.host.flash.view);
     expect(page).toContain('Board ANOTHER-BOARD may still be in its bootloader. Connect that board and press Reset.');
     expect(page).not.toContain('data-region="flash-recovery"');
     expect(page).not.toContain('data-banner-wait');
-    // The next Connect on this port: before a banner Run cannot tell this board from the marked one (marks match by
-    // the USB ids), so it listens again; after this board's banner the mark is still the other board's.
+    // The next Connect on this port (marks match by the USB ids): the firmware, running since the Reset, answers the
+    // line end, and the board id the session reads is still not the marked one. No wait; the mark stays.
     expect(await r.call({ v: 3, kind: 'close' })).toMatchObject({ ok: true });
     const before = r.waits.length;
-    r.clock.setTimeout(() => r.board.resetBoard(), 5_000);
     await r.succeeds(OPEN);
-    expect(r.waits.slice(before)).toContainEqual({ phase: 'waiting', seconds: BANNER_WAIT_MS / 1000 });
+    expect(r.waits.slice(before)).not.toContainEqual({ phase: 'waiting', seconds: BANNER_WAIT_MS / 1000 });
+    expect(await r.until(() => r.host.flash.view?.elsewhere !== undefined && r.host.session.snapshot.identity !== null)).toBe(true);
     expect(await r.marks.find(PORT)).toMatchObject({ nonce: 'failed-update', boardId: 'ANOTHER-BOARD' });
     expect(r.host.flash.view).toMatchObject({ elsewhere: 'ANOTHER-BOARD', bannerWait: null });
   }, 60_000);
+});
 
+describe('Cancel and Disconnect while Connect waits for the banner', () => {
   it('Cancel during the wait ends it at once: the port and the lock are free, the mark is kept', async () => {
     const r = await rig(BOARD);
     let reply: MachineReply | 'pending' = 'pending';
@@ -146,23 +98,41 @@ describe('Connect on a board marked after a failed update', () => {
     expect(r.host.flash.busy).toBe(false);
     expect(r.host.flash.view?.bannerWait ?? null).toBeNull();
     expect(await r.marks.find(PORT)).not.toBeNull();
-    expect(r.writesBeforeBanner()).toEqual(['1b', '53']);
+    expect(r.writesBeforeBanner()).toEqual(PROBE);
   }, 60_000);
 
+  it('Disconnect during the wait ends it too: the port and the lock are free, the mark is kept', async () => {
+    const r = await rig(BOARD);
+    let reply: MachineReply | 'pending' = 'pending';
+    void r.host.handle(OPEN).then((x) => (reply = x));
+    expect(await r.until(() => r.host.flash.view?.bannerWait?.phase === 'waiting', 5_000)).toBe(true);
+    const started = r.clock.now();
+    const closed = await r.call({ v: 3, kind: 'close' });
+    expect(closed, JSON.stringify(closed)).toMatchObject({ ok: true });
+    expect(r.clock.now() - started).toBeLessThan(2_000);
+    expect(await r.until(() => reply !== 'pending', 2_000)).toBe(true);
+    expect(reply).toMatchObject({ ok: false });
+    expect(r.host.flash.busy).toBe(false);
+    expect(await r.marks.find(PORT)).not.toBeNull();
+    expect(r.writes()).toEqual(PROBE);
+  }, 60_000);
+});
+
+describe('no banner within the wait', () => {
   it('no banner within the wait: the advice, the mark kept, Try again listens again and a Reset then connects', async () => {
     const r = await rig(BOARD);
     expect(await r.call(OPEN)).toMatchObject({ ok: false, message: BOOTLOADER_ADVICE });
     expect(await r.marks.find(PORT)).not.toBeNull();
     // The dialog and the mark note carry the advice; the restored view does not repeat it (said once).
     expect(r.host.flash.view).toMatchObject({ phase: 'failed', marked: true, message: null, bannerWait: { phase: 'expired', seconds: 0 } });
-    expect(r.writesBeforeBanner()).toEqual(['1b', '53']);
+    expect(r.writes()).toEqual(PROBE);
     expect(r.host.session.snapshot.base).toBe('NOT_CONNECTED');
     // Try again: the same guarded check on the same port, no port choice.
     r.clock.setTimeout(() => r.board.resetBoard(), 8_000);
     await r.succeeds({ v: 3, kind: 'flash', command: { op: 'reconnect' } });
     expect(await r.marks.find(PORT)).toBeNull();
     expect(r.host.flash.view).toMatchObject({ phase: 'done', marked: false });
-    expect(r.writesBeforeBanner()).toEqual(['1b', '53']);
+    expect(r.writesBeforeBanner()).toEqual(PROBE);
   }, 60_000);
 });
 

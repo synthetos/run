@@ -7,8 +7,8 @@
  * The capability is minted here and nowhere else (the mint stays
  * flasher-internal: bootloaderCapability.ts is importable by flasher source
  * only). A `FlashAuthorization` mints one single-use token per port open,
- * at most `MAX_OPENS` in its life (a recovery reopens the port after the
- * user replugs it), and none after `finish()`.
+ * at most `MAX_OPENS` in its life (a recovery reopens the port when it
+ * drops), and none after `finish()`.
  *
  * Checks, all of which must pass:
  * - the `.hex` text's SHA-256 is the one the caller named, and, for a
