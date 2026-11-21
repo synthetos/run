@@ -349,7 +349,7 @@
       "complexity $/FunctionDeclaration:MyMachine#1": 18,
       "complexity $/FunctionDeclaration:TinygMapping#1": 24,
       "complexity $/FunctionDeclaration:mappingRows#1": 18,
-      "max-lines-per-function $/FunctionDeclaration:MachinesView#1": 103,
+      "max-lines-per-function $/FunctionDeclaration:MachinesView#1": 102,
       "max-lines-per-function $/FunctionDeclaration:TinygMapping#1": 136
     },
     "apps/web/src/workspace/views/PlacePanel.ts": {

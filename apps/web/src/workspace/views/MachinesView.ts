@@ -363,7 +363,6 @@ export function MachinesView({ model, onView }: { readonly model: WorkspaceModel
               mine.map((m) => h('button', { type: 'button', class: `chip${selectedMachineStore.value.value === m.id ? ' selected' : ''}`, key: m.id, onClick: () => selectedMachineStore.set(m.id) }, m.name)),
             )
           : null,
-        h('div', { class: 'catalogue-help' }, h(ContextHelp, { id: 'machine-copy-help', label: 'About machine templates', below: true, end: true }, 'Templates do not copy board settings or homing. Compare settings in Advanced.')),
       ),
     ),
     h(
@@ -431,7 +430,7 @@ export function MachinesView({ model, onView }: { readonly model: WorkspaceModel
             ),
           ),
         ),
-        h('div', { class: 'catalogue-help' }, h(ContextHelp, { id: 'machine-catalogue-help', label: 'About template specifications', end: true }, 'Example templates: verify specifications and controller compatibility.')),
+        h('div', { class: 'catalogue-help' }, h(ContextHelp, { id: 'machine-catalogue-help', label: 'About template specifications', end: true }, 'Example templates: verify specifications and controller compatibility. Templates do not copy board settings or homing. Compare settings in Advanced.')),
       ),
     ),
   );

@@ -244,8 +244,8 @@ a.button svg, .report-actions button svg { width: 15px; height: 15px; }
 .project-open-controls select { width: 100%; min-width: 0; }
 .project-open-controls button { flex: 0 0 auto; transition: border-color .12s; }
 
-/* Machine profiles and controller settings share one centred page. */
-.machines-view { width: 100%; max-width: 1000px; margin-inline: auto; }
+/* Machine profiles and controller settings share one page, left-aligned under the title and tabs. */
+.machines-view { width: 100%; max-width: 1000px; }
 .machines-view .my-machine { grid-template-columns: 120px minmax(0, 1fr) auto; gap: 12px; }
 .machines-view .my-machine > svg { width: 120px; height: 90px; }
 .machines-view .my-machine .card-actions { grid-column: 2 / -1; flex-wrap: wrap; }
