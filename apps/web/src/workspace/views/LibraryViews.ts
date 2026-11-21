@@ -20,6 +20,7 @@ import { PurchaseLine, AddLink } from './PurchaseLinks.ts';
  */
 import { h, type ComponentChild } from 'preact';
 import { useState } from 'preact/hooks';
+import { COOLANT_CHIP, COOLANT_TEXT, COOLANT_VALUE } from './materialCoolant.ts';
 import { isPlaceholder, userValue, MATERIAL_FAMILIES, TOOL_MATERIALS, type CoolantNeed, type HardnessScale, type MaterialCutting, type SafetySeverity, type BehaviourKind, type Sourced } from '@synthetos/library';
 import {
   allMaterials,
@@ -78,7 +79,6 @@ function swatch(m: Material): ComponentChild {
 }
 
 const SEVERITY_CLASS: Readonly<Record<string, string>> = { 'do-not-machine': 'danger', hazard: 'danger', caution: 'warn', info: 'info' };
-const COOLANT_TEXT: Readonly<Record<CoolantNeed, string>> = { required: 'Coolant required', recommended: 'Coolant recommended', none: 'No coolant needed', avoid: 'Avoid coolant' };
 
 export function SafetyNotes({ m, compact = false }: { readonly m: Material; readonly compact?: boolean }): ComponentChild {
   if (m.safety.length === 0) return null;
@@ -100,7 +100,7 @@ function MaterialFlags({ m }: { readonly m: Material }): ComponentChild {
         : caution
           ? h('span', { class: 'flag muted', title: m.safety.filter((s) => s.severity === 'caution').map((s) => s.text).join(' ') }, Icon('warning', 13), 'Caution')
           : null,
-    banned ? null : h('span', { class: `flag coolant need-${m.coolant.need}`, title: COOLANT_TEXT[m.coolant.need] }, Icon('droplet', 13), m.coolant.need === 'required' ? 'Coolant' : m.coolant.need === 'recommended' ? 'Air or mist' : m.coolant.need === 'avoid' ? 'Keep dry' : 'Dry'),
+    banned ? null : h('span', { class: `flag coolant need-${m.coolant.need}`, title: COOLANT_TEXT[m.coolant.need] }, Icon('droplet', 13), COOLANT_CHIP[m.coolant.need]),
   );
 }
 
@@ -170,7 +170,7 @@ function MaterialInspector({ view, onSelect, onEdit }: { readonly view: Material
           : h(
               'dl',
               { class: 'facts' },
-              h('div', null, h('dt', null, 'Coolant'), h('dd', null, m.coolant.need)),
+              h('div', null, h('dt', null, 'Coolant'), h('dd', null, COOLANT_VALUE[m.coolant.need])),
               m.physical.density === undefined ? null : h('div', null, h('dt', null, 'Density'), h('dd', null, sourced(m.physical.density, (v) => `${v} g/cm³`))),
               m.physical.hardness === undefined ? null : h('div', null, h('dt', null, 'Hardness'), h('dd', null, sourced(m.physical.hardness, (v) => `${v.value} ${v.scale}`))),
               m.physical.kc === undefined ? null : h('div', null, h('dt', null, 'Cutting force kc'), h('dd', null, sourced(m.physical.kc, (v) => `${num(v)} N/mm²`))),

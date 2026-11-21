@@ -4,6 +4,8 @@ import { useEffect, useState } from 'preact/hooks';
 import { executionLock, openProjectFile } from '../workspace/fileBridge.ts';
 import { Icon } from '../workspace/icons.ts';
 import { updateActiveJob, withSetup } from '../workspace/jobModel.ts';
+import { uiLevel } from '../workspace/jobWorkflow.ts';
+import { fileMetaText } from './fileMeta.ts';
 import { withProjects as act, projectStore, projectScope } from './browserStore.ts';
 import { formatBytes, isGcodeFile, LIMITS, ROLE_LABEL, type FileRole } from './limits.ts';
 import { type Project, type ProjectFile } from './store.ts';
@@ -130,7 +132,7 @@ export function FileRow({ project, file, onView, onImport, openLabel = 'Open in 
       'div',
       { class: 'file-name' },
       h('strong', { title: file.name }, file.name),
-      h('small', null, `${formatBytes(file.size)} · added ${dateText(file.addedAt)} · sha256 ${file.hash.slice(0, 10)}`),
+      h('small', null, fileMetaText(formatBytes(file.size), dateText(file.addedAt), file.hash, uiLevel.value.value === 'advanced')),
       error === null ? null : h('small', { class: 'tone-warn', role: 'alert' }, error),
     ),
     h(
