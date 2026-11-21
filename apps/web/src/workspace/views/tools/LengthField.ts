@@ -6,16 +6,18 @@ export interface LengthProps {
   readonly field: string; readonly label: string; readonly value: number | undefined;
   readonly unit: ToolUnit | '°' | ''; readonly optional?: boolean; readonly allowZero?: boolean;
   readonly onChange: (n: number | undefined) => void;
+  /** A one-line hint under the input, and the empty-box placeholder. */
+  readonly hint?: string; readonly placeholder?: string;
   readonly onValidity: (field: string, valid: boolean) => void;
 }
-export function LengthField({ field, label, value, unit, optional = false, allowZero = false, onChange, onValidity }: LengthProps): ComponentChild {
+export function LengthField({ field, label, value, unit, optional = false, allowZero = false, onChange, onValidity, hint, placeholder }: LengthProps): ComponentChild {
   const formatted = (): string => value === undefined ? '' : unit === 'mm' || unit === 'in' ? formatLength(value, unit) : String(value);
   const [raw, setRaw] = useState(formatted);
   const [error, setError] = useState<string | null>(null);
   useLayoutEffect(() => { setRaw(formatted()); setError(null); onValidity(field, true); }, [unit]);
   useEffect(() => () => onValidity(field, true), []);
   return h('label', { class: 'field' }, h('span', null, label), h('span', { class: 'unit-input' }, h('input', {
-    value: raw, type: 'text', inputMode: 'decimal', 'data-tool-field': field, 'aria-invalid': error === null ? undefined : 'true',
+    value: raw, type: 'text', inputMode: 'decimal', placeholder, 'data-tool-field': field, 'aria-invalid': error === null ? undefined : 'true',
     onInput: (e: Event) => {
       const s = (e.currentTarget as HTMLInputElement).value; setRaw(s);
       const empty = optional && s.trim() === '';
@@ -26,5 +28,5 @@ export function LengthField({ field, label, value, unit, optional = false, allow
       if (valid) onChange(n ?? undefined);
     },
     onBlur: () => { if (error === null) setRaw(formatted()); },
-  }), unit === '' ? null : h('i', null, unit)), error === null ? null : h('small', { class: 'field-error', role: 'alert' }, error));
+  }), unit === '' ? null : h('i', null, unit)), hint === undefined || error !== null ? null : h('small', { class: 'fine field-hint' }, hint), error === null ? null : h('small', { class: 'field-error', role: 'alert' }, error));
 }

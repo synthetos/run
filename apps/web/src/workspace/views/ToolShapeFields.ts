@@ -78,6 +78,8 @@ export function ToolShapeFields({ tool, set, unit, onValidity }: { readonly tool
       return input(field, label, unit, g[field], field === 'tipWidth', (n) => geo(field, n), field === 'tipWidth');
     }),
     input('shank', 'Shank diameter', 'mm', g.shank, false, (n) => geo('shank', n)),
-    input('stickout', 'Stickout', 'mm', g.stickout, false, (n) => geo('stickout', n), true),
+    unit === undefined || onValidity === undefined
+      ? input('stickout', 'Stickout', 'mm', g.stickout, false, (n) => geo('stickout', n), true)
+      : h(LengthField, { key: 'stickout', field: 'stickout', label: 'Stickout', unit, value: g.stickout, optional: true, placeholder: 'Optional', hint: 'How far the bit sticks out of the collet.', onChange: (n) => geo('stickout', n), onValidity }),
   ];
 }

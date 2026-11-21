@@ -86,3 +86,11 @@ it('catalog preview reuses all tabs read-only, hides number/delete, and offers a
   const owned = renderToString(h(ToolModal, { entry: null, onClose: () => undefined, preview: { ...preview, existing: { tool, number: 9, store: null } } }));
   expect(owned).toContain('In your tools as T9'); expect(owned).toContain('Open T9'); expect(owned).not.toContain('data-action="catalog-add"');
 });
+
+it('explains the tool number and marks stickout optional', async () => {
+  const { ToolModal } = await import('../src/workspace/views/tools/ToolModal.ts');
+  const html = renderToString(h(ToolModal, { entry: null, onClose: () => undefined }));
+  expect(html).toContain('Pick any free number. Your tool changes use it.');
+  expect(html).toContain('placeholder="Optional"');
+  expect(html).toContain('How far the bit sticks out of the collet.');
+});
