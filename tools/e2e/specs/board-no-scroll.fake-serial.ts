@@ -50,6 +50,14 @@ function overflowing(page: Page): Promise<string[]> {
         if (c.offsetParent !== null && cut > 1) out.push(`release ${row.dataset['release'] ?? ''} cuts off "${c.textContent ?? ''}" by ${Math.round(cut)}px`);
       }
     }
+    // A page of releases clips at its bottom edge, so every row must sit inside it (MR-39).
+    for (const box of Array.from(document.querySelectorAll<HTMLElement>('.releases-page'))) {
+      const edge = box.getBoundingClientRect().bottom;
+      for (const li of Array.from(box.querySelectorAll<HTMLElement>('.releases > li'))) {
+        const over = li.getBoundingClientRect().bottom - edge;
+        if (over > 1) out.push(`release ${li.dataset['release'] ?? ''} is cut off at the page bottom by ${Math.round(over)}px`);
+      }
+    }
     return out;
   });
 }

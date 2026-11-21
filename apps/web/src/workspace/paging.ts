@@ -7,12 +7,26 @@
 import { h, type ComponentChild } from 'preact';
 import { useLayoutEffect, useState } from 'preact/hooks';
 
+/** The real distance between two rendered list rows (spacing included); `fallback` with fewer than two rows. */
+function rowPitch(el: HTMLElement, fallback: number): number {
+  const rows = el.querySelectorAll<HTMLElement>('li');
+  const first = rows[0];
+  const second = rows[1];
+  if (first === undefined || second === undefined) return fallback;
+  const pitch = second.offsetTop - first.offsetTop;
+  return pitch > 0 ? pitch : fallback;
+}
+
 export function usePageSize(box: { readonly current: HTMLElement | null }, linePx: number): number {
   const [size, setSize] = useState(Number.POSITIVE_INFINITY);
   useLayoutEffect(() => {
     const el = box.current;
     if (el === null || typeof ResizeObserver === 'undefined') return undefined;
-    const measure = (): void => setSize(Math.max(1, Math.floor(el.clientHeight / linePx)));
+    let pitch = linePx;
+    const measure = (): void => {
+      pitch = rowPitch(el, pitch);
+      setSize(Math.max(1, Math.floor(el.clientHeight / pitch)));
+    };
     measure();
     const watch = new ResizeObserver(measure);
     watch.observe(el);
