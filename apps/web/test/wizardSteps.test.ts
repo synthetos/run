@@ -36,16 +36,13 @@ describe('radio cards (owner 148)', () => {
 const FILLER = /E-stop|never need|Saved in this browser|within reach/;
 
 describe('step 1 Welcome', () => {
-  it('names the three things the account covers and the five-minute line, with no filler', () => {
+  it('says what setup does, what to have ready and that steps can be skipped, with no filler', () => {
     expect(WELCOME_TITLE).toBe('Welcome to Run');
-    expect(WELCOME_LEAD).toBe('Your Synthetos account is ready. One sign-in now covers three things.');
+    expect(WELCOME_LEAD).toBe('Setup gets your machine ready to run.');
     const el = root(h('div', null, h(Welcome, null)));
     const items = all(el, (e) => e.tag === 'li').map(text);
-    expect(items).toHaveLength(3);
-    expect(items[0]).toMatch(/^Run: /);
-    expect(items[1]).toMatch(/^The forum: /);
-    expect(items[2]).toMatch(/^Bug reports: /);
-    expect(text(el)).toContain('Setup takes about five minutes. Every step can be skipped and finished later from Preferences.');
+    expect(items).toEqual(['Your controller board, plugged in by USB.', 'Your machine’s bed size.']);
+    expect(text(el)).toContain('Every step can be skipped and finished later from Preferences.');
     expect(text(el)).not.toMatch(FILLER);
   });
 });

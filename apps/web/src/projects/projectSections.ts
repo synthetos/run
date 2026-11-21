@@ -27,7 +27,7 @@ export function DescriptionSection({ project }: { readonly project: Project }): 
     { class: 'description-edit' },
     h('label', { class: 'sr-only', for: 'project-description' }, 'Description'),
     h('textarea', { id: 'project-description', value: text, rows: 7, 'data-project': 'description-input', onInput: (e: Event) => setText((e.currentTarget as HTMLTextAreaElement).value) }),
-    h(Dismissable, { id: 'projects/description-format', label: 'the formatting help', inNotes: false }, h('p', { class: 'fine' }, 'Blank lines start a paragraph. Lines starting with - make a list, 1. a numbered list. **bold**, and [title](web address) for a link.')),
+    h(Dismissable, { id: 'projects/description-format', label: 'the formatting help', inNotes: false }, h('p', { class: 'fine' }, 'A blank line starts a new paragraph. Start a line with - for a list, or 1. for a numbered list. Use **bold** for bold text and [title](web address) for a link.')),
     h(
       'div',
       { class: 'edit-actions' },

@@ -14,8 +14,7 @@ import type { MachineDraft } from '../machineDraft.ts';
 
 export const MACHINE_TITLE = 'Your machine';
 export const MACHINE_LEAD = 'Tell Run what is on the bench, then connect once.';
-export const MORE_BOARDS = 'More boards? Add each one later from Machines, the same way.';
-export const BOARD_NOTE = 'More than one board on the bench? The browser asks which port. This machine binds to the board it connected to, by its id.';
+export const MORE_BOARDS = 'More than one board? Your browser asks which port to use. Add other machines later in Library.';
 
 /** The step's draft while it is open; null until the step initialises it from the record or the first template. */
 export const machineDraft = signal<MachineDraft | null>(null);
@@ -62,6 +61,6 @@ export function Machine(p: MachineProps): ComponentChild {
       ? h('p', { class: 'wizard-line', 'data-wizard': 'board' }, `Connected · ${boardLabel(view)}`)
       : h(ConnectNotice, { model: p.model }),
     p.owner === null ? null : h('p', { class: 'wizard-line', role: 'status' }, 'This board is ', h('strong', null, p.owner.name), '. ', h('button', { type: 'button', class: 'small', 'data-action': 'wizard-use-machine', onClick: () => p.onUseOwner(p.owner as MachineProfile) }, 'Continue with it')),
-    h('p', { class: 'wizard-line' }, BOARD_NOTE, ' ', MORE_BOARDS),
+    h('p', { class: 'wizard-line' }, MORE_BOARDS),
   );
 }

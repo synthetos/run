@@ -47,7 +47,7 @@ describe('feedReport over the bench 2 captures', () => {
     expect(r.job[0]?.cause).toBe('an axis speed limit');
     const short = r.job.find((x) => x.cause === FEED_CAUSES[3]);
     expect(short?.fraction ?? 0).toBeGreaterThan(0.4);
-    expect(r.notes.some((n) => n.startsWith('Moves too short to reach the feed'))).toBe(true);
+    expect(r.notes.some((n) => n.startsWith('Short moves cannot reach full feed'))).toBe(true);
     expect(r.notes.some((n) => n.startsWith("An axis's own speed limit"))).toBe(true);
     for (const n of r.notes) expect(n).not.toMatch(forbidden);
     expect(feedShareLine(r.job)).toMatch(/^an axis speed limit \d+%, moves too short to reach the feed \d+%/);

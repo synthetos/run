@@ -30,7 +30,7 @@ export function PositionStatus({ wcs, homed, by, tool, units, temporary = false 
     homed === false
       ? h('span', { key: 'homing', class: 'pos-word warn', 'data-position': 'homing' }, h(ContextHelp, { id: 'w34-help', label: 'Not homed: about moving before homing', safety: 'W34', trigger: 'Not homed', below: true }, ...signalText(w34())))
       : HomingTag(homed, by),
-    temporary ? h('span', { key: 'g92', class: 'pos-word warn', 'data-position': 'g92', title: 'A temporary offset (G92) is in force: work positions are shifted by it.' }, 'G92 on') : null,
+    temporary ? h('span', { key: 'g92', class: 'pos-word warn', 'data-position': 'g92', title: 'A temporary offset is shifting your work positions (G92).' }, 'G92 on') : null,
     tool === null ? null : h('span', { key: 'tool', 'data-position': 'tool' }, `Tool T${tool}`),
     units === null ? null : h('span', { key: 'units', 'data-position': 'units' }, units),
   ].filter((p) => p !== null);

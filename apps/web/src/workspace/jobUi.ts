@@ -268,9 +268,9 @@ export function feedReport(fl: JobSnapshot['feedLimit']): FeedReport | null {
   const job = shares(null, last);
   const of = (i: number): number => (last.ct > 0 ? (last.c[i] ?? 0) / last.ct : 0);
   const notes: string[] = [];
-  if (of(0) > 0.05) notes.push(`An axis's own speed limit held the feed below the programmed value for ${pct(of(0))} of the cutting time: the programmed feed is above what the machine can do on that axis (its fr setting).`);
-  if (of(3) + of(4) > 0.3) notes.push(`Moves too short to reach the feed for ${pct(Math.min(1, of(3) + of(4)))} of the cutting time: dense CAM output with these jerk settings, the usual reason a dense file runs slow.`);
-  if (of(1) > 0.3) notes.push(`The planner slowed into corners for ${pct(of(1))} of the cutting time: normal on a cornered path; on a smooth path the junction settings (jd, ja) are conservative.`);
+  if (of(0) > 0.05) notes.push(`An axis's own speed limit held the feed below the programmed value for ${pct(of(0))} of the cutting time. The programmed feed is above what the machine can do on that axis (its fr setting).`);
+  if (of(3) + of(4) > 0.3) notes.push(`Short moves cannot reach full feed for ${pct(Math.min(1, of(3) + of(4)))} of the cutting time. Dense CAM output does this. It is the usual reason a dense file runs slow.`);
+  if (of(1) > 0.3) notes.push(`The machine slowed in corners for ${pct(of(1))} of the cutting time. This is normal on a cornered path. On a smooth path, the corner-speed settings may be too cautious.`);
   if (of(5) > 0.3) notes.push(`Ramps and the end of the path for ${pct(of(5))} of the cutting time: expected at the start and end of every chain. A large share mid-job means the planner kept running out of look-ahead, which can be a supply gap, but ${last.c.length === 6 ? 'this firmware' : 'this counter alone'} does not report why.`);
   return {
     diagnosis,

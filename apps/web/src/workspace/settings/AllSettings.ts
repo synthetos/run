@@ -22,7 +22,7 @@ import { StatusFields } from './statusFields.ts';
 export const settingsGroup = signal<string | null>(null);
 const settingsPage = signal(0);
 const LINE_PX = 34;
-const FOOT = 'Live readouts (input states, homed axes, positions) are on Inputs, Axes and the Job view.';
+const FOOT = 'Live readouts (input states, homed axes, positions) are on Inputs, Axes and the Job page.';
 
 function pick(id: string): void {
   settingsGroup.value = id;

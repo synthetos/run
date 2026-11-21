@@ -134,7 +134,7 @@ export function ProjectDetail({ project, onView, onDeleted }: { readonly project
         project.images.length === 0 ? null : [h('h2', { key: 'h', class: 'tan-label' }, 'Photos'), h('ul', { key: 'l', class: 'image-strip' }, project.images.map((i) => h(ImageTile, { key: i.id, project, image: i })))],
         gcode === 0 ? null : h('p', { class: 'fine' }, 'Open a saved job or start one from a file. ', h('button', { type: 'button', class: 'small quiet-link', 'data-action': 'project-go-run', onClick: () => onView('job') }, 'Back to Job')),
         h('h2', { class: 'tan-label' }, 'Jobs'),
-        project.jobs.length === 0 ? h('p', { class: 'fine', 'data-project': 'no-jobs' }, 'No jobs yet. “Open in Job” on a G-code file starts one; “Save to project” in Job brings a draft here.') : h('ul', { class: 'file-list', 'data-project': 'jobs' }, project.jobs.map((j) => h(JobRow, { key: j.id, project, job: j, onView }))),
+        project.jobs.length === 0 ? h('p', { class: 'fine', 'data-project': 'no-jobs' }, 'No jobs yet. Open a G-code file in Job, then choose Save to project.') : h('ul', { class: 'file-list', 'data-project': 'jobs' }, project.jobs.map((j) => h(JobRow, { key: j.id, project, job: j, onView }))),
       ),
       h(
         'section',

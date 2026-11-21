@@ -70,7 +70,7 @@ export function ownBed(bed: SetupState['bed'], at: string): MachineBed {
     outline: null,
     holes: [],
     toMachine: { x: 0, y: 0, z: 0 },
-    source: { kind: 'placeholder', note: 'The Setup view’s bed, not tied to a machine: its top is drawn at machine Z 0.' },
+    source: { kind: 'placeholder', note: 'A bed not tied to a machine. Its top is drawn at machine Z 0.' },
     savedAt: at,
   };
 }

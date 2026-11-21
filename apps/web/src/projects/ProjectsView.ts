@@ -49,7 +49,7 @@ export function ProjectsView({ onView }: { readonly onView: (v: string) => void 
         { class: 'project-list-panel', 'aria-label': 'Projects' },
         h('div', { class: 'project-list-head' }, h('strong', null, state.list.length === 0 ? 'No projects' : `${state.list.length} ${state.list.length === 1 ? 'project' : 'projects'}`), h('span', { class: 'fine' }, librarySyncView.value.mode === 'account' ? 'Your projects' : 'In this browser')),
         state.list.length === 0
-          ? h('div', { class: 'project-empty' }, h('strong', null, state.loaded ? 'Start a project' : 'Loading projects…'), 'Keep the G-code, photos, notes and the setup of a job together, so next time you know exactly how it was cut.')
+          ? h('div', { class: 'project-empty' }, h('strong', null, state.loaded ? 'Start a project' : 'Loading projects…'), 'Keep a job’s G-code, photos and notes together.')
           : h(
               'div',
               { class: 'project-list' },

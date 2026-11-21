@@ -57,7 +57,7 @@ describe('firmwareState: the board against the release list, the offer only for 
     const noQr = firmwareState(board(449.01, { ...STOCK_449, live: { stat: 1, vel: 0, hold: 0 } }));
     expect(noQr).toMatchObject({ kind: 'needed', offer: null, held: 'other' });
     for (const s of [flow, unidentified, noQr]) expect(firmwareGate(s)).toEqual({ skippable: true, nextEnabled: false });
-    expect(HELD_TEXT['flow-control']).toBe('Set ex to 1 (XON/XOFF) with another program, then connect again.');
+    expect(HELD_TEXT['flow-control']).toBe('Flow control is off on this board. Turn on XON/XOFF in your other control program (setting $ex = 1), then connect again.');
     // The "Update firmware" button is the way to the page (owner 168: no bare "Update from Board → Firmware" pointer).
     expect(HELD_TEXT.unidentified).toBe('Run could not identify this firmware.');
     expect(HELD_TEXT.other).toBe('');

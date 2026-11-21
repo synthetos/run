@@ -31,7 +31,7 @@ it('requires mains confirmation before showing switch controls, and shows links 
 it('offers the saved backup before continuing, never an account destination', () => {
   const out = html({ backup: { file: null } });
   expect(out).toContain('data-action="backup-continue"');
-  expect(out).toContain('raw EEPROM');
+  expect(out).toContain('stored settings and firmware');
   expect(out).not.toContain('account');
 });
 

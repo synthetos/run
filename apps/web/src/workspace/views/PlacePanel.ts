@@ -88,7 +88,7 @@ export function PlacePanel({ job, edit, advanced, travel }: { readonly job: Job;
       h('dt', null, 'Stock top · machine Z'), h('dd', { 'data-height': 'stock' }, mm(top + st.thickness)),
       h('dt', null, 'Fixture top · machine Z'), h('dd', { 'data-height': 'fixture' }, mm(top)),
       h('dt', null, 'Bed top · machine Z'), h('dd', { 'data-height': 'bed' }, mm(job.setup.bed.toMachine.z))),
-    h(ContextHelp, { id: 'job-datum-help', label: 'About work zero' }, 'Your CAM program set zero when it made the file. Run never changes the file’s coordinates. This step places the preview on the stock. It does not set the board’s work offset. Use the Offsets controls to set and check the real zero.'),
+    h(ContextHelp, { id: 'job-datum-help', label: 'About work zero' }, 'Your CAM program chose zero. This step only moves the preview onto your stock. It does not set the machine zero. Set that in Offsets.'),
     h('p', { class: 'fine', 'data-place': 'travel' }, travel ?? 'Travel is checked when a machine is connected and homed.'),
     h('p', { class: 'fine', 'data-place': 'clamps' }, CLAMPS_NOT_CHECKED),
   );

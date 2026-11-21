@@ -132,7 +132,7 @@ describe('AllSettings', () => {
   it('a read setting in a mixed group carries its reason; the footer points to the live readouts', () => {
     expect(html('simple', { ...SETTINGS, gco: 1 })).toMatch(/data-key="gco"[\s\S]*?data-lock[^>]*>Run doesn't change this setting\./);
     expect(html('simple', { ...SETTINGS, gco: 1 })).not.toContain('yet.');
-    expect(html('simple')).toContain('Live readouts (input states, homed axes, positions) are on Inputs, Axes and the Job view.');
+    expect(html('simple')).toContain('Live readouts (input states, homed axes, positions) are on Inputs, Axes and the Job page.');
   });
 
   it('a pending change is marked in its row', () => {

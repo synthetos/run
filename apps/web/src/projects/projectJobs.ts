@@ -58,7 +58,7 @@ export function DrawingImport({ request, onDone }: { readonly request: ImportReq
                 h('label', { class: 'field' }, h('span', null, heightLabel(role)), h('span', { class: 'unit-input' }, h('input', { type: 'number', step: 0.1, min: 0.1, value: height, 'data-import': 'height', onInput: (e: Event) => { const n = num(e, 0.1); if (n !== null) setHeight(n); } }), h('i', null, 'mm'))),
                 role !== 'bed' ? null : h('label', { class: 'field' }, h('span', null, 'Bed top, machine Z'), h('span', { class: 'unit-input' }, h('input', { type: 'number', step: 0.1, value: bedTopZ, 'data-import': 'bed-top', onInput: (e: Event) => { const n = num(e, -100000); if (n !== null) setBedTopZ(n); } }), h('i', null, 'mm'))),
               ),
-              h('p', { class: 'fine', key: 'note' }, 'Check one known dimension against the size above before accepting. The original file and its hash stay in the project; a photo is never used as geometry.'),
+              h('p', { class: 'fine', key: 'note' }, 'Measure one thing on the part. Check it matches the size above before you accept.'),
             ],
     error === null ? null : h('p', { class: 'fine tone-warn', role: 'alert', 'data-import': 'error' }, error),
     h(

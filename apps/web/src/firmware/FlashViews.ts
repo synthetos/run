@@ -137,7 +137,7 @@ export function Progress({ flash }: { readonly flash: FlashView }): ComponentChi
     h('div', { class: 'flash-progress-head' }, h('strong', null, PHASE_WORDS[flash.phase] ?? flash.phase), pct === null ? null : h('span', null, `${pct}%`)),
     pct === null ? null : h('div', { class: 'flash-bar', 'aria-hidden': 'true' }, h('span', { style: { width: `${pct}%` } })),
     flash.note === null ? null : h('p', { class: 'fine' }, flash.note),
-    h('p', { class: 'fine' }, `Flashing ${flash.target.label} · sha256 ${shortSha(flash.target.sha256)}`),
+    h('p', { class: 'fine' }, `Flashing ${flash.target.label} · file fingerprint (SHA-256) ${shortSha(flash.target.sha256)}`),
   );
 }
 
