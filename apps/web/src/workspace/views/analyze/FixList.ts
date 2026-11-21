@@ -44,6 +44,8 @@ function FixCard({ fix, advanced }: { readonly fix: Fix; readonly advanced: bool
 export function FixList({ report, cam, estimate, advanced, blocks = [] }: { readonly blocks?: readonly Finding[]; readonly report: ProgramReport; readonly cam: string | null; readonly estimate: Estimate | null; readonly advanced: boolean }): ComponentChild {
   const fixes = fixesFor(report, cam, estimate);
   const shown = advanced ? fixes : fixes.slice(0, SIMPLE_COUNT);
+  // Nothing to say: one compact row, not a card.
+  if (shown.length === 0 && blocks.length === 0) return h('section', { class: 'analyze-fixes analyze-fixes-empty', 'data-analyze': 'fixes' }, h('p', { class: 'fine', 'data-analyze': 'no-fixes' }, 'Nothing to fix.'));
   return h(
     'section',
     { class: 'panel analyze-fixes', 'data-analyze': 'fixes', 'aria-labelledby': 'analyze-fixes-title' },
@@ -54,9 +56,7 @@ export function FixList({ report, cam, estimate, advanced, blocks = [] }: { read
         h('h3', null, b.line === 0 ? 'File setup' : `Line ${b.line}`), h('p', null, b.message),
         advanced ? h('p', { class: 'fine' }, b.rule === 'mid-file-program-end' ? 'H35 · mid-file-program-end' : b.rule) : null,
         h('button', { type: 'button', class: 'small', onClick: () => goToSourceLine(b.line) }, 'Show in G-code'))))),
-    shown.length === 0 && blocks.length === 0
-      ? h('p', { class: 'fine', 'data-analyze': 'no-fixes' }, 'Nothing to fix.')
-      : h('ul', { class: 'analyze-fix-list' }, shown.map((f) => h(FixCard, { fix: f, advanced, key: f.id }))),
+    shown.length === 0 ? null : h('ul', { class: 'analyze-fix-list' }, shown.map((f) => h(FixCard, { fix: f, advanced, key: f.id }))),
     fixes.length > shown.length ? h('p', { class: 'fine' }, `${whole(fixes.length - shown.length)} more in Advanced.`) : null,
   );
 }

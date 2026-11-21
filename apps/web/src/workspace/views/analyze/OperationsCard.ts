@@ -128,6 +128,6 @@ export function OperationsCard({ rows, stock, problem, advanced, blocks = [] }: 
       shared === null ? null : h('p', { class: 'fine' }, 'To check cutting speeds:'),
       shared === null ? null : h(QuestionField, { question: shared, value: machineFields.value[shared.key] ?? '', onChange: setMachineField }),
     ),
-    rows.length === 0 ? h('p', { class: 'fine' }, 'No cutting moves.') : h('ul', { class: 'analyze-op-list' }, rows.map((row) => h(OperationCard, { row, gate: shared !== null || problem !== null, advanced, key: row.operation.id }))),
+    rows.length === 0 ? h('p', { class: 'fine' }, 'No cutting moves.') : h('ul', { class: `analyze-op-list${rows.length === 1 ? ' single' : ''}` }, rows.map((row) => h(OperationCard, { row, gate: shared !== null || problem !== null, advanced, key: row.operation.id }))),
   );
 }

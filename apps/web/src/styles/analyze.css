@@ -3,6 +3,13 @@
 .analyze-scroll { padding: 14px 16px 24px; }
 .analyze-page { display: grid; gap: 14px; max-width: 1180px; }
 .analyze-page > .panel { margin: 0; min-width: 0; }
+.analyze-fixes-empty p { margin: 0; padding: 0 2px; color: var(--muted); }
+/* Wide screens: headline, fixes and details on the left, the operations on the right, so the questions show at 1280x800. */
+@media (min-width: 1100px) {
+  .analyze-page { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); align-items: start; max-width: none; }
+  .analyze-page > * { grid-column: 1; }
+  .analyze-page > .analyze-ops { grid-column: 2; grid-row: 1 / span 3; }
+}
 .analyze-page h2 { font-size: 15px; margin: 0 0 8px; }
 .analyze-page h3 { font-size: 14px; margin: 0 0 6px; overflow-wrap: anywhere; }
 .analyze-page p { margin: 0 0 6px; font-size: 13px; line-height: 1.45; }
@@ -33,7 +40,10 @@
 .analyze-regimes { margin: 4px 0 8px; font-size: 13px; }
 .analyze-regimes > li, .analyze-sections .rows > li { padding: 3px 6px; border-radius: 3px; }
 .analyze-question { display: grid; gap: 4px; margin: 8px 0; font-size: 13px; max-width: 420px; }
-.analyze-question input, .analyze-question select { min-width: 0; width: 100%; }
+.analyze-question input, .analyze-question select { min-width: 0; width: auto; max-width: 100%; justify-self: start; }
+/* One operation: no box inside the Operations card. */
+.analyze-op-list.single { display: block; }
+.analyze-op-list.single > .analyze-op { border: 0; background: none; padding: 0; }
 p.analyze-question { display: block; }
 .analyze-advice p { margin: 4px 0; }
 .analyze-levels { margin-top: 6px; }
