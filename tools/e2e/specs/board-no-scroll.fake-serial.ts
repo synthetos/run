@@ -30,8 +30,8 @@ async function connect(page: Page, board?: Record<string, unknown>): Promise<Wor
   return worker;
 }
 
-/** Every element that scrolls (or the page itself), with how far it overflows. */
-function overflowing(page: Page): Promise<string[]> {
+/** The page itself and every element that scrolls, with how far it overflows. */
+function scrolling(page: Page): Promise<string[]> {
   return page.evaluate(() => {
     const out: string[] = [];
     const root = document.scrollingElement;
@@ -42,7 +42,14 @@ function overflowing(page: Page): Promise<string[]> {
       if (!['auto', 'scroll'].includes(s.overflowY) || el.offsetParent === null) continue;
       if (el.scrollHeight > el.clientHeight + 1) out.push(`${el.tagName.toLowerCase()}.${el.className.split(' ').join('.')} +${el.scrollHeight - el.clientHeight}px`);
     }
-    // A fixed-height row hides its overflow, so a control cut off at its bottom edge would not scroll: check it fits.
+    return out;
+  });
+}
+
+/** A fixed-height release row hides its overflow, so a control cut off at its bottom edge would not scroll: check it fits. */
+function releaseRowCuts(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const out: string[] = [];
     for (const row of Array.from(document.querySelectorAll<HTMLElement>('li[data-release]'))) {
       const bottom = row.getBoundingClientRect().bottom;
       for (const c of Array.from(row.querySelectorAll<HTMLElement>('button, label, .tag'))) {
@@ -50,7 +57,14 @@ function overflowing(page: Page): Promise<string[]> {
         if (c.offsetParent !== null && cut > 1) out.push(`release ${row.dataset['release'] ?? ''} cuts off "${c.textContent ?? ''}" by ${Math.round(cut)}px`);
       }
     }
-    // A page of releases clips at its bottom edge, so every row must sit inside it (MR-39).
+    return out;
+  });
+}
+
+/** A page of releases clips at its bottom edge, so every row must sit inside it (MR-39). */
+function releasePageCuts(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const out: string[] = [];
     for (const box of Array.from(document.querySelectorAll<HTMLElement>('.releases-page'))) {
       const edge = box.getBoundingClientRect().bottom;
       for (const li of Array.from(box.querySelectorAll<HTMLElement>('.releases > li'))) {
@@ -60,6 +74,11 @@ function overflowing(page: Page): Promise<string[]> {
     }
     return out;
   });
+}
+
+/** Every element that scrolls (or the page itself), or a release control or row that is cut off. */
+async function overflowing(page: Page): Promise<string[]> {
+  return [...(await scrolling(page)), ...(await releaseRowCuts(page)), ...(await releasePageCuts(page))];
 }
 
 /** The tab, then each of its sub-tabs (data-subtab), each measured. */

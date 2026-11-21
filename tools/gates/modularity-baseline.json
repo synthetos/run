@@ -1199,7 +1199,7 @@
       "max-depth $/ArrowFunctionExpression:test('a local file: Analyze in Simple and Advanced, light and dark, 1280x720 and 390x844')[1]#1": 5
     },
     "tools/e2e/specs/catalog.fake-serial.ts": {
-      "max-lines-per-function $/ArrowFunctionExpression:test()[1]#1": 88
+      "max-lines-per-function $/ArrowFunctionExpression:test()[1]#1": 81
     },
     "tools/e2e/specs/g92-frame.fake-serial.ts": {
       "max-params $/FunctionDeclaration:midSegment#1": 5

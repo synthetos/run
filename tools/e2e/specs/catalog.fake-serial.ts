@@ -2,6 +2,23 @@ import { expect, test } from './fixtures.ts';
 import { ready } from './helpers.ts';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import type { Locator, Page } from '@playwright/test';
+
+/** Paged, not scrolled: no clipped row, a pager when more than one page, and rows that change on hover. */
+async function checkPagedStripes(page: Page, catalog: Locator): Promise<void> {
+  expect(await catalog.locator('.tool-table-wrap').evaluate(el => el.scrollHeight <= el.clientHeight + 1)).toBe(true);
+  await expect(catalog.locator('.pager')).toHaveAttribute('data-pages', /^[2-9]/);
+  await catalog.locator('[data-action="catalog-page-next"]').click(); await expect(catalog.locator('.pager')).toContainText('Page 2');
+  await catalog.locator('[data-action="catalog-page-back"]').click();
+  for (const index of [0, 1]) {
+    const stripe = catalog.locator('tbody tr').nth(index);
+    await page.mouse.move(0, 0);
+    const before = await stripe.evaluate(el => getComputedStyle(el).backgroundColor);
+    await stripe.hover();
+    expect(await stripe.evaluate(el => getComputedStyle(el).backgroundColor)).not.toBe(before);
+  }
+}
+
 for (const theme of ['light', 'dark'] as const) {
   test(`catalog page and editable draft in ${theme}`, async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 }); await page.goto('/'); await ready(page);
@@ -17,18 +34,7 @@ for (const theme of ['light', 'dark'] as const) {
     await catalog.getByLabel('Type', { exact: true }).selectOption('');
     await catalog.getByRole('button', { name: 'in', exact: true }).click();
     const dir = resolve('../../logs'); await mkdir(dir, { recursive: true });
-    // Paged, not scrolled: no clipped row, a pager when more than one page.
-    expect(await catalog.locator('.tool-table-wrap').evaluate(el => el.scrollHeight <= el.clientHeight + 1)).toBe(true);
-    await expect(catalog.locator('.pager')).toHaveAttribute('data-pages', /^[2-9]/);
-    await catalog.locator('[data-action="catalog-page-next"]').click(); await expect(catalog.locator('.pager')).toContainText('Page 2');
-    await catalog.locator('[data-action="catalog-page-back"]').click();
-    for (const index of [0, 1]) {
-      const stripe = catalog.locator('tbody tr').nth(index);
-      await page.mouse.move(0, 0);
-      const before = await stripe.evaluate(el => getComputedStyle(el).backgroundColor);
-      await stripe.hover();
-      expect(await stripe.evaluate(el => getComputedStyle(el).backgroundColor)).not.toBe(before);
-    }
+    await checkPagedStripes(page, catalog);
     await catalog.getByLabel('Search catalog').fill('absent'); await expect(catalog).toContainText('No matching tools.');
     await catalog.getByLabel('Search catalog').fill('52-280');
     const row = catalog.locator('[data-catalog-part="52-280"]');
