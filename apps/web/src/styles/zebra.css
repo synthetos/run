@@ -24,7 +24,8 @@ ul.rows, ol.rows { list-style: none; margin: 0; padding: 0; }
 :where(.cfg-table, .draft-table, .slot-table, .tool-table, .backup-table, .diff-table, .advisor-table, .spec-table) > tbody > tr:nth-child(even),
 :where(.mat-table) > tbody > tr:not(.family-row):nth-child(odd),
 /* Lists: firmware releases, the backup and trust lists, project files, jobs and links, setting drafts, projects. */
-:where(.releases, .hub-list, .file-list, .link-list, .draft-list) > li:nth-child(even),
+:where(.releases, .hub-list, .file-list, .link-list, .draft-list, .wizard-topics, .update-list, .update-card .flash-boxes) > li:nth-child(even),
+:where(.update-card) tbody tr:nth-child(even),
 :where(.project-list) > .project-row:nth-child(even),
 /* Key and value lists (This board, Preferences, a material's facts). */
 :where(dl.facts:not(.inline-facts)) > div:nth-child(even) { background: var(--row-stripe); }

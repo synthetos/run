@@ -8,7 +8,6 @@
 .update-list > li, .update-card .flash-boxes > li { padding: 12px 16px; border-bottom: 1px solid var(--rule); }
 .update-list > li { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .update-list > li:last-child, .update-card .flash-boxes > li:last-child { border-bottom: 0; }
-.update-list > li:nth-child(even), .update-card .flash-boxes > li:nth-child(even), .update-card tbody tr:nth-child(even) { background: var(--paper); }
 .update-list p { margin: 6px 0; }
 .update-flow button, .update-flow select, .update-heading button { font: inherit; border: 1px solid var(--field); background: var(--sheet); color: var(--ink); padding: 10px 14px; cursor: pointer; border-radius: 3px; }
 .update-flow button.primary { background: var(--blue); border-color: var(--blue); color: var(--on-blue); }

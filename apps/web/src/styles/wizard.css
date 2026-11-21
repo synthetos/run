@@ -72,7 +72,6 @@ table.wizard-facts tr + tr th, table.wizard-facts tr + tr td { border-top: 1px s
 .wizard-more { font-size: 14px; margin: 14px 0 0; }
 .wizard-topics { list-style: none; margin: 12px 0 0; padding: 0; }
 .wizard-topics > li { border-top: 1px solid var(--rule); }
-.wizard-topics > li:nth-child(even) { background: var(--paper); }
 .wizard-topic-title { cursor: pointer; padding: 8px 6px; font-size: 13.5px; }
 .wizard-topic-body { padding: 0 6px 10px 22px; font-size: 13px; }
 .wizard-topic-body > p { margin: 0 0 6px; }
