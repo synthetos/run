@@ -50,7 +50,7 @@ test('a × on informational notices outside the Job view, remembered per notice;
   await rail(page, 'board');
   await boardTab(page, 'settings');
   const recorded = page.locator('[data-notice="board/settings-recorded"]');
-  await expect(recorded).toContainText('First read of this board on this computer');
+  await expect(recorded).toContainText('Run saved these values.');
   await expect(recorded.locator('[data-action="dismiss-notice-x"]')).toHaveAttribute('aria-label', 'Hide: the settings read note.');
   await recorded.locator('[data-action="dismiss-notice-x"]').click();
   await expect(recorded).toHaveCount(0);

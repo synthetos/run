@@ -54,7 +54,7 @@ describe('axisCards', () => {
 
   it('a mode other than Standard gets one line in words from the data', () => {
     expect(cardOf('x')?.modeLine).toBeNull();
-    expect(axisCards(d450, { ...s, yam: 0 }, ['x', 'y'], EN).cards.find((c) => c.axis === 'y')?.modeLine).toBe('Mode Off: the board ignores moves on this axis.');
+    expect(axisCards(d450, { ...s, yam: 0 }, ['x', 'y'], EN).cards.find((c) => c.axis === 'y')?.modeLine).toBe('Off: the board ignores moves on this axis.');
   });
 });
 

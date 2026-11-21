@@ -99,7 +99,7 @@ function modeLine(defs: SettingsFile, s: Settings, a: string): string | null {
   const mode = num(s, `${a}am`);
   if (mode === null || mode === 1) return null;
   const v = defs.tokens.get(`${a}am`)?.values?.find((x) => x.value === mode);
-  return v === undefined ? null : `Mode ${v.label}${v.help === undefined ? '' : `: ${lowerFirst(v.help)}`}`;
+  return v === undefined ? null : `${v.label}${v.help === undefined ? '' : `: ${lowerFirst(v.help)}`}`;
 }
 
 function summaryOf(defs: SettingsFile, s: Settings, a: Axis, ctx: AxisContext): string {
@@ -113,7 +113,7 @@ function summaryOf(defs: SettingsFile, s: Settings, a: Axis, ctx: AxisContext): 
   return [
     `${a.toUpperCase()} axis`,
     rotary ? `Rotary, ${lowerFirst(mode)}` : mode,
-    tn === null || tm === null ? null : `${numberWords(tn)} to ${numberWords(tm)} ${u}`.replace(' °', '°'),
+    tn === null || tm === null ? null : tn === tm ? 'no travel limit' : `${numberWords(tn)} to ${numberWords(tm)} ${u}`.replace(' °', '°'),
     vm === null ? null : `${numberWords(vm)} ${unitOf(defs, `${a}vm`, ctx)}`,
     end === null ? 'no homing switch' : end === 'both' ? 'homes on both ends' : `homes towards ${end}`,
   ].filter((p): p is string => p !== null).join(' · ');

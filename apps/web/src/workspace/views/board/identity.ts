@@ -1,6 +1,6 @@
 import { boardText } from '@synthetos/safety';
 import type { SettingValue } from '@synthetos/schema';
-import { h, type ComponentChild } from 'preact';
+import { cloneElement, h, type ComponentChild, type VNode } from 'preact';
 import { openReport } from '../../../report/state.ts';
 import {
   dialectOf,
@@ -14,7 +14,7 @@ import { fact, NOT_CONNECTED_TEXT } from './shared.ts';
 
 const REASON_TEXT: Readonly<Record<string, string>> = {
   'en-approved': 'An approved TinyG edge-next build.',
-  'en-not-approved': 'A TinyG edge-next build that is not on the approved list yet.',
+  'en-not-approved': 'A TinyG edge-next build that is not on the approved list.',
   'tg440-approved': 'An approved TinyG 440 build.',
   'tg440-not-approved': 'A TinyG 440 build that is not on the approved list.',
   'stock-449': 'Stock TinyG 449 firmware.',
@@ -83,7 +83,7 @@ function boardFactsList({ id, dialect, units, settings, view, wcs, c }: { readon
     'dl',
     { class: 'facts board-facts' },
     ...boardIdentityFacts(id),
-    fact('Firmware dialect', dialect, 'dialect', 'dialect'),
+    fact('Firmware', dialect, 'dialect', 'dialect'),
     fact('Units now', units === 'mm' ? 'millimetres (G21)' : units === 'in' ? 'inches (G20)' : 'Not read', 'unit', 'unit'),
     fact('Units at power-up', plainValue('gun', settings['gun'], dialectOf(view)) ?? 'Not read', 'gun', 'gun'),
     fact('Coordinate system', wcs ?? 'Not read', 'coor', 'coor'),
@@ -91,12 +91,15 @@ function boardFactsList({ id, dialect, units, settings, view, wcs, c }: { readon
   );
 }
 
+/** A fact row shown at Advanced only (the app's `data-advanced-only` rule hides it at Simple). */
+const advancedOnly = (row: ComponentChild): ComponentChild => cloneElement(row as VNode, { 'data-advanced-only': 'true' });
+
 function boardIdentityFacts(id: BoardIdentity | null): ComponentChild[] {
   return [
     fact('Board id', boardText(id?.id) || 'Not reported', 'id', 'id'),
     fact('Firmware build', typeof id?.fb === 'number' ? id.fb.toFixed(2) : UNKNOWN, 'fb', 'fb'),
-    fact('Firmware version', typeof id?.fv === 'number' ? String(id.fv) : UNKNOWN, 'fv', 'fv'),
-    fact('Hardware platform', id?.hp === undefined ? UNKNOWN : boardText(String(id.hp)), 'hp', 'hp'),
+    advancedOnly(fact('Firmware version', typeof id?.fv === 'number' ? String(id.fv) : UNKNOWN, 'fv', 'fv')),
+    advancedOnly(fact('Hardware platform', id?.hp === undefined ? UNKNOWN : boardText(String(id.hp)), 'hp', 'hp')),
     fact('Hardware version', id?.hv === undefined ? UNKNOWN : boardText(String(id.hv)), 'hv', 'hv'),
     id?.fbs === undefined ? null : fact('Build identity', boardText(id.fbs), 'fbs', 'fbs')
   ];

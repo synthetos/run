@@ -311,7 +311,7 @@ describe('SettingsView', () => {
     expect(say({ kind: 'reading' })).toContain('read allowlist');
     expect(say({ kind: 'incomplete', message: 'x did not answer' })).toContain('x did not answer');
     expect(say({ kind: 'noBoardId', hash: '0123456789abcdef' })).toContain('0123456789ab');
-    expect(say({ kind: 'recorded', hash: '0123456789abcdef' })).toContain('First read');
+    expect(say({ kind: 'recorded', hash: '0123456789abcdef' })).toContain('Run saved these values');
     expect(valueText(undefined)).toBe('-');
     expect(valueText(null)).toBe('-');
     expect(valueText(1.5)).toBe('1.5');

@@ -48,7 +48,7 @@ function status(phase: ReadoutPhase, onKeep: () => void): ComponentChild {
     case 'noBoardId':
       return h('p', { 'data-settings': 'no-board-id' }, 'This board reports no id, so its settings cannot be compared with an earlier read.', h('span', { 'data-advanced-only': 'true' }, ' Settings hash ', h('code', null, phase.hash.slice(0, 12)), '.'));
     case 'recorded':
-      return h('p', { 'data-settings': 'recorded' }, 'First read of this board on this computer: recorded as the reference for later connections.', h('span', { 'data-advanced-only': 'true' }, ' Settings hash ', h('code', null, phase.hash.slice(0, 12)), '.'));
+      return h('p', { 'data-settings': 'recorded' }, 'Run saved these values. Next time it shows what changed.', h('span', { 'data-advanced-only': 'true' }, ' Settings hash ', h('code', null, phase.hash.slice(0, 12)), '.'));
     case 'match':
       return h('p', { 'data-settings': 'match' }, 'The settings match the reference taken ', phase.reference.at, '.', h('span', { 'data-advanced-only': 'true' }, ' Settings hash ', h('code', null, phase.hash.slice(0, 12)), '.'));
     case 'drift':

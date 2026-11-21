@@ -121,6 +121,6 @@ describe('AxesTab', () => {
 
   it('a mode other than Standard reads as one line in the card', () => {
     const y = card('y', boardView({ settings: { ...OWNER_157, yam: 2 } }));
-    expect(text(y)).toContain('Mode Inhibited: the position follows the program, but the motor is held at step 0.');
+    expect(text(y)).toContain('Inhibited: the position follows the program, but the motor is held at step 0.');
   });
 });

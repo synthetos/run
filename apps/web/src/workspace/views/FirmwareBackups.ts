@@ -81,7 +81,7 @@ export function ImageBackups({ model }: { readonly model: WorkspaceModel | null 
       { class: 'hub-section', 'aria-labelledby': 'hub-images' },
       h('header', { class: 'hub-head' }, h('h2', { id: 'hub-images' }, 'Firmware image backups'), h('span', { class: 'fine' }, 'Read from the board before each update')),
       list.length === 0
-        ? h('p', { class: 'fine', 'data-firmware-backups': '0' }, 'None yet. Run reads the whole firmware from the board, with its EEPROM, before every update.')
+        ? h('p', { class: 'fine', 'data-firmware-backups': '0' }, 'None yet. Run reads the whole firmware from the board, and its stored settings, before every update.')
         : h('ul', { class: 'hub-list', 'data-firmware-backups': String(list.length) }, list.map((f) => h(ImageRow, { key: f.id, f, c, thisBoard }))),
     );
   } });
