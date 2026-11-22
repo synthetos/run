@@ -21,8 +21,8 @@ import { AlarmTone } from '../machine-ui/alarm.ts';
 import { axisModeView } from '../machine-ui/AxisModes.ts';
 import { EMPTY_AXIS_MODE_SESSION, type AxisModeSession } from '@synthetos/safety';
 import { lagAt } from '../machine-ui/Dro.ts';
-import { flashTranscriptFileName, transcriptFileName, type TranscriptStatus } from '../machine-ui/TranscriptSave.ts';
-import { downloadTranscript } from './transcriptDownload.ts';
+import type { TranscriptStatus } from '../machine-ui/TranscriptSave.ts';
+import { downloadTranscript, downloadSavedTranscripts, readTranscriptText } from './transcriptDownload.ts';
 import type { LiveMarkerView } from '../preview/PreviewPanel.ts';
 import { callMachineWorker } from '../machine-worker/client.ts';
 import { RPC_VERSION, type FlashCommand, type JobCommand, type MotionCommand, type SnapshotMessage } from '../machine-worker/rpc.ts';
@@ -191,20 +191,12 @@ export async function mountLiveEntry(options: MountOptions): Promise<LiveEntry> 
     if (!reply.ok || reply.kind !== 'transcript') {
       transcriptStatus = { kind: 'failed', message: reply.ok ? 'unexpected reply' : reply.message };
     } else {
-      const now = new Date();
-      const name = transcriptFileName(now);
-      downloadTranscript(document, reply.jsonl, name);
-      if (reply.flash !== undefined) downloadTranscript(document, reply.flash.jsonl, flashTranscriptFileName(now));
-      transcriptStatus = { kind: 'saved', name, events: reply.events };
+      transcriptStatus = downloadSavedTranscripts(document, reply, new Date());
     }
     publish();
   }
 
-  async function transcriptText(): Promise<string | null> {
-    if (worker === null) return null;
-    const reply = await callMachineWorker(worker, { v: RPC_VERSION, kind: 'transcript' }).catch(() => null);
-    return reply !== null && reply.ok && reply.kind === 'transcript' ? reply.jsonl : null;
-  }
+  const transcriptText = (): Promise<string | null> => readTranscriptText(worker, callMachineWorker);
 
   async function runBackup(): Promise<void> {
     if (backup.running) return;

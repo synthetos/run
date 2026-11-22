@@ -54,50 +54,13 @@ export const XB_SIGNATURE = Object.freeze([0x44, 0x97, 0x1e]);
 
 const ESC = 0x1b;
 const ACK = 0x0d;
-const YES = 0x59;
 const ERR = 0x3f;
 
-export interface XbootTimings {
-  /** Entry window after a power-on or reset (ms). Default 4800. */
-  readonly windowMs: number;
-  /** Entry window after a software reset ({"boot":1}) (ms). Default 60000. */
-  readonly windowSwResetMs: number;
-  /** Watchdog period (ms). Default 1000 (WDT_PER_1KCLK). */
-  readonly watchdogMs: number;
-  /** Busy time of one page erase-write (ms; model value). Default 6. */
-  readonly pageWriteMs: number;
-  /** Busy time of the application CRC (ms; model value). Default 40. */
-  readonly crcMs: number;
-}
-
-export const XBOOT_TIMINGS: XbootTimings = Object.freeze({ windowMs: 4800, windowSwResetMs: 60000, watchdogMs: 1000, pageWriteMs: 6, crcMs: 40 });
-
-export interface XbootFaults {
-  /** Drop the Nth byte the bootloader receives in command mode (1-based), once each. */
-  dropRx?: number[];
-  /** Drop the Nth byte the bootloader sends (1-based), once each. */
-  dropTx?: number[];
-  /** Swallow the next command with this opcode (no reply), this many times. */
-  swallow?: { readonly opcode: number; count: number };
-  /** Report this signature instead of the x192a3's. */
-  signature?: readonly [number, number, number];
-  /** Corrupt the next N flash page writes at this byte address (a byte is flipped in flash). */
-  corruptPage?: { readonly byteAddress: number; count: number };
-  /** Answer `?` to block loads, starting at the Nth one (1-based). */
-  refuseBlockLoadFrom?: number;
-}
-
-export interface XbootHost {
-  readonly now: () => number;
-  readonly setTimeout: (fn: () => void, ms: number) => number;
-  readonly clearTimeout: (id: number) => void;
-  readonly transmit: (bytes: Uint8Array) => void;
-  readonly event: (note: string) => void;
-  /** Milliseconds one byte takes on the wire (the reply's own transmit time keeps xboot busy). */
-  readonly byteMs: () => number;
-  /** Leave the bootloader: jump to address 0 (the board decides what runs there). */
-  readonly jumpToApplication: () => void;
-}
+export { XBOOT_TIMINGS } from './xbootTypes.ts';
+export type { XbootTimings, XbootFaults, XbootHost, XbootOptions } from './xbootTypes.ts';
+import { XBOOT_TIMINGS, type XbootTimings, type XbootFaults, type XbootHost, type XbootOptions } from './xbootTypes.ts';
+import { XbootHardening } from './xbootHardening.ts';
+import { dispatchXboot } from './xbootCommands.ts';
 
 type Pending = { readonly op: number; readonly need: number; readonly bytes: number[] };
 
@@ -128,8 +91,11 @@ export class XbootModel {
   #blockLoads = 0;
   #pageBuffer = new Uint8Array(XB_PAGE).fill(0xff);
   #byteWord = 0;
+  readonly #hardening: XbootHardening;
+  #badReset = false;
 
-  constructor(flash: Uint8Array, eeprom: Uint8Array, timings: Partial<XbootTimings> = {}, faults: XbootFaults = {}) {
+  constructor(flash: Uint8Array, eeprom: Uint8Array, timings: XbootOptions = {}, faults: XbootFaults = {}) {
+    this.#hardening = new XbootHardening(timings.hardened === true);
     this.flash = flash;
     this.eeprom = eeprom;
     this.timings = Object.freeze({ ...XBOOT_TIMINGS, ...timings });
@@ -149,6 +115,8 @@ export class XbootModel {
     this.stop();
     this.#host = host;
     this.#mode = 'window';
+    this.#hardening.reset();
+    this.#badReset = false;
     this.#pending = null;
     this.#rx = [];
     this.#address = 0;
@@ -191,6 +159,7 @@ export class XbootModel {
       this.#kickWatchdog();
       return;
     }
+    if (this.#badReset) return;
     this.#rxCount++;
     if (this.faults.dropRx?.includes(this.#rxCount) === true) {
       this.faults.dropRx = this.faults.dropRx.filter((n) => n !== this.#rxCount);
@@ -282,104 +251,46 @@ export class XbootModel {
       swallow.count--;
       (this.#host as XbootHost).event(`xboot fault: command 0x${byte.toString(16)} swallowed`);
       // Its parameters are swallowed too.
-      const need = { 0x48: 3, 0x41: 2, 0x42: 3, 0x67: 3, 0x68: 1 }[byte] ?? 0;
+      const need = { 0x48: 3, 0x41: 2, 0x42: 3, 0x67: 3, 0x68: 1, 0x54: 1 }[byte] ?? 0;
       if (need > 0) this.#pending = { op: -1, need, bytes: [] };
       return;
     }
-    switch (byte) {
-      case 0x61: // a
-        this.#send([YES]);
-        return;
-      case 0x41: // A
-        this.#pending = { op: byte, need: 2, bytes: [] };
-        return;
-      case 0x48: // H
-        this.#pending = { op: byte, need: 3, bytes: [] };
-        return;
-      case 0x65: // e: erase the application section and ALL EEPROM (src/xboot.c:373-400)
+    if (!this.#hardening.command(byte)) {
+      this.#send([ERR]);
+      if (this.#hardening.mustReset) {
+        // Firmware spins without feeding the watchdog after the second bad command.
+        this.#badReset = true;
+        this.#rx = [];
+        (this.#host as XbootHost).event('xboot: bad command limit: waiting for watchdog reset');
+      }
+      return;
+    }
+    dispatchXboot(byte, {
+      send: (bytes) => this.#send(bytes),
+      pending: (op, need) => { this.#pending = { op, need, bytes: [] }; },
+      erase: () => {
         this.eraseCount++;
         this.flash.fill(0xff, 0, XB_APP_BYTES);
         this.eeprom.fill(0xff);
         (this.#host as XbootHost).event('xboot: CHIP ERASE (application and EEPROM)');
         this.#busy(50);
         this.#send([ACK]);
-        return;
-      case 0x62: // b
-        this.#send([YES, (XB_PAGE >> 8) & 0xff, XB_PAGE & 0xff]);
-        return;
-      case 0x42: // B size(2) mem
-      case 0x67: // g size(2) mem
-        this.#pending = { op: byte, need: 3, bytes: [] };
-        return;
-      case 0x52: {
-        // R: read a program word, high byte first
+
+      },
+      readWord: () => {
         const at = (this.#address << 1) % (XB_APP_BYTES + XB_BOOT_BYTES);
-        this.#send([this.flash[at + 1] ?? 0xff, this.flash[at] ?? 0xff]);
         this.#address++;
-        return;
-      }
-      case 0x63: // c low byte
-      case 0x43: // C high byte
-      case 0x44: // D EEPROM byte
-      case 0x6c: // l lock bits
-      case 0x78: // x
-      case 0x79: // y
-      case 0x54: // T
-        this.#pending = { op: byte, need: 1, bytes: [] };
-        return;
-      case 0x6d: {
-        // m: write the page buffer; refused at or above the boot section (src/xboot.c:464-475)
-        if (this.#address >= XB_APP_BYTES >> 1) {
-          this.#send([ERR]);
-          return;
-        }
+        return [this.flash[at + 1] ?? 0xff, this.flash[at] ?? 0xff];
+      },
+      writeBuffer: () => {
+        if (this.#address >= XB_APP_BYTES >> 1) { this.#send([ERR]); return; }
         this.#program((this.#address << 1) & ~(XB_PAGE - 1), this.#pageBuffer);
         this.#send([ACK]);
-        return;
-      }
-      case 0x64: // d: read an EEPROM byte
-        this.#send([this.eeprom[this.#address % XB_EEPROM_BYTES] as number]);
-        this.#address++;
-        return;
-      case 0x72: // r: lock bits
-        this.#send([0xff]);
-        return;
-      case 0x46: // F
-      case 0x4e: // N
-      case 0x51: // Q
-        this.#send([0xff]);
-        return;
-      case 0x50: // P
-      case 0x4c: // L
-        this.#send([ACK]);
-        return;
-      case 0x45: // E: exit
-        this.#send([ACK]);
-        this.#leaveAfterSend();
-        return;
-      case 0x70: // p
-        this.#send([0x53]);
-        return;
-      case 0x74: // t
-        this.#send([123, 0]);
-        return;
-      case 0x53: // S
-        this.#send([...'XBoot++'].map((ch) => ch.charCodeAt(0)));
-        return;
-      case 0x56: // V
-        this.#send([0x31, 0x37]);
-        return;
-      case 0x73: // s
-        this.#send([...(this.faults.signature ?? XB_SIGNATURE)]);
-        return;
-      case 0x68: // h section
-        this.#pending = { op: byte, need: 1, bytes: [] };
-        return;
-      case ESC:
-        return;
-      default:
-        this.#send([ERR]);
-    }
+      },
+      readEeprom: () => this.eeprom[this.#address++ % XB_EEPROM_BYTES] as number,
+      signature: this.faults.signature ?? XB_SIGNATURE,
+      leave: () => this.#leaveAfterSend(),
+    });
   }
 
   #finish(p: Pending): void {
@@ -443,7 +354,10 @@ export class XbootModel {
         return;
       case 0x78:
       case 0x79:
+        this.#send([ACK]);
+        return;
       case 0x54:
+        this.#hardening.select(b0);
         this.#send([ACK]);
         return;
       case 0x68: {

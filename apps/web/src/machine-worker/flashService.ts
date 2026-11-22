@@ -1,3 +1,4 @@
+import { FlashEntryTrace, flashTranscriptReport } from './flashEntryTrace.ts';
 import { resolveFlashSource, flashSourceLabel, type FlashSourceRequest } from './flashSource.ts';
 /**
  * The firmware update in `machine.worker` (SAFETY §4.8 as amended 2026-11-03,
@@ -61,7 +62,7 @@ import { observeInputs, requiredInputs, type SeenInputs } from './switchInputs.t
 import { bannerClears, versionCheck, versionCheckDue, viewAfterBanner } from './markedConnect.ts';
 import { checkedTransport } from './checkedTransport.ts';
 import { enterBootloader } from './enterBootloader.ts';
-import { entryDiagnosis } from './flashDiagnosis.ts';
+import { entryLogDiagnosis } from './flashDiagnosis.ts';
 import { boardFacts, bootloaderView, endsWritten, startsWritten } from './flashViewFacts.ts';
 import { SESSION_SETTLE_MS, openFlashLink, recoveryEntry, sessionSettled, type EntryDeps } from './entryLinks.ts';
 import { avr109Check, firmwareAnswers, settleProbedMark } from './markProbe.ts';
@@ -205,6 +206,7 @@ export class FlashService {
   #installed = new Map<string, { sha256: string; fb: number | null }>();
   /** The bootloader link's bytes for the last run, from the moment it asked for the bootloader. */
   #transcript: EventLog | null = null;
+  #entryTrace: FlashEntryTrace | null = null;
 
   constructor(deps: FlashServiceDeps) {
     this.#d = deps;
@@ -231,10 +233,8 @@ export class FlashService {
    * The last run's flash transcript (`{t, dir, hex}` JSONL, `t` in ms since the run asked for the bootloader): every
    * byte the bootloader link wrote and received. Null before the first run or when it passed its bound.
    */
-  flashTranscript(): { readonly jsonl: string; readonly events: number } | null {
-    const log = this.#transcript;
-    if (log === null || log.truncated) return null;
-    return Object.freeze({ jsonl: log.toJsonl(), events: log.events().length });
+  flashTranscript(): { readonly jsonl: string; readonly events: number; readonly entryJson: string | null } | null {
+    return flashTranscriptReport(this.#transcript, this.#entryTrace);
   }
 
   /** The image this worker last flashed onto each board (the trust check reads it). */
@@ -493,6 +493,7 @@ export class FlashService {
       if (mark !== null) this.#restoreMark(mark, port);
       await this.closeBootloader();
       this.#transcript = new EventLog(this.#d.clock.now());
+      this.#entryTrace = null;
       link = new BootloaderLink(mark === null ? checkedTransport(port, inner, this.#d.marks, boardId) : inner, this.#d.clock, X192A3, this.#transcript);
       await link.openProbe(mark === null || mark.kind === 'detected');
       if (await avr109Check(link, marked)) {
@@ -668,6 +669,7 @@ export class FlashService {
     const port = this.#port as PortSelector;
     let link: BootloaderLink | null = null;
     this.#transcript = new EventLog(this.#d.clock.now());
+    this.#entryTrace = new FlashEntryTrace(id, recovery);
     try {
       const mark: BootloaderMark = { nonce: crypto.randomUUID(), port, boardId: this.#board?.id ?? null, recovery: { begin, view: this.#view }, wrote: startsWritten(recovery, this.#view) };
       await this.#d.marks.put(mark);
@@ -704,7 +706,7 @@ export class FlashService {
       if (!outcome.ok) {
         await link.close();
         link = null;
-        const message = outcome.code === 'no-entry' ? `${outcome.message}. ${this.#diagnosis()}` : outcome.message;
+        const message = outcome.code === 'no-entry' ? `${outcome.message}. ${entryLogDiagnosis(this.#transcript)}` : outcome.message;
         this.#finish(id, { phase: 'failed', message: withAdvice(message), recoveryOffered: true, wrote: endsWritten(outcome.wrote, this.#view) });
         return;
       }
@@ -730,11 +732,6 @@ export class FlashService {
     }
   }
 
-  /** What came back on the bootloader link (flashDiagnosis.ts). */
-  #diagnosis(): string {
-    return entryDiagnosis(this.#transcript?.events() ?? []);
-  }
-
   #finish(id: number, patch: Partial<FlashView>): void {
     if (this.#view?.id !== id) return;
     this.#running = false;
@@ -748,7 +745,7 @@ export class FlashService {
    * Disconnect end the wait.
    */
   async #entryLink(id: number, auth: FlashAuthorization, port: PortSelector, recovery: boolean): Promise<{ readonly link: BootloaderLink; readonly viaBoot: boolean } | string> {
-    const d: EntryDeps = { session: this.#d.session, source: this.#d.source, clock: this.#d.clock, transcript: this.#transcript };
+    const d: EntryDeps = { session: this.#d.session, source: this.#d.source, clock: this.#d.clock, transcript: this.#transcript, ...(this.#entryTrace === null ? {} : { trace: this.#entryTrace }) };
     if (recovery) {
       let held: BootloaderLink | null = null;
       this.#stopWait = () => { this.#cancelled = true; void held?.close(); };
@@ -772,6 +769,7 @@ export class FlashService {
       }).finally(() => { this.#stopWait = null; });
       if (found !== 'firmware') return typeof found === 'string' ? found : { link: found, viaBoot: false };
     }
+    if (this.#entryTrace !== null) this.#entryTrace.viaBoot = true;
     const entered = await enterBootloader(this.#d.session);
     if (entered !== null) {
       await this.#d.session.disconnect();

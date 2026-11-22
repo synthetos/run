@@ -46,3 +46,6 @@ export { EVENT_LOG_MAX_BYTES, EventLog, EventLogTruncatedError, toHex, wireEvent
 export type { WireDirection, WireEvent } from './eventLog.ts';
 export { DRO_AXES, LAG_AMBER_MS, LAG_RED_MS, droView, lagOf, lagThresholds } from './dro.ts';
 export type { DroAxis, DroMarker, DroView, DroWcs, Lag } from './dro.ts';
+
+export { linkDiagnosticsSnapshot } from './readDiagnostics.ts';
+export type { LinkDiagnostics, ReadDiagnostics } from './readDiagnostics.ts';

@@ -8,11 +8,12 @@ import { describe, expect, it } from 'vitest';
 import type { PortSelector, TransportSource } from '@synthetos/machine';
 import { sha256Hex } from '@synthetos/flasher';
 import type { FirmwareReleases } from '@synthetos/protocol';
-import { FlashableBoard, SIM_IMAGES, SimEndpoint, VirtualClock, simHex, simImage, type FlashableBoardOptions } from '@synthetos/testkit';
+import { MockSerialPort, FlashableBoard, SIM_IMAGES, SimEndpoint, VirtualClock, simHex, simImage, type FlashableBoardOptions } from '@synthetos/testkit';
 import { memoryBootloaderMarks } from '../src/machine-worker/bootloaderMark.ts';
 import { MachineWorkerHost } from '../src/machine-worker/host.ts';
 import { releaseFor } from '../src/machine-worker/motionFlag.ts';
 import type { FlashBackupsPost, MachineReply, SnapshotMessage } from '../src/machine-worker/rpc.ts';
+import { WebSerialTransport } from '@synthetos/machine/web-serial-transport';
 import { SimTransport } from './simTransport.ts';
 
 const PORT: PortSelector = Object.freeze({ usbVendorId: 0x0403, usbProductId: 0x6015, grantIndex: 0 });
@@ -29,11 +30,12 @@ async function releases(): Promise<FirmwareReleases> {
   return { env: 'staging', issuedMs: 0, expiresMs: Number.MAX_SAFE_INTEGER, boards: [{ hv: 99, minimumFb: 450.01, releases: [{ hv: 99, fb: x.fb, fv: 0.97, dialect: 'tinyg-en', part: 'x192a3', file: x.file, sha256: x.sha256, size: x.size, date: '2026-11-03', changelog: 'test', recommended: true, simulatorOnly: true, repo: null, tag: null }] }] };
 }
 
-function rig(board: FlashableBoardOptions = {}) {
+function rig(board: FlashableBoardOptions = {}, webSerial = false) {
   const clock = new VirtualClock();
   const device = new FlashableBoard({ model: { bootMs: 50, eepromWriteMs: 0 }, linkBaud: 2_000_000, eeprom: { __layout: 10002, st: 1 }, ...board });
   const endpoint = new SimEndpoint({ clock, device, link: { baudRate: 2_000_000, latencyMs: 0.2, coalesceMs: 2 } });
-  const source: TransportSource = { kind: 'fake', request: async () => (endpoint.connected ? new SimTransport(endpoint, clock, { open: 0, most: 0 }, 0) : null) };
+  const serialPort = new MockSerialPort(endpoint);
+  const source: TransportSource = { kind: 'fake', request: async () => (endpoint.connected ? webSerial ? new WebSerialTransport(serialPort) : new SimTransport(endpoint, clock, { open: 0, most: 0 }, 0) : null) };
   const marks = memoryBootloaderMarks();
   const host = new MachineWorkerHost(source, clock, { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/130' }, {
     file: null, origin: ORIGIN,
@@ -185,5 +187,25 @@ describe('the recovery countdown on a silent board', () => {
     expect(r.host.flash.view?.message ?? r.host.flash.view?.phase).toBe('done');
     expect(r.board.build?.fb).toBe(450.02);
     expect(r.board.xboot.eraseCount).toBe(0);
+  }, 120_000);
+});
+
+
+describe('hardened bootloader through Web Serial', () => {
+  it('connects, boots automatically, saves backups, arms, verifies and reconnects without reset', async () => {
+    const r = rig({ xboot: { hardened: true } }, true);
+    expect(await r.call({ v: 3, kind: 'open', port: PORT, boardId: null, previousSessionEnded: false })).toMatchObject({ ok: true });
+    expect(await r.until(() => r.host.session.snapshot.classification !== null && r.host.session.snapshot.base !== 'READING' && r.host.session.snapshot.base !== 'IDENTIFYING', 30_000)).toBe(true);
+    const x = await update();
+    expect(await r.call({ v: 3, kind: 'flash', command: { op: 'begin', source: { kind: 'release', hv: 99, fb: x.fb, file: x.file }, hex: x.hex, sha256: x.sha256, settingsBackup: 'saved', baseline: { st: 1 }, recovery: false } })).toMatchObject({ ok: true });
+    await r.saveBackups(undefined);
+    expect(await r.until(() => r.host.flash.view?.phase === 'done' || r.host.flash.view?.phase === 'failed')).toBe(true);
+    expect(r.host.flash.view?.message ?? r.host.flash.view?.phase).toBe('done');
+    expect(r.host.session.snapshot.identity?.fb).toBe(450.02);
+    expect(r.board.xboot.eraseCount).toBe(0);
+    expect(await r.marks.find(PORT)).toBeNull();
+    const metadata = JSON.parse(r.host.flash.flashTranscript()?.entryJson ?? '{}') as Record<string, unknown>;
+    expect(metadata).toMatchObject({ recovery: false, viaBoot: true, omittedLinks: 0, links: [{ portOpen: true, readerStarted: true, transport: { readerAcquired: true } }] });
+    expect(r.writes().filter((w) => w === '547b').length).toBeGreaterThan(0);
   }, 120_000);
 });

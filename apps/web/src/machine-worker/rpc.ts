@@ -193,7 +193,7 @@ export type MachineReply =
    * The wire transcript of the last link that opened, as `{t, dir, hex}` JSONL (P1-08). `flash`, after a firmware
    * update ran: the bootloader link's bytes in the same format, `t` in ms since that run asked for the bootloader.
    */
-  | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'transcript'; readonly jsonl: string; readonly events: number; readonly flash?: { readonly jsonl: string; readonly events: number } }
+  | { readonly v: typeof RPC_VERSION; readonly ok: true; readonly kind: 'transcript'; readonly jsonl: string; readonly events: number; readonly flash?: { readonly jsonl: string; readonly events: number; readonly entryJson?: string | null } }
   | {
       readonly v: typeof RPC_VERSION;
       readonly ok: false;

@@ -30,6 +30,7 @@
  * A live firmware-ready banner permits a one-way handoff to the normal session.
  * The same reader and open port carry the handoff: the roles never overlap.
  */
+import { readErrorText, type LinkDiagnostics } from './readDiagnostics.ts';
 import { ByteBuffer, FrameGuard, LinkClosed, consumeBootloaderCapability, type BootloaderCapability, type ByteLink, type FlasherClock, type Part } from '@synthetos/flasher';
 import { classifyLine, type Banner } from '@synthetos/protocol';
 import { PrecheckReply } from './precheckReply.ts';
@@ -61,6 +62,7 @@ export interface FlashWireEvent {
 }
 
 export class BootloaderLink implements ByteLink {
+  readonly diagnostics: LinkDiagnostics;
   readonly #inner: Transport;
   readonly #clock: FlasherClock;
   readonly #guard: FrameGuard;
@@ -93,6 +95,7 @@ export class BootloaderLink implements ByteLink {
 
   /** `log`, when given, records every frame written and every chunk received, whole (the flash transcript). */
   constructor(inner: Transport, clock: FlasherClock, part: Part, log: EventLog | null = null) {
+    this.diagnostics = { portOpen: false, readerStarted: false, rxBytes: 0, ended: false, error: null, transport: inner.readDiagnostics ?? null };
     this.#inner = inner;
     this.#log = log;
     this.#clock = clock;
@@ -139,6 +142,7 @@ export class BootloaderLink implements ByteLink {
       if (error instanceof LinkDeadline) void closePort(this.#inner, this.#clock);
       throw error;
     }
+    this.diagnostics.portOpen = true;
     void this.#read();
   }
 
@@ -368,9 +372,11 @@ export class BootloaderLink implements ByteLink {
   }
 
   async #read(): Promise<void> {
+    this.diagnostics.readerStarted = true;
     try {
       for await (const chunk of this.#inner.readable) {
         if (this.#state === 'closed') break;
+        this.diagnostics.rxBytes += chunk.byteLength;
         this.#record('rx', chunk);
         if (this.#ordinary) {
           this.#app.push(this.#reply === null ? chunk : this.#reply.push(chunk));
@@ -381,9 +387,10 @@ export class BootloaderLink implements ByteLink {
         if (this.#answer?.proven === true) this.#answerSignal.push(Uint8Array.of(1));
         if (!this.#handed) this.#buffer.push(chunk);
       }
-    } catch {
-      // A disconnect errors the stream.
+    } catch (error) {
+      this.diagnostics.error = error;
     }
-    this.#end('the USB link dropped');
+    this.diagnostics.ended = true;
+    this.#end(this.diagnostics.error === null ? 'the USB link dropped' : `bootloader reader failed: ${readErrorText(this.diagnostics.error)}`);
   }
 }

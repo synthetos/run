@@ -72,6 +72,7 @@ const XB = [...'XBoot++'].map((c) => c.charCodeAt(0));
 
 /** A tiny well-behaved xboot for the client's happy paths. */
 function goodXboot(frame: Uint8Array): readonly number[] | null {
+  if ([0x54, 0x50, 0x4c].includes(frame[0] as number)) return [13];
   switch (frame[0]) {
     case 0x1b:
       return [];
@@ -85,6 +86,8 @@ function goodXboot(frame: Uint8Array): readonly number[] | null {
       return [0x59, 0x02, 0x00];
     case 0x61:
       return [0x59];
+    case 0x74:
+      return [123, 0];
     case 0x48:
       return [0x0d];
     case 0x42:

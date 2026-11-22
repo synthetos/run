@@ -10,6 +10,7 @@
  * processor is not, so replugging USB does not reset the board: the person presses Reset or switches its power off
  * and on. Cancel closes the link the wait holds, which ends it at once.
  */
+import type { FlashEntryTrace } from './flashEntryTrace.ts';
 import { BootloaderLink, type EventLog, type PortSelector, type SessionClock, type SessionExecutor, type Transport, type TransportSource } from '@synthetos/machine';
 import { X192A3, XbootClient, recoverEntry, type FlashAuthorization } from '@synthetos/flasher';
 import { avr109Check, firmwareAnswers } from './markProbe.ts';
@@ -23,6 +24,7 @@ export interface EntryDeps {
   readonly source: TransportSource;
   readonly clock: SessionClock;
   readonly transcript: EventLog | null;
+  readonly trace?: FlashEntryTrace;
 }
 
 export function sleep(clock: SessionClock, ms: number): Promise<void> {
@@ -38,6 +40,7 @@ export async function openFlashLink(d: EntryDeps, auth: FlashAuthorization, port
   const inner = await d.source.request(port).catch(() => null);
   if (inner === null) return null;
   const link = new BootloaderLink(inner, d.clock, X192A3, d.transcript);
+  d.trace?.track(link);
   const token = auth.capability();
   if (token === null) return null;
   await link.open(token);
@@ -74,6 +77,7 @@ export async function lookFirst(d: EntryDeps, port: PortSelector): Promise<First
   const inner = await d.source.request(port).catch(() => null);
   if (inner === null) return { kind: 'silent' };
   const link = new BootloaderLink(inner, d.clock, X192A3, d.transcript);
+  d.trace?.track(link);
   try {
     await link.openProbe();
     if (await avr109Check(link, true)) return { kind: 'bootloader', link };

@@ -25,6 +25,7 @@
  * `GuardedTransport` (guardedTransport.ts) enforces all of these around any
  * inner Transport. The session only ever writes through a guarded one.
  */
+import type { ReadDiagnostics } from './readDiagnostics.ts';
 import type { BootloaderCapability } from '@synthetos/flasher';
 
 /** Options for `open`, as Web Serial's `SerialOptions` subset run uses. */
@@ -43,6 +44,8 @@ export interface TransportInfo {
 }
 
 export interface Transport {
+  /** Optional receive lifecycle evidence; never used to authorize I/O. */
+  readonly readDiagnostics?: ReadDiagnostics;
   /**
    * Open the link. `capability` is required for 1200 baud and for a
    * bootloader-role port, and is refused anywhere else.

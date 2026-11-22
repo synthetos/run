@@ -21,6 +21,7 @@ const LATE_FIRST_REPLY = { kind: 'latency', direction: 'toHost', fromMs: 0, toMs
 
 const OPS = new Map<number, string>([
   [0x1b, '!'],
+  [0x74, 't'], [0x54, 'T'], [0x50, 'P'], [0x4c, 'L'],
   [0x53, 'S'],
   [0x56, 'V'],
   [0x73, 's'],
@@ -94,7 +95,7 @@ describe('the bytes a whole update puts on the wire', () => {
     const ops = r.link.frames.map((f) => OPS.get(f[0] as number) ?? `<${(f[0] as number).toString(16)}>`).join('');
     // Entry; identify; EEPROM twice (4 blocks each) and the application (384 blocks) with its CRC; keep-alives;
     // stub page 0 and the pages that differ; read-back of every page; the real page 0 and its read-back; CRC; exit.
-    expect(ops).toMatch(/^!SSVsba(Hg){4}(Hg){384}(Hg){4}ha+(HB)+(Hg){384}HBHghE$/);
+    expect(ops).toMatch(/^!SSVsba(Hg){4}(Hg){384}(Hg){4}ha+tTP(HB)+L(Hg){384}tTPHBLHghE$/);
     for (const f of r.link.frames) {
       if (f[0] === 0x42) expect([f.length, f[1], f[2], f[3]]).toEqual([516, 0x02, 0x00, 0x46]);
       if (f[0] === 0x67) expect([f.length, f[1], f[2]]).toEqual([4, 0x02, 0x00]);

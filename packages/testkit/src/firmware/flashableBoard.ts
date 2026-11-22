@@ -30,7 +30,7 @@ import { TinyGEdgeNextModel } from './edgeNext.ts';
 import type { TinyGModelOptions } from './common.ts';
 import type { EepromImage } from './settings.ts';
 import { SIM_APP_BYTES, readSimBuild, simImage, type SimBuild } from './simFirmware.ts';
-import { XB_BOOT_BYTES, XB_EEPROM_BYTES, XbootModel, type XbootFaults, type XbootTimings } from './xboot.ts';
+import { XB_BOOT_BYTES, XB_EEPROM_BYTES, XbootModel, type XbootFaults, type XbootOptions } from './xboot.ts';
 
 /**
  * Bench conditions on the way into xboot. Both make the bootloader never answer; they differ in what the host sees.
@@ -55,7 +55,7 @@ export interface FlashableBoardOptions {
   readonly model?: Omit<TinyGModelOptions, 'eeprom' | 'build' | 'onBootRequest' | 'inputs' | 'start'>;
   /** `app` (default): the firmware is already running when the host connects. `boot`: it boots now. `bootloader`: xboot's power-on window. */
   readonly start?: 'app' | 'boot' | 'bootloader';
-  readonly xboot?: Partial<XbootTimings>;
+  readonly xboot?: XbootOptions;
   readonly faults?: XbootFaults;
   readonly id?: string;
   /**

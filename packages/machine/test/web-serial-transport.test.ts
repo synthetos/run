@@ -73,7 +73,7 @@ describe('the constants are the open policy\'s (the transport imports types only
 
   it('has exactly the Transport members and nothing else: no way to cancel a write in progress (SAFETY H2b)', () => {
     expect(Object.getOwnPropertyNames(WebSerialTransport.prototype).sort()).toEqual(['close', 'constructor', 'info', 'onDisconnect', 'open', 'readable', 'writeLine']);
-    expect(Object.getOwnPropertyNames(new WebSerialTransport(new ScriptedSerialPort()))).toEqual([]);
+    expect(Object.getOwnPropertyNames(new WebSerialTransport(new ScriptedSerialPort()))).toEqual(['readDiagnostics']);
   });
 });
 

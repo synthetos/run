@@ -62,6 +62,10 @@ export function entryDiagnosis(events: readonly WireEvent[]): string {
   const t = entryTraffic(events);
   const times = (n: number): string => (n === 1 ? 'once' : `${n} times`);
   const tried = `run sent ESC ${times(t.escapes)} and S ${times(t.ids)} over ${(t.spanMs / 1000).toFixed(1)} s`;
-  if (t.received === 0) return `Nothing came back: ${tried} and the board sent no byte at all.`;
+  if (t.received === 0) return `Run received no bytes on the bootloader link: ${tried}.`;
   return `The board sent ${t.received} bytes, none of them the bootloader's answer ("${shown(t.head)}"${t.received > t.head.length ? '…' : ''}), while ${tried}: the firmware may still be running.`;
+}
+
+export function entryLogDiagnosis(log: { events(): readonly WireEvent[] } | null): string {
+  return entryDiagnosis(log?.events() ?? []);
 }

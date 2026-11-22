@@ -184,6 +184,7 @@ function recordInfo(raw: SerialPortInfoLike): { readonly usbVendorId?: number; r
 type State = 'new' | 'opening' | 'open' | 'closed';
 
 export class WebSerialTransport implements Transport {
+  readonly readDiagnostics = { portOpen: false, readerAcquired: false, readCompletions: 0, rxBytes: 0, ended: false, error: null as unknown };
   readonly #port: SerialPortLike;
   readonly #info: TransportInfo;
   #state: State = 'new';
@@ -242,6 +243,7 @@ export class WebSerialTransport implements Transport {
   /** rts.ts `openWithRts`, held here as a literal: open, then RTS on; if RTS cannot be set, close and refuse. */
   async #openWithRts(options: WebSerialOpenOptions): Promise<void> {
     await this.#port.open(options);
+    this.readDiagnostics.portOpen = true;
     try {
       await this.#port.setSignals(WEB_SERIAL_RTS_ON);
     } catch (error) {
@@ -343,21 +345,28 @@ export class WebSerialTransport implements Transport {
   async *#read(): AsyncGenerator<Uint8Array> {
     if (this.#state !== 'open') return;
     if (this.#reader !== undefined) throw new WebSerialRefusedError('reader-in-use', 'the port is already being read');
-    const readable = this.#port.readable;
-    if (readable === null) return;
-    const reader = readable.getReader();
-    this.#reader = reader;
+    let reader: SerialReaderLike | undefined;
     try {
+      const readable = this.#port.readable;
+      if (readable === null) { this.readDiagnostics.ended = true; return; }
+      reader = readable.getReader();
+      this.#reader = reader;
+      this.readDiagnostics.readerAcquired = true;
       for (;;) {
         const { done, value } = await reader.read();
-        if (done) return;
+        this.readDiagnostics.readCompletions++;
+        if (done) { this.readDiagnostics.ended = true; return; }
         if (!(value instanceof Uint8Array)) throw new TypeError('the port delivered something other than bytes');
+        this.readDiagnostics.rxBytes += value.byteLength;
         yield value;
-        // close() released this reader while the consumer held the chunk: the link is closed.
         if (this.#reader !== reader) return;
       }
+    } catch (error) {
+      this.readDiagnostics.error = error;
+      this.readDiagnostics.ended = true;
+      throw error;
     } finally {
-      if (this.#reader === reader) {
+      if (reader !== undefined && this.#reader === reader) {
         this.#reader = undefined;
         reader.releaseLock();
       }

@@ -27,6 +27,8 @@ export interface Part {
   readonly signature: string;
   /** Flash page size in bytes; the block size `b` reports. */
   readonly pageBytes: number;
+  /** AVR109 device code returned by t and selected by T. */
+  readonly deviceCode: number;
   /** The application section: byte addresses [0, appBytes). */
   readonly appBytes: number;
   /** First byte of the boot section (xboot). Nothing at or above it is ever written. */
@@ -48,6 +50,7 @@ export const X192A3: Part = Object.freeze({
   signatureReply: Object.freeze([0x44, 0x97, 0x1e]) as unknown as readonly [number, number, number],
   signature: '1E 97 44',
   pageBytes: 512,
+  deviceCode: 123,
   appBytes: 0x30000,
   bootStart: 0x30000,
   bootBytes: 0x2000,

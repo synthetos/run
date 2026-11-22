@@ -35,6 +35,10 @@ import type { Part } from './part.ts';
 export const OPCODES = Object.freeze({
   /** ESC: enters the bootloader from the entry window; a no-op afterwards (no reply). */
   sync: 0x1b,
+  deviceCodes: 0x74,
+  selectDevice: 0x54,
+  enterProgramming: 0x50,
+  leaveProgramming: 0x4c,
   /** `S`: program id, 7 bytes `XBoot++`. */
   programId: 0x53,
   /** `V`: version, 2 bytes. */
@@ -81,6 +85,10 @@ export const SECTION_APPLICATION = 0x41;
 /** Every frame the client can build. There is no erase. */
 export type Command =
   | { readonly op: 'sync' }
+  | { readonly op: 'deviceCodes' }
+  | { readonly op: 'selectDevice'; readonly code: number }
+  | { readonly op: 'enterProgramming' }
+  | { readonly op: 'leaveProgramming' }
   | { readonly op: 'programId' }
   | { readonly op: 'version' }
   | { readonly op: 'signature' }
@@ -94,45 +102,54 @@ export type Command =
 
 export type CommandOp = Command['op'];
 
+const REPLY_LENGTHS = Object.freeze({ sync: 0, programId: 7, version: 2, signature: 3, autoIncrement: 1,
+  blockSupport: 3, setAddress: 1, writeFlashBlock: 1, crcApplication: 2, exit: 1,
+  deviceCodes: 2, selectDevice: 1, enterProgramming: 1, leaveProgramming: 1 });
+
 /** Bytes xboot sends back for each command, and their meaning. */
 export function replyLength(command: Command): number {
-  switch (command.op) {
-    case 'sync':
-      return 0;
-    case 'programId':
-      return 7;
-    case 'version':
-      return 2;
-    case 'signature':
-      return 3;
-    case 'autoIncrement':
-      return 1;
-    case 'blockSupport':
-      return 3;
-    case 'setAddress':
-      return 1;
-    case 'writeFlashBlock':
-      return 1;
-    case 'readBlock':
-      return command.size;
-    case 'crcApplication':
-      return 2;
-    case 'exit':
-      return 1;
-    default:
-      throw new CommandError(`no such command: ${String((command as { op?: unknown }).op)}`);
-  }
+  if (command.op === 'readBlock') return command.size;
+  if (!Object.hasOwn(REPLY_LENGTHS, command.op)) throw new CommandError(`no such command: ${String((command as { op?: unknown }).op)}`);
+  return REPLY_LENGTHS[command.op];
 }
 
 export class CommandError extends Error {
   override readonly name = 'CommandError';
 }
 
-/** The one place a `Command` becomes bytes. Throws for a malformed command (never sends a guess). */
+function selectDevice(code: number): Uint8Array {
+  if (!Number.isInteger(code) || code < 1 || code > 255) throw new CommandError('invalid AVR109 device code');
+  return Uint8Array.of(OPCODES.selectDevice, code);
+}
+function deviceFrame(frame: Uint8Array, part: Part): FrameVerdict {
+  if (frame.length !== 2) return refuse('bad-length', 'T takes exactly one device code');
+  return frame[1] === part.deviceCode ? { ok: true, op: 'selectDevice' } : refuse('bad-device', 'T must select the configured part');
+}
+function encodeBlock(data: Uint8Array): Uint8Array {
+  const n = data.length;
+  if (n === 0 || n > 0xffff) throw new CommandError(`block of ${n} bytes`);
+  const out = new Uint8Array(4 + n);
+  out.set([OPCODES.blockLoad, (n >> 8) & 0xff, n & 0xff, MEMORY.flash]);
+  out.set(data, 4);
+  return out;
+}
+function readFrame(frame: Uint8Array, part: Part, address: number | null): FrameVerdict {
+  if (frame.length !== 4) return refuse('bad-length', `g takes size and memory (3 bytes), got ${frame.length - 1}`);
+  const size = ((frame[1] as number) << 8) | (frame[2] as number);
+  if (frame[3] !== MEMORY.flash && frame[3] !== MEMORY.eeprom) return refuse('bad-memory', 'block reads are of flash or EEPROM only');
+  if (size === 0 || size > part.pageBytes || size % 2 !== 0) return refuse('block-size', `block read of ${size} bytes`);
+  if (address === null) return refuse('no-address', 'a block read before any address was set');
+  return { ok: true, op: 'readBlock' };
+}
+const PROGRAMMING_SINGLE = { deviceCodes: OPCODES.deviceCodes, enterProgramming: OPCODES.enterProgramming, leaveProgramming: OPCODES.leaveProgramming };
+/** The one place a `Command` becomes bytes. Malformed commands are refused before I/O. */
 export function encodeCommand(command: Command): Uint8Array {
+  if (Object.hasOwn(PROGRAMMING_SINGLE, command.op)) return Uint8Array.of(PROGRAMMING_SINGLE[command.op as keyof typeof PROGRAMMING_SINGLE]);
   switch (command.op) {
     case 'sync':
       return Uint8Array.of(OPCODES.sync);
+    case 'selectDevice':
+      return selectDevice(command.code);
     case 'programId':
       return Uint8Array.of(OPCODES.programId);
     case 'version':
@@ -148,14 +165,8 @@ export function encodeCommand(command: Command): Uint8Array {
       if (!Number.isInteger(v) || v < 0 || v > 0xffffff) throw new CommandError(`address ${String(v)} is not a 24-bit value`);
       return Uint8Array.of(OPCODES.setAddress, (v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff);
     }
-    case 'writeFlashBlock': {
-      const n = command.data.length;
-      if (n === 0 || n > 0xffff) throw new CommandError(`block of ${n} bytes`);
-      const out = new Uint8Array(4 + n);
-      out.set([OPCODES.blockLoad, (n >> 8) & 0xff, n & 0xff, MEMORY.flash], 0);
-      out.set(command.data, 4);
-      return out;
-    }
+    case 'writeFlashBlock':
+      return encodeBlock(command.data);
     case 'readBlock': {
       const n = command.size;
       if (!Number.isInteger(n) || n <= 0 || n > 0xffff) throw new CommandError(`read of ${String(n)} bytes`);
@@ -178,6 +189,7 @@ export type FrameRefusal =
   | 'bad-length'
   | 'bad-memory'
   | 'bad-section'
+  | 'bad-device'
   | 'block-size'
   | 'no-address'
   | 'unaligned'
@@ -224,6 +236,9 @@ export class FrameGuard {
     if (FORBIDDEN_OPCODES.includes(op)) return refuse('forbidden-opcode', `opcode 0x${op.toString(16)} (${String.fromCharCode(op)}) is never sent`);
     const single: readonly [number, CommandOp][] = [
       [OPCODES.sync, 'sync'],
+      [OPCODES.deviceCodes, 'deviceCodes'],
+      [OPCODES.enterProgramming, 'enterProgramming'],
+      [OPCODES.leaveProgramming, 'leaveProgramming'],
       [OPCODES.programId, 'programId'],
       [OPCODES.version, 'version'],
       [OPCODES.signature, 'signature'],
@@ -235,20 +250,15 @@ export class FrameGuard {
     if (one !== undefined) return frame.length === 1 ? { ok: true, op: one[1] } : refuse('bad-length', `${one[1]} is one byte, got ${frame.length}`);
     const part = this.#part;
     switch (op) {
+      case OPCODES.selectDevice:
+        return deviceFrame(frame, part);
       case OPCODES.setAddress:
         return frame.length === 4 ? { ok: true, op: 'setAddress' } : refuse('bad-length', `H takes 3 address bytes, got ${frame.length - 1}`);
       case OPCODES.crc:
         if (frame.length !== 2) return refuse('bad-length', `h takes one section byte, got ${frame.length - 1}`);
         return frame[1] === SECTION_APPLICATION ? { ok: true, op: 'crcApplication' } : refuse('bad-section', 'only the application section CRC is asked for');
-      case OPCODES.blockRead: {
-        if (frame.length !== 4) return refuse('bad-length', `g takes size and memory (3 bytes), got ${frame.length - 1}`);
-        const size = ((frame[1] as number) << 8) | (frame[2] as number);
-        if (frame[3] !== MEMORY.flash && frame[3] !== MEMORY.eeprom) return refuse('bad-memory', 'block reads are of flash or EEPROM only');
-        // xboot reads into its page buffer: a larger block would overrun it (XB src/xboot.c:1200-1240, buffer[SPM_PAGESIZE]).
-        if (size === 0 || size > part.pageBytes || size % 2 !== 0) return refuse('block-size', `block read of ${size} bytes`);
-        if (this.#address === null) return refuse('no-address', 'a block read before any address was set');
-        return { ok: true, op: 'readBlock' };
-      }
+      case OPCODES.blockRead:
+        return readFrame(frame, part, this.#address);
       case OPCODES.blockLoad: {
         if (frame.length < 4) return refuse('bad-length', 'a block load without its header');
         const size = ((frame[1] as number) << 8) | (frame[2] as number);

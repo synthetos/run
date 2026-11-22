@@ -40,11 +40,12 @@
  *   `desync`: a hard stop, and after any failed reply nothing is sent but a
  *   new entry (`resync`).
  */
-import { REPLY, encodeCommand, replyLength, type Command } from './avr109.ts';
+import { REPLY, encodeCommand, type Command } from './avr109.ts';
 import type { ByteLink, FlasherClock } from '../../core/link.ts';
 import { XbootError, hex, toXbootError } from './errors.ts';
 import type { Part } from './part.ts';
-import { assertQuiet, drainUntilQuiet } from './quiet.ts';
+import { XbootExchange } from './exchange.ts';
+import { drainUntilQuiet } from './quiet.ts';
 
 export { XbootError, toXbootError } from './errors.ts';
 export type { XbootErrorCode } from './errors.ts';
@@ -103,14 +104,12 @@ export class XbootClient {
   readonly #clock: FlasherClock;
   readonly #part: Part;
   readonly #t: ClientTimings;
-  #busy = false;
-  /** A reply failed or came out of step: nothing is sent until a new entry succeeds. */
-  #unsynced = false;
-  #entering = false;
+  readonly #exchange: XbootExchange;
   /** Commands sent (tests and the transcript). */
-  sent = 0;
+  get sent(): number { return this.#exchange.sent; }
 
   constructor(link: ByteLink, clock: FlasherClock, part: Part, timings: Partial<ClientTimings> = {}) {
+    this.#exchange = new XbootExchange(link);
     this.#link = link;
     this.#clock = clock;
     this.#part = part;
@@ -129,31 +128,8 @@ export class XbootClient {
    * Send one command and read its whole reply, at its exact length. Exactly one command is in flight at any
    * time; the line must hold nothing before it is sent (quiet.ts). After any failure, only a new entry may talk.
    */
-  async command(command: Command, timeoutMs: number): Promise<Uint8Array> {
-    if (this.#busy) throw new XbootError('unexpected', 'one command at a time');
-    if (this.#unsynced && !this.#entering) throw new XbootError('desync', 'a reply failed or came out of step: nothing is sent before a new bootloader entry');
-    this.#busy = true;
-    try {
-      const frame = encodeCommand(command);
-      assertQuiet(this.#link, `\`${String.fromCharCode(frame[0] as number)}\``);
-      await this.#link.write(frame);
-      this.sent++;
-      return await this.#link.read(replyLength(command), timeoutMs);
-    } catch (error) {
-      const e = toXbootError(error);
-      if (e.code !== 'unexpected') this.#unsynced = true;
-      throw e;
-    } finally {
-      this.#busy = false;
-    }
-  }
-
-  async #expectAck(command: Command, timeoutMs: number, what: string): Promise<void> {
-    const reply = await this.command(command, timeoutMs);
-    if (reply[0] === REPLY.ack) return;
-    this.#unsynced = true;
-    if (reply[0] === REPLY.error) throw new XbootError('refused', `xboot refused ${what}`);
-    throw new XbootError('desync', `xboot answered ${what} with 0x${hex(reply)}, not an acknowledgement: the replies are out of step, so nothing more is sent`);
+  command(command: Command, timeoutMs: number): Promise<Uint8Array> {
+    return this.#exchange.command(command, timeoutMs);
   }
 
   /**
@@ -164,11 +140,13 @@ export class XbootClient {
    * quiet (quiet.ts).
    */
   async enter(deadlineMs: number): Promise<number> {
+    if (this.#exchange.active) throw new XbootError('unexpected', 'one command at a time');
     const start = this.#clock.now();
     let tries = 0;
     let entered = false;
-    this.#unsynced = true;
-    this.#entering = true;
+    this.#exchange.unsynced = true;
+    this.#exchange.armed = false;
+    this.#exchange.entering = true;
     try {
       while (!entered && this.#clock.now() - start < deadlineMs) {
         if (this.#link.closed) throw new XbootError('closed', 'the link closed during bootloader entry');
@@ -183,11 +161,11 @@ export class XbootClient {
         if (!entered) await sleep(this.#clock, this.#t.entryIntervalMs);
       }
     } finally {
-      this.#entering = false;
+      this.#exchange.entering = false;
     }
     if (!entered) throw new XbootError('no-entry', `the bootloader did not answer within ${Math.round(deadlineMs / 1000)} s`);
     await drainUntilQuiet(this.#link, this.#clock, this.#t.quietMs, this.#t.quietMaxMs);
-    this.#unsynced = false;
+    this.#exchange.unsynced = false;
     return tries;
   }
 
@@ -212,16 +190,17 @@ export class XbootClient {
   /** `H` with a flash byte address (sent as a word address). */
   async setFlashAddress(byteAddress: number): Promise<void> {
     if (byteAddress % 2 !== 0) throw new XbootError('unexpected', 'flash addresses are word aligned');
-    await this.#expectAck({ op: 'setAddress', value: byteAddress / 2 }, this.#t.replyMs, 'the address');
+    await this.#exchange.ack({ op: 'setAddress', value: byteAddress / 2 }, this.#t.replyMs, 'the address');
   }
 
   /** `H` with an EEPROM byte address. */
   async setEepromAddress(byteAddress: number): Promise<void> {
-    await this.#expectAck({ op: 'setAddress', value: byteAddress }, this.#t.replyMs, 'the address');
+    await this.#exchange.ack({ op: 'setAddress', value: byteAddress }, this.#t.replyMs, 'the address');
   }
 
   /** Read `length` bytes of flash from `byteAddress`, a page at a time. */
   async readFlash(byteAddress: number, length: number, onPage?: (done: number) => void): Promise<Uint8Array> {
+    await this.#exchange.leave(this.#t.replyMs);
     const out = new Uint8Array(length);
     const page = this.#part.pageBytes;
     for (let at = 0; at < length; at += page) {
@@ -235,6 +214,7 @@ export class XbootClient {
 
   /** Read `length` bytes of EEPROM from `byteAddress`, a page-sized block at a time. */
   async readEeprom(byteAddress: number, length: number): Promise<Uint8Array> {
+    await this.#exchange.leave(this.#t.replyMs);
     const out = new Uint8Array(length);
     const page = this.#part.pageBytes;
     for (let at = 0; at < length; at += page) {
@@ -250,26 +230,27 @@ export class XbootClient {
     const page = this.#part.pageBytes;
     if (data.length !== page || byteAddress % page !== 0) throw new XbootError('unexpected', 'pages are written whole and aligned');
     if (byteAddress + page > this.#part.bootStart) throw new XbootError('unexpected', 'never at or above the bootloader section');
-    await this.setFlashAddress(byteAddress);
-    await this.#expectAck({ op: 'writeFlashBlock', data }, this.#t.blockWriteMs, `the page at 0x${byteAddress.toString(16)}`);
+    await this.#exchange.writePage(this.#part, byteAddress, data, this.#t);
   }
 
   /** `h` `A`: xboot's CRC-16 of the whole application section. */
   async crcApplication(): Promise<number> {
+    await this.#exchange.leave(this.#t.replyMs);
     const r = await this.command({ op: 'crcApplication' }, this.#t.crcMs);
     return ((r[0] as number) << 8) | (r[1] as number);
   }
 
   /** `E`: leave the bootloader; the board starts the application. */
   async exit(): Promise<void> {
-    await this.#expectAck({ op: 'exit' }, this.#t.replyMs, 'the exit');
+    await this.#exchange.leave(this.#t.replyMs);
+    await this.#exchange.ack({ op: 'exit' }, this.#t.replyMs, 'the exit');
   }
 
   /** One keep-alive (`a`, answered `Y`). */
   async ping(): Promise<void> {
     const r = await this.command({ op: 'autoIncrement' }, this.#t.replyMs);
     if (r[0] === REPLY.yes) return;
-    this.#unsynced = true;
+    this.#exchange.unsynced = true;
     throw new XbootError('desync', `the keep-alive was answered with 0x${hex(r)}, not Y: the replies are out of step, so nothing more is sent`);
   }
 

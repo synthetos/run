@@ -10,7 +10,7 @@ describe('entryDiagnosis', () => {
   it('nothing back: says so, with how often and how long run tried', () => {
     const events = [tx(310, 0x1b), tx(311, 0x53), tx(512, 0x1b), tx(513, 0x53), tx(10_300, 0x1b)];
     expect(entryTraffic(events)).toMatchObject({ escapes: 3, ids: 2, received: 0, spanMs: 9_990 });
-    expect(entryDiagnosis(events)).toBe('Nothing came back: run sent ESC 3 times and S 2 times over 10.0 s and the board sent no byte at all.');
+    expect(entryDiagnosis(events)).toBe('Run received no bytes on the bootloader link: run sent ESC 3 times and S 2 times over 10.0 s.');
   });
 
   it('bytes back that are not XBoot++: shows the first ones, control bytes escaped, and that the firmware may be running', () => {
@@ -22,6 +22,6 @@ describe('entryDiagnosis', () => {
   });
 
   it('no events at all (the port never opened in bootloader role)', () => {
-    expect(entryDiagnosis([])).toBe('Nothing came back: run sent ESC 0 times and S 0 times over 0.0 s and the board sent no byte at all.');
+    expect(entryDiagnosis([])).toBe('Run received no bytes on the bootloader link: run sent ESC 0 times and S 0 times over 0.0 s.');
   });
 });
