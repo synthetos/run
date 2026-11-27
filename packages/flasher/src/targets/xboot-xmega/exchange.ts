@@ -1,6 +1,6 @@
 import { encodeCommand, replyLength, type Command } from './avr109.ts';
 import type { ByteLink } from '../../core/link.ts';
-import type { ClientTimings } from './client.ts';
+import type { ClientTimings } from './timings.ts';
 import { XbootError, toXbootError } from './errors.ts';
 import type { Part } from './part.ts';
 import { armWrites, expectAck } from './programming.ts';

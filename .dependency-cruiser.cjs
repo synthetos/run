@@ -273,10 +273,11 @@ module.exports = {
         'The Web Serial transport is the only module that may touch navigator.serial ' +
         '(tools/gates/src/shared/webSerialNames.ts). Only the machine worker\'s transport seam ' +
         '(apps/web/src/machine-worker/transport.ts, which runs in machine.worker) and the machine ' +
-        'package\'s own tests may import it. The machine package entry never re-exports it, so no ' +
-        'other code (the main thread, the cloud client, another package) can open a port.',
+        'package\'s own tests may import it, and the web app\'s tests (never bundled), which drive the ' +
+        'machine worker host over a mock port through the real transport. The machine package entry never ' +
+        're-exports it, so no other code (the main thread, the cloud client, another package) can open a port.',
       severity: 'error',
-      from: { pathNot: '(^apps/web/src/machine-worker/transport\\.ts$|^packages/machine/test/)' },
+      from: { pathNot: '(^apps/web/src/machine-worker/transport\\.ts$|^packages/machine/test/|^apps/web/test/)' },
       to: { path: '^packages/machine/src/webSerialTransport\\.ts$' },
     },
 
