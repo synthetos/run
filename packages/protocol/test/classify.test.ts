@@ -213,6 +213,13 @@ describe('classify: StatusReport, QueueReport, Exception, Ack', () => {
     expect(garbledReason('{"fs":{"v":1},"fl":{"k":0}}')).toBe('unrecognized-shape');
   });
 
+  it('OverrideReport for exactly {"ov":{...}} (450.06 override push after a read of rt)', () => {
+    const ov = '{"ov":{"v":1,"q":1,"mfo":1.000,"mfc":1.000,"mfe":1,"capped":false}}';
+    expect(classifyLine(ov)).toMatchObject({ kind: 'OverrideReport', line: ov, ov: { v: 1, q: 1, mfo: 1, mfe: 1, capped: false } });
+    expect(garbledReason('{"ov":1}')).toBe('bad-value');
+    expect(garbledReason('{"ov":{"v":1},"f":[3,0,10]}')).toBe('unrecognized-shape');
+  });
+
   it('ProbeReport for exactly {"prb":{...}} with e 0 or 1 (edge-next G38.2 completion, strict or relaxed)', () => {
     const contact = '{"prb":{"e":1,"x":0.000,"y":0.000,"z":-4.217,"a":0.000,"b":0.000,"c":0.000}}';
     expect(classifyLine(contact)).toMatchObject({ kind: 'ProbeReport', line: contact, e: 1, prb: { z: -4.217 } });
