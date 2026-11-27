@@ -178,6 +178,10 @@ function onInboundFamily1(t: Tx, message: InboundMessage, deps: ReducerDeps): bo
     case 'FeedLimitEvent':
       onInboundFeedLimitEvent(t, { ...message, event }, deps);
       return true;
+    case 'OverrideReport':
+      // A pushed report, never an answer (450.06): it neither matches nor displaces an owed answer.
+      t.emit({ kind: 'log', text: `override report: ${event.line.slice(0, 120)}` });
+      return true;
     case 'QueueReport':
       onInboundQueueReport(t, { ...message, event }, deps);
       return true;

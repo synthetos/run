@@ -164,6 +164,17 @@ export interface FeedGapSummary {
 }
 
 /**
+ * `{"ov":{"v":1,"q":rev,"mfo":..,"mfc":..,"mfe":..,"capped":..}}`: TinyG 450.06 override state, pushed when it
+ * changes (with `{"rt":{"ov":1}}`) and once after any read of `rt` or `ov`. Never an answer.
+ * @cite TG runtime.c rt_get_ov, rt_override_callback.
+ */
+export interface OverrideReport {
+  readonly kind: 'OverrideReport';
+  readonly line: string;
+  readonly ov: JsonObject;
+}
+
+/**
  * `{"fl":{"k":kind,"m":tags,"p":pct,"n":line}}`: the executing move's limit, rate-limited and coalesced.
  * Tag bits: 1 axis cap, 2 corner, 4 exact stop, 8 short, 16 single segment, 32 command boundary (step 3).
  * Step 3 adds g=1 (input pending) / g=2 (no known input) during a supply gap, with n naming the last line.
@@ -261,6 +272,7 @@ export type ClassifiedLine =
   | FeedLimitSummary
   | FeedGapSummary
   | FeedLimitEvent
+  | OverrideReport
   | ProbeReport
   | Text
   | Garbled;

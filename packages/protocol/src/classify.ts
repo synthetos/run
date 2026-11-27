@@ -22,6 +22,7 @@
  * | exactly `fs`, an object | `FeedLimitSummary` (edge-next feed-limit push, `{"rt":{"fi":N}}`; `"x":1` marks short totals) |
  * | exactly `fg`, an object | `FeedGapSummary` (step-3 supply/boundary counters, paired with fs by e/q) |
  * | exactly `fl`, an object | `FeedLimitEvent` (edge-next feed-limit push: the running move's limit changed) |
+ * | exactly `ov`, an object | `OverrideReport` (450.06 override push, after `{"rt":null}` or a change) |
  * | exactly `prb`, an object whose `e` is 0 or 1 | `ProbeReport` (edge-next G38.2 completion) |
  * | anything else | `Garbled{unrecognized-shape}` |
  *
@@ -44,6 +45,20 @@ export const MAX_RX_REPORT = 255;
 
 /** The message of the last boot banner (@cite EN report.c:96-98). */
 export const READY_MESSAGE = 'SYSTEM READY';
+
+/**
+ * Pushed lines that are never answers, keyed by their one top-level key, whose value must be an object. Only the
+ * envelope is checked: these frames may gain fields, and nothing run decides reads them unchecked.
+ * - `hb`: the runtime heartbeat. `fs`, `fg`, `fl`: feed-limit pushes (@cite EN runtime.c:356-370, :422-453).
+ * - `ov`: the 450.06 override push, after `{"rt":null}` or a change (@cite TG runtime.c rt_override_callback).
+ */
+const PUSHED: Readonly<Record<string, (line: string, body: JsonObject) => ClassifiedLine>> = Object.freeze({
+  hb: (line, hb) => Object.freeze({ kind: 'Heartbeat', line, hb }),
+  fs: (line, fs) => Object.freeze({ kind: 'FeedLimitSummary', line, fs, totalsShort: fs['x'] === 1 }),
+  fg: (line, fg) => Object.freeze({ kind: 'FeedGapSummary', line, fg }),
+  fl: (line, fl) => Object.freeze({ kind: 'FeedLimitEvent', line, fl }),
+  ov: (line, ov) => Object.freeze({ kind: 'OverrideReport', line, ov }),
+});
 
 /** Classify one framed line. Never throws. */
 export function classifyLine(line: string): ClassifiedLine {
@@ -72,23 +87,10 @@ export function classifyLine(line: string): ClassifiedLine {
   if (sameKeys(keys, ['ack'])) {
     return value['ack'] === true ? Object.freeze({ kind: 'Ack', line }) : garbled('bad-value', line, value);
   }
-  if (sameKeys(keys, ['hb'])) {
-    const hb = value['hb'];
-    return isObject(hb) ? Object.freeze({ kind: 'Heartbeat', line, hb }) : garbled('bad-value', line, value);
-  }
-  // Feed-limit push lines (@cite EN runtime.c:356-370, :422-453): pushed, never answers. Only the envelope is
-  // checked, as for the heartbeat: the frame is a draft that may gain fields, and nothing run decides reads it.
-  if (sameKeys(keys, ['fs'])) {
-    const fs = value['fs'];
-    return isObject(fs) ? Object.freeze({ kind: 'FeedLimitSummary', line, fs, totalsShort: fs['x'] === 1 }) : garbled('bad-value', line, value);
-  }
-  if (sameKeys(keys, ['fg'])) {
-    const fg = value['fg'];
-    return isObject(fg) ? Object.freeze({ kind: 'FeedGapSummary', line, fg }) : garbled('bad-value', line, value);
-  }
-  if (sameKeys(keys, ['fl'])) {
-    const fl = value['fl'];
-    return isObject(fl) ? Object.freeze({ kind: 'FeedLimitEvent', line, fl }) : garbled('bad-value', line, value);
+  const push = keys.length === 1 ? PUSHED[keys[0] as string] : undefined;
+  if (push !== undefined) {
+    const body = value[keys[0] as string];
+    return isObject(body) ? push(line, body) : garbled('bad-value', line, value);
   }
   // The G38.2 completion report (@cite EN cycle_probing.c:261-276): decided on `e` alone, so `e` must be exactly 0 or 1.
   if (sameKeys(keys, ['prb'])) {

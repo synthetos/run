@@ -35,6 +35,7 @@ export type {
   FeedLimitSummary,
   FeedGapSummary,
   FeedLimitEvent,
+  OverrideReport,
   ProbeReport,
   Banner,
   ClassifiedLine,
