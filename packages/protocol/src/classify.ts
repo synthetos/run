@@ -60,6 +60,12 @@ const PUSHED: Readonly<Record<string, (line: string, body: JsonObject) => Classi
   ov: (line, ov) => Object.freeze({ kind: 'OverrideReport', line, ov }),
 });
 
+/** The pushed-report builder for a one-key line. Own keys only: `constructor` or `__proto__` never reach Object.prototype. */
+function pushedFor(keys: readonly string[]): ((line: string, body: JsonObject) => ClassifiedLine) | undefined {
+  const key = keys.length === 1 ? (keys[0] as string) : '';
+  return Object.hasOwn(PUSHED, key) ? PUSHED[key] : undefined;
+}
+
 /** Classify one framed line. Never throws. */
 export function classifyLine(line: string): ClassifiedLine {
   const text = line.replace(/^[ \t]+|[ \t]+$/g, '');
@@ -87,7 +93,7 @@ export function classifyLine(line: string): ClassifiedLine {
   if (sameKeys(keys, ['ack'])) {
     return value['ack'] === true ? Object.freeze({ kind: 'Ack', line }) : garbled('bad-value', line, value);
   }
-  const push = keys.length === 1 ? PUSHED[keys[0] as string] : undefined;
+  const push = pushedFor(keys);
   if (push !== undefined) {
     const body = value[keys[0] as string];
     return isObject(body) ? push(line, body) : garbled('bad-value', line, value);

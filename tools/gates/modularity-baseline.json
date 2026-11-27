@@ -810,7 +810,7 @@
       "max-params $/FunctionDeclaration:findApproval#1": 5
     },
     "packages/protocol/src/classify.ts": {
-      "complexity $/FunctionDeclaration:classifyLine#1": 22,
+      "complexity $/FunctionDeclaration:classifyLine#1": 21,
       "complexity $/FunctionDeclaration:classifyResponse#1": 16
     },
     "packages/protocol/src/dialects/classify.ts": {

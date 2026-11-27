@@ -259,6 +259,12 @@ describe('classify: OverrideReport', () => {
     expect(garbledReason('{"ov":1}')).toBe('bad-value');
     expect(garbledReason('{"ov":{"v":1},"f":[3,0,10]}')).toBe('unrecognized-shape');
   });
+
+  it('a key that names an Object property is not a pushed report, and never throws (safety review 2026-11-26)', () => {
+    for (const key of ['constructor', 'toString', 'valueOf', 'hasOwnProperty', '__proto__']) {
+      expect(garbledReason(`{"${key}":{}}`), key).toBe('unrecognized-shape');
+    }
+  });
 });
 
 describe('classify: Text and damaged lines', () => {

@@ -125,12 +125,25 @@ export async function recoveryEntry(d: EntryDeps, auth: FlashAuthorization, port
   const ready = kept === null ? null : await authorized(kept, auth);
   if (ready !== null) return ready;
   const first = await lookFirst(d, port);
+  // Cancel or Disconnect during the first look: release what answered and stop before anything is sent to it.
+  if (!steps.wait.alive()) {
+    await releaseFirst(first);
+    return RECOVERY_CANCELLED;
+  }
   const found = first.kind === 'bootloader' ? await authorized(first.link, auth) : null;
   if (found !== null) return found;
   if (first.kind === 'firmware') return (await steps.firmware(first.transport)) ?? 'firmware';
   const link = await waitForBootloader(d, auth, port, steps.wait);
   if (link !== null) return link;
-  return steps.wait.alive() ? `The bootloader did not answer. ${entryDiagnosis(d.transcript?.events() ?? [])}` : 'Recovery was cancelled. Nothing was written.';
+  return steps.wait.alive() ? `The bootloader did not answer. ${entryDiagnosis(d.transcript?.events() ?? [])}` : RECOVERY_CANCELLED;
+}
+
+const RECOVERY_CANCELLED = 'Recovery was cancelled. Nothing was written.';
+
+/** Close the port a first look kept open (bootloader or firmware); a silent look already closed it. */
+async function releaseFirst(first: FirstLook): Promise<void> {
+  if (first.kind === 'bootloader') await first.link.close().catch(() => undefined);
+  else if (first.kind === 'firmware') await first.transport.close().catch(() => undefined);
 }
 
 /** Keep the port open and send ESC and S until the bootloader answers; reopen it when it drops. */

@@ -35,7 +35,7 @@ function rig(board: FlashableBoardOptions = {}, webSerial = false) {
   const device = new FlashableBoard({ model: { bootMs: 50, eepromWriteMs: 0 }, linkBaud: 2_000_000, eeprom: { __layout: 10002, st: 1 }, ...board });
   const endpoint = new SimEndpoint({ clock, device, link: { baudRate: 2_000_000, latencyMs: 0.2, coalesceMs: 2 } });
   const serialPort = new MockSerialPort(endpoint);
-  const source: TransportSource = { kind: 'fake', request: async () => (endpoint.connected ? webSerial ? new WebSerialTransport(serialPort) : new SimTransport(endpoint, clock, { open: 0, most: 0 }, 0) : null) };
+  const source: TransportSource = { kind: 'fake', request: async () => (endpoint.connected ? webSerial ? new WebSerialTransport(serialPort, { wait: (ms) => new Promise<void>((resolve) => clock.setTimeout(resolve, ms)) }) : new SimTransport(endpoint, clock, { open: 0, most: 0 }, 0) : null) };
   const marks = memoryBootloaderMarks();
   const host = new MachineWorkerHost(source, clock, { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/130' }, {
     file: null, origin: ORIGIN,
@@ -141,6 +141,23 @@ describe('recovery on a marked board', () => {
     expect(await r.marks.find(PORT)).toMatchObject({ boardId: 'ANOTHER-BOARD' });
     expect(r.host.session.snapshot.base).toBe('NOT_CONNECTED');
     expect(r.writes()).toEqual(['1b', '53', '0a']);
+  }, 120_000);
+});
+
+describe('Cancel during recovery’s first look (safety review 2026-11-26)', () => {
+  it('the firmware answers after Cancel: no {"boot":1}, the board stays in its firmware, the mark stays', async () => {
+    const r = rig();
+    await markedRunning(r);
+    const pages = r.board.xboot.pageWrites.length;
+    void r.host.handle(RECOVER);
+    expect(await r.until(() => r.host.flash.busy, 5_000)).toBe(true);
+    expect(await r.call({ v: 3, kind: 'flash', command: { op: 'cancel' } })).toMatchObject({ ok: true });
+    expect(await r.until(() => !r.host.flash.busy, 30_000)).toBe(true);
+    expect(r.host.flash.view?.message).toContain('Recovery was cancelled');
+    expect(r.board.state).toBe('app');
+    expect(r.board.xboot.pageWrites.length).toBe(pages);
+    expect(await r.marks.find(PORT)).not.toBeNull();
+    expect(r.host.session.snapshot.base).toBe('NOT_CONNECTED');
   }, 120_000);
 });
 
