@@ -418,7 +418,7 @@ describe('when the bootloader does not answer (bench 2, 2026-11-09)', () => {
     const view = r.host.flash.view;
     // What the owner saw, and now what came back.
     expect(view?.message).toContain('did not answer within 10 s');
-    expect(view?.message).toContain('Nothing came back');
+    expect(view?.message).toContain('Run received no bytes on the bootloader link');
     expect(view).toMatchObject({ wrote: false, recoveryOffered: true });
     // The board as the session read it before the update, for the page while the session is closed.
     expect(view?.board).toEqual({ id: 'SIM-EN-0001', hv: 99, fb: 450.01, fv: 0.97 });

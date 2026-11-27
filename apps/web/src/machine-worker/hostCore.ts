@@ -292,7 +292,8 @@ export class MachineWorkerCore {
    * Disconnect. During an update that writes it is refused.
    */
   async #close(): Promise<MachineReply> {
-    const flash = await this.#flash.freeForDisconnect();
+    // No update running: the close starts in this turn, as before (a Pause sent next meets a closing link).
+    const flash = this.#flash.busy ? await this.#flash.freeForDisconnect() : 'free';
     if (flash === 'busy') return refusal('close', 'unavailable', 'A firmware update is using the port. Let it finish.');
     const closing = this.#session.disconnect();
     ++this.#preparationId;

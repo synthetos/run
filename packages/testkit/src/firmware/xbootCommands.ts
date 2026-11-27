@@ -1,4 +1,6 @@
 /** Opcode dispatch, shared by legacy and hardened model modes. Parameters finish in XbootModel. */
+import '../marker.ts';
+
 interface Commands {
   readonly send: (bytes: number[]) => void;
   readonly pending: (op: number, need: number) => void;

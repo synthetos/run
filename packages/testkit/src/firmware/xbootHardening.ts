@@ -1,4 +1,6 @@
 /** tg-xboot e607778 src/xboot.c:353–360, 556–611, 815–848. */
+import '../marker.ts';
+
 const WRITES = new Set([0x65, 0x42, 0x63, 0x43, 0x6d, 0x44, 0x6c]);
 const COMMANDS = new Set([...'aAHebBgRcCDlxyTmdrFNQPLEptSVsh'].map((c) => c.charCodeAt(0)).concat(0x1b));
 

@@ -1,4 +1,6 @@
 /** Timing, fault and host contracts for the simulated bootloader. */
+import '../marker.ts';
+
 export interface XbootTimings {
   /** Entry window after a power-on or reset (ms). Default 4800. */
   readonly windowMs: number;

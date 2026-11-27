@@ -21,10 +21,12 @@ function rig(start: 'app' | 'bootloader' = 'bootloader', faults?: FaultPlan) {
   const board = new FlashableBoard({ start, xboot: { hardened: true } });
   const endpoint = new SimEndpoint({ clock, device: board, link: { latencyMs: 0.01 }, ...(faults === undefined ? {} : { faults }) });
   const port = new MockSerialPort(endpoint);
-  return { clock, board, endpoint, port };
+  // The close drain (WEB_SERIAL_CLOSE_DRAIN_MS) runs on this test's virtual clock, not a real timer.
+  const wait = (ms: number): Promise<void> => new Promise<void>((resolve) => clock.setTimeout(resolve, ms));
+  return { clock, board, endpoint, port, wait };
 }
 async function open(r: ReturnType<typeof rig>, port: SerialPortLike = r.port) {
-  const transport = new WebSerialTransport(port);
+  const transport = new WebSerialTransport(port, { wait: r.wait });
   const link = new BootloaderLink(transport, r.clock, X192A3);
   await drive(r.clock, link.openProbe());
   return { transport, link, client: new XbootClient(link, r.clock, X192A3) };
@@ -42,7 +44,7 @@ describe('Web Serial → bootloader link → xboot client', () => {
 
   it('closes and reopens the same port after boot=1 without pressing reset', async () => {
     const r = rig('app');
-    const app = new WebSerialTransport(r.port);
+    const app = new WebSerialTransport(r.port, { wait: r.wait });
     await drive(r.clock, app.open({ baudRate: 115200, flowControl: 'none', bufferSize: 256 }));
     await drive(r.clock, app.writeLine(new TextEncoder().encode('{"boot":1}\n')));
     await drive(r.clock, app.close());
