@@ -84,6 +84,19 @@ export const WEB_SERIAL_RTS_REFUSAL = 'Run couldn’t turn on the port’s RTS l
 /** The Arduino Due programming port, never opened (openPolicy.ts DUE_PROGRAMMING_PORT). */
 export const WEB_SERIAL_REFUSED_PORT = Object.freeze({ vendorId: 0x2341, productId: 0x003d });
 
+/**
+ * How long a close waits, after a write, before it closes the port. Web Serial resolves a write when the operating
+ * system took the bytes, not when they left the USB adapter, and closing the port drops what is still queued: on a
+ * TinyG (2026-11-26) `{"boot":1}\n` arrived as `{"boot"` and the board never reset. 250 ms covers the adapter's
+ * latency timer and the driver; at 115200 baud a 256-byte buffer drains in 23 ms.
+ */
+export const WEB_SERIAL_CLOSE_DRAIN_MS = 250;
+
+/** Optional seams: `wait` (for tests) defaults to a timer. */
+export interface WebSerialTransportOptions {
+  readonly wait?: (ms: number) => Promise<void>;
+}
+
 const LF = 0x0a;
 const CR = 0x0d;
 
@@ -196,9 +209,13 @@ export class WebSerialTransport implements Transport {
   /** Settles when the last accepted write settled; never rejects. */
   #writing: Promise<void> = Promise.resolve();
   #reader: SerialReaderLike | undefined;
+  /** True once a write reached the port since it opened: a close must then let the bytes drain. */
+  #wrote = false;
+  readonly #wait: (ms: number) => Promise<void>;
 
-  constructor(port: SerialPortLike) {
+  constructor(port: SerialPortLike, options: WebSerialTransportOptions = {}) {
     this.#port = port;
+    this.#wait = options.wait ?? ((ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
     this.#info = Object.freeze({ kind: 'serial', ...recordInfo(port.getInfo()) });
     port.addEventListener('disconnect', () => {
       this.#disconnected = true;
@@ -300,6 +317,8 @@ export class WebSerialTransport implements Transport {
       // Closing (never aborting) lets bytes already queued drain to the port.
       await writable.close().catch(() => undefined);
     }
+    // The writable closing does not mean the bytes left the adapter: closing the port now would drop them.
+    if (this.#wrote) await this.#wait(WEB_SERIAL_CLOSE_DRAIN_MS);
     const reader = this.#reader;
     if (reader !== undefined) {
       this.#reader = undefined;
@@ -330,6 +349,7 @@ export class WebSerialTransport implements Transport {
       if (writable === null) throw new Error('the port has no writable stream');
       const writer = writable.getWriter();
       try {
+        this.#wrote = true;
         await writer.write(bytes);
       } finally {
         writer.releaseLock();
