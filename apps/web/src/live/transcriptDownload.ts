@@ -33,3 +33,17 @@ export async function readTranscriptText(worker: Worker | null, call: typeof cal
   const reply = await call(worker, { v: RPC_VERSION, kind: 'transcript' }).catch(() => null);
   return reply !== null && reply.ok && reply.kind === 'transcript' ? reply.jsonl : null;
 }
+
+/**
+ * Bench only (the /console feed): the machine transcript, then the flash transcript's lines tagged `"src":"flash"`,
+ * then the entry record as one `"src":"entry"` line, so a failed update can be read on this computer.
+ */
+export async function readBenchConsoleText(worker: Worker | null, call: typeof callMachineWorker): Promise<string | null> {
+  if (worker === null) return null;
+  const reply = await call(worker, { v: RPC_VERSION, kind: 'transcript' }).catch(() => null);
+  if (reply === null || !reply.ok || reply.kind !== 'transcript') return null;
+  if (reply.flash === undefined) return reply.jsonl;
+  const flash = reply.flash.jsonl.split('\n').filter((l) => l.startsWith('{')).map((l) => `{"src":"flash",${l.slice(1)}`);
+  const entry = reply.flash.entryJson == null ? [] : [JSON.stringify({ src: 'entry', entry: JSON.parse(reply.flash.entryJson) as unknown })];
+  return [reply.jsonl.trimEnd(), ...flash, ...entry].join('\n') + '\n';
+}

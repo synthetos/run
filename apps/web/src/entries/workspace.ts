@@ -31,6 +31,7 @@ import { callMachineWorker, startMachineWorker } from '../machine-worker/client.
 import { RPC_VERSION } from '../machine-worker/rpc.ts';
 import { browserLocks, openStopChannel } from '../machine-worker/stopChannel.ts';
 import { mountLiveEntry } from '../live/mount.ts';
+import { readBenchConsoleText } from '../live/transcriptDownload.ts';
 import { renderGuarded, startStopPaths } from '../live/stopBoot.ts';
 import type { Timers } from '../live/tabStop.ts';
 import type { LiveMarkerView } from '../preview/PreviewPanel.ts';
@@ -128,7 +129,7 @@ if (channel.kind === 'bench') {
   watchBuildFreshness(document.querySelector('[data-version]'), build, { fetchHtml: fetchIndexHtml, setInterval: (fn, ms) => window.setInterval(fn, ms), clearInterval: (h) => window.clearInterval(h as number) });
   // Bench only: the wire transcript goes to the bench server's /console route, readable on this computer without the browser.
   watchConsoleFeed({
-    read: () => model.actions.value?.transcriptText() ?? Promise.resolve(null),
+    read: () => readBenchConsoleText(worker, callMachineWorker),
     post: postConsole,
     setInterval: (fn, ms) => window.setInterval(fn, ms),
     clearInterval: (h) => window.clearInterval(h as number),
